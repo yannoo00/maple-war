@@ -1,0 +1,57 @@
+@Component
+script LoadingUI extends Component
+
+    -- Full-screen loading screen. Shown (1) from the moment a room move is requested until the client is
+    -- rebuilt in the new room, and (2) on a battle map while the battle is still WAITING, i.e. until this
+    -- client has loaded the battle's resources and the server starts the battle.
+    property Entity root = "a513b80c-e1f4-4af7-8682-d8cc6bd4b2fa"
+    property TextGUIRendererComponent label = "49dc09c5-a3d4-4f25-851a-9ffa78915ec4"
+    @HideFromInspector property boolean Shown = true
+    @HideFromInspector property number Elapsed = 0
+
+    @ExecSpace("ClientOnly")
+    method void OnBeginPlay()
+        -- Starts visible: a freshly built client is either still loading or will hide it on the first update.
+        self.Shown = true
+        if isvalid(self.root) then self.root.Enable = true end
+        log("[LoadingUI] initialized")
+    end
+
+    @ExecSpace("ClientOnly")
+    method boolean ShouldShow()
+        -- Decides from synced state whether the loading screen is needed right now.
+        if _LoadingLogic:IsActive() then return true end
+        local player = _UserService.LocalPlayer
+        if not isvalid(player) then return true end
+        local map = player.CurrentMap
+        if not isvalid(map) then return true end
+        ---@type BattleDirector
+        local director = map:GetComponent("script.BattleDirector")
+        if director ~= nil then return director.State == "WAITING" end
+        ---@type PlayerData
+        local data = player:GetComponent("script.PlayerData")
+        return data == nil or data.Loaded == false
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnUpdate(number delta)
+        -- Shows or hides the screen and animates the dots while it is up.
+        local show = self:ShouldShow()
+        if show ~= self.Shown then
+            self.Shown = show
+            if isvalid(self.root) then self.root.Enable = show end
+            log("[LoadingUI] shown=" .. tostring(show))
+        end
+        if show and isvalid(self.label) then
+            self.Elapsed = self.Elapsed + delta
+            local dots = math.floor(self.Elapsed * 3) % 4
+            local text = "로딩 중" .. string.rep(".", dots)
+            if text ~= self._T.text then
+                self._T.text = text
+                self.label.Text = text
+            end
+        end
+    end
+
+end
+

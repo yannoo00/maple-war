@@ -1,0 +1,27 @@
+@Logic
+script LoadingLogic extends Logic
+
+    -- Client-only flag for "a room move was just requested": the loading screen stays up from the click
+    -- until the room move rebuilds the client (or until the hold time runs out if the server refuses).
+    property number HoldSeconds = 8
+    @HideFromInspector property number Remain = 0
+
+    @ExecSpace("ClientOnly")
+    method void Begin()
+        -- Shows the loading screen for the coming room move.
+        self.Remain = self.HoldSeconds
+    end
+
+    @ExecSpace("ClientOnly")
+    method boolean IsActive()
+        -- Returns true while a requested room move is still pending.
+        return self.Remain > 0
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnUpdate(number delta)
+        -- Counts the hold time down.
+        if self.Remain > 0 then self.Remain = self.Remain - delta end
+    end
+
+end

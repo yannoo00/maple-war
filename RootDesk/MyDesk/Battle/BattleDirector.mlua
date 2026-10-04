@@ -1,0 +1,387 @@
+@Component
+script BattleDirector extends Component
+
+    -- Runs one battle on this map. Team-neutral: it keeps the clock, fills both sides' cost,
+    -- validates and executes card requests, and decides the winner. It does not know whether
+    -- a side is driven by a player (Commander) or by a stage AI (StageAI).
+    @Sync property string State = "WAITING"
+    @Sync property integer WinnerTeam = 0
+    @Sync property integer RewardMeso = 0
+    @Sync property number AllyBaseX = 0
+    @Sync property number EnemyBaseX = 0
+    @Sync property number GroundY = -1.36
+    property string UnitModelId = "battleunit"
+    -- The battle starts when the player's client reports its resources loaded, or after this many seconds.
+    property number ReadyTimeout = 10
+    @HideFromInspector property number Elapsed = 0
+    @Sync property string StageId = ""
+    @HideFromInspector property string PlayerUserId = ""
+
+    @ExecSpace("ServerOnly")
+    method void OnBeginPlay()
+        -- Collects the two sides from the base entities and waits for the player to arrive.
+        self._T.units = {}
+        self._T.seq = 0
+        self._T.sides = {}
+        self._T.bases = {}
+        self:BindSide(1, "AllyBase")
+        self:BindSide(2, "EnemyBase")
+        self.State = "WAITING"
+        log("[BattleDirector] waiting for player")
+    end
+
+    @ExecSpace("ServerOnly")
+    method void BindSide(integer team, string entityName)
+        -- Looks up the base entity of a team and remembers its BattleSide and BattleUnit.
+        local entity = self.Entity:GetChildByName(entityName)
+        if not isvalid(entity) then
+            log_error("[BattleDirector] base entity missing: " .. entityName)
+            return
+        end
+        self._T.sides[team] = entity:GetComponent("script.BattleSide")
+        self._T.bases[team] = entity:GetComponent("script.BattleUnit")
+        if self._T.sides[team] == nil then log_error("[BattleDirector] base has no BattleSide: " .. entityName) end
+    end
+
+    @ExecSpace("ServerOnly")
+    method any GetSide(integer team)
+        -- Returns the BattleSide of a team.
+        return self._T.sides[team]
+    end
+
+    @ExecSpace("ServerOnly")
+    method any GetSideByUser(string userId)
+        -- Returns the BattleSide controlled by this user, or nil.
+        for _, side in pairs(self._T.sides) do
+            if side.ControllerUserId == userId then return side end
+        end
+        return nil
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean UpgradeCostLevel(integer team)
+        -- Raises a side's in-battle cost level while the battle is running; returns true when it went up.
+        if self.State ~= "PLAYING" then return false end
+        ---@type BattleSide
+        local side = self._T.sides[team]
+        if side == nil then return false end
+        local reason = side:UpgradeCostLevel()
+        log("[BattleDirector] cost level team=" .. tostring(team) .. " -> " .. (reason == "" and ("Lv" .. tostring(side.CostLevel) .. " max=" .. tostring(side.CostMax)) or ("refused: " .. reason)))
+        return reason == ""
+    end
+
+    @ExecSpace("ServerOnly")
+    method void TryStartForArrivedPlayer(number delta)
+        -- WAITING: prepares the battle when a player has entered this map, then starts it once that
+        -- player's client has loaded the battle resources (or the ready timeout passes).
+        if self._T.prepared == true then
+            self._T.waitTime = self._T.waitTime + delta
+            if self._T.ready == true or self._T.waitTime >= self.ReadyTimeout then
+                log("[BattleDirector] starting ready=" .. tostring(self._T.ready) .. " waited=" .. string.format("%.2f", self._T.waitTime) .. "s")
+                self:StartBattle(self.PlayerUserId, self.StageId)
+            end
+            return
+        end
+        local users = _UserService:GetUsersByMapComponent(self.Entity.MapComponent)
+        if users == nil then return end
+        for _, user in ipairs(users) do
+            if isvalid(user) and isvalid(user.PlayerComponent) then
+                -- Wait until the player's saved data (deck and unit levels) has been loaded in this room.
+                ---@type PlayerData
+                local data = user:GetComponent("script.PlayerData")
+                if data == nil or data.Loaded == false then return end
+                local userId = user.PlayerComponent.UserId
+                local stageId = _MatchService:GetEntryStage(userId)
+                if stageId == "" then stageId = "stage1" end
+                self:Prepare(userId, stageId)
+                return
+            end
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void Prepare(string userId, string stageId)
+        -- Publishes what the client needs to load this battle (stage, ground height, tower positions) and starts waiting for its ready signal.
+        self.PlayerUserId = userId
+        self.StageId = stageId
+        local stage = _BattleConfig:GetStage(stageId)
+        if stage ~= nil then self.GroundY = stage.groundY end
+        self.AllyBaseX = self._T.bases[1].Entity.TransformComponent.WorldPosition.x
+        self.EnemyBaseX = self._T.bases[2].Entity.TransformComponent.WorldPosition.x
+        self._T.prepared = true
+        self._T.ready = false
+        self._T.waitTime = 0
+        log("[BattleDirector] prepared user=" .. userId .. " stage=" .. stageId .. ", waiting for client ready")
+    end
+
+    @ExecSpace("ServerOnly")
+    method void SetPlayerReady(string userId)
+        -- The player's client finished loading the battle resources.
+        if userId ~= self.PlayerUserId then return end
+        if self._T.ready ~= true then
+            self._T.ready = true
+            log("[BattleDirector] client ready user=" .. userId)
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void StartBattle(string userId, string stageId)
+        -- Clears the field and starts a campaign battle: the user drives team 1, the stage AI drives team 2.
+        for _, unit in ipairs(self._T.units) do
+            if unit.Kind ~= "base" and isvalid(unit.Entity) then unit.Entity:Destroy() end
+        end
+        self._T.units = {}
+        -- Leave ENDED before clearing the result so clients never see "ended with no winner".
+        self.State = "WAITING"
+        self.Elapsed = 0
+        self.WinnerTeam = 0
+        self.RewardMeso = 0
+        self.StageId = stageId
+        self.PlayerUserId = userId
+
+        -- Base HP comes from the stage definition.
+        local baseCfg = _BattleConfig:GetUnitAtLevel("base", 1)
+        local stage = _BattleConfig:GetStage(stageId)
+        if stage ~= nil then
+            baseCfg.maxHp = stage.baseHp
+            -- Each stage map has its own ground height (tile sets differ).
+            self.GroundY = stage.groundY
+        else
+            log_error("[BattleDirector] unknown stage " .. stageId)
+        end
+        for team = 1, 2 do
+            local base = self._T.bases[team]
+            if base ~= nil then
+                base:Setup(team, "base", baseCfg, self, 0)
+                table.insert(self._T.units, base)
+            end
+        end
+        -- Tower positions come from the map, so towers can be moved in Maker without code changes.
+        self.AllyBaseX = self._T.bases[1].Entity.TransformComponent.WorldPosition.x
+        self.EnemyBaseX = self._T.bases[2].Entity.TransformComponent.WorldPosition.x
+
+        -- The player's side plays the deck and unit levels from their saved data.
+        ---@type PlayerData
+        local data = self:GetPlayerData(userId)
+        if data == nil then
+            log_error("[BattleDirector] player data missing for " .. userId)
+            return
+        end
+        self._T.sides[1]:Reset(1, data:GetDeckIds(), data:GetUnitLevels(), userId, false, data.CostLevelCap)
+        self._T.sides[2]:Reset(2, {}, {}, "", true, 1)
+
+        ---@type StageAI
+        local ai = self.Entity:GetComponent("script.StageAI")
+        if ai ~= nil then ai:Begin(stageId) end
+
+        self.State = "PLAYING"
+        log("[BattleDirector] battle started user=" .. userId .. " stage=" .. stageId .. " allyBaseX=" .. string.format("%.2f", self.AllyBaseX) .. " enemyBaseX=" .. string.format("%.2f", self.EnemyBaseX))
+    end
+
+    @ExecSpace("ServerOnly")
+    method any GetPlayerData(string userId)
+        -- Returns the PlayerData component of a user in this room, or nil.
+        local user = _UserService:GetUserEntityByUserId(userId)
+        if not isvalid(user) then return nil end
+        return user:GetComponent("script.PlayerData")
+    end
+
+    @ExecSpace("ServerOnly")
+    method void Restart()
+        -- Starts the same battle again after it has ended.
+        if self.State ~= "ENDED" then return end
+        self:StartBattle(self.PlayerUserId, self.StageId)
+    end
+
+    @ExecSpace("ServerOnly")
+    method void OnUpdate(number delta)
+        -- The battle clock: waits for the player, then fills both sides' cost while playing.
+        if self.State == "WAITING" then
+            self:TryStartForArrivedPlayer(delta)
+            return
+        end
+        if self.State ~= "PLAYING" then return end
+        self.Elapsed = self.Elapsed + delta
+        for _, side in pairs(self._T.sides) do side:Tick(delta) end
+    end
+
+    @ExecSpace("ServerOnly")
+    method number GetBaseX(integer team)
+        -- Returns the x position of a team's base tower.
+        if team == 1 then return self.AllyBaseX end
+        return self.EnemyBaseX
+    end
+
+    @ExecSpace("ServerOnly")
+    method integer GetDirection(integer team)
+        -- Returns the direction a team advances in: +1 for team 1 (rightwards), -1 for team 2.
+        if team == 1 then return 1 end
+        return -1
+    end
+
+    @ExecSpace("ServerOnly")
+    method number UseCard(integer team, integer slot, number targetX)
+        -- Player path: validates the deck slot against the side's cost and cooldown, then plays it.
+        -- Returns the cooldown started, or 0 when rejected.
+        if self.State ~= "PLAYING" then return 0 end
+        ---@type BattleSide
+        local side = self._T.sides[team]
+        if side == nil then return 0 end
+        local unitId = side:GetDeckIds()[slot]
+        if unitId == nil then return 0 end
+        local cfg = _BattleConfig:GetUnit(unitId)
+        if cfg == nil then return 0 end
+        local reason = side:CheckCard(slot, cfg)
+        if reason ~= "" then
+            log("[BattleDirector] team " .. tostring(team) .. " card " .. unitId .. " rejected: " .. reason)
+            return 0
+        end
+        if self:PlayUnit(team, unitId, targetX, side:GetUnitLevel(unitId)) == false then return 0 end
+        side:PayCard(slot, cfg)
+        log("[BattleDirector] team " .. tostring(team) .. " card used slot=" .. tostring(slot) .. " " .. unitId .. " cost=" .. string.format("%.0f", side.Cost))
+        return cfg.cooldown
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean PlayUnit(integer team, string unitId, number targetX, integer level)
+        -- Executes a card for a team at the given unit level, without cost/cooldown checks
+        -- (UseCard validates first; the stage AI calls this directly).
+        if self.State ~= "PLAYING" then return false end
+        local cfg = _BattleConfig:GetUnitAtLevel(unitId, level)
+        if cfg == nil then
+            log_error("[BattleDirector] unknown unit " .. unitId)
+            return false
+        end
+        local dir = self:GetDirection(team)
+        local spawnX = self:GetBaseX(team) + dir * _BattleConfig.SpawnOffsetX
+        if cfg.kind == "monster" then
+            return self:SpawnUnit(team, unitId, spawnX, cfg)
+        elseif cfg.kind == "build" then
+            -- Builds go on the team's own half: between its spawn point and the middle of the field.
+            local middle = (self.AllyBaseX + self.EnemyBaseX) * 0.5
+            local x = math.max(math.min(spawnX, middle), math.min(math.max(spawnX, middle), targetX))
+            return self:SpawnUnit(team, unitId, x, cfg)
+        elseif cfg.kind == "skill" then
+            -- The effect starts on the clients right away; the damage lands hitDelay seconds later,
+            -- at the moment the effect visually hits (SkillHitDelay in UnitTable).
+            local enemyTeam = 3 - team
+            local radius = cfg.radius * _BattleConfig.RangeScale
+            local damage = cfg.damage
+            if cfg.hitDelay > 0 then
+                _TimerService:SetTimerOnce(function()
+                    if isvalid(self.Entity) and self.State == "PLAYING" then
+                        self:CastAreaDamage(enemyTeam, targetX, radius, damage)
+                    end
+                end, cfg.hitDelay)
+            else
+                self:CastAreaDamage(enemyTeam, targetX, radius, damage)
+            end
+            return true
+        end
+        return false
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean SpawnUnit(integer team, string unitId, number spawnX, table cfg)
+        -- Spawns a monster or build at spawnX with the given (level-scaled) definition and registers it. Returns false on failure.
+        local goalBase = self._T.bases[3 - team]
+        local goalX = spawnX
+        if goalBase ~= nil then goalX = goalBase.Entity.TransformComponent.WorldPosition.x end
+
+        self._T.seq = self._T.seq + 1
+        local name = unitId .. "_" .. tostring(self._T.seq)
+        local pos = Vector3(spawnX, self.GroundY + _BattleConfig.SpawnYOffset, 0)
+        local entity = _SpawnService:SpawnByModelId(self.UnitModelId, name, pos, self.Entity)
+        if entity == nil then
+            log_error("[BattleDirector] spawn failed model=" .. self.UnitModelId)
+            return false
+        end
+        ---@type BattleUnit
+        local unit = entity:GetComponent("script.BattleUnit")
+        if unit == nil then
+            log_error("[BattleDirector] model has no BattleUnit: " .. self.UnitModelId)
+            return false
+        end
+        unit:Setup(team, unitId, cfg, self, goalX)
+        table.insert(self._T.units, unit)
+        log("[BattleDirector] spawned " .. name .. " team=" .. tostring(team) .. " x=" .. string.format("%.1f", spawnX) .. " units=" .. tostring(#self._T.units))
+        return true
+    end
+
+    @ExecSpace("ServerOnly")
+    method void CastAreaDamage(integer targetTeam, number centerX, number radius, number damage)
+        -- Damages every living monster/build of targetTeam within radius of centerX (bases are immune).
+        local hits = {}
+        for _, unit in ipairs(self._T.units) do
+            if unit.Team == targetTeam and unit.Kind ~= "base" and unit.IsDead == false and isvalid(unit.Entity) then
+                if math.abs(unit.Entity.TransformComponent.WorldPosition.x - centerX) <= radius then
+                    table.insert(hits, unit)
+                end
+            end
+        end
+        for _, unit in ipairs(hits) do unit:TakeDamage(damage) end
+        log("[BattleDirector] area damage x=" .. string.format("%.1f", centerX) .. " hits=" .. tostring(#hits))
+    end
+
+    @ExecSpace("ServerOnly")
+    method BattleUnit FindTarget(integer team, number x, number range)
+        -- Returns the nearest living target (monster / build / base) of the opposing team within range, or nil.
+        local best = nil
+        local bestDist = range
+        for _, unit in ipairs(self._T.units) do
+            if unit.Team ~= team and unit.IsDead == false and isvalid(unit.Entity) then
+                local dist = math.abs(unit.Entity.TransformComponent.WorldPosition.x - x)
+                if dist <= bestDist then
+                    best = unit
+                    bestDist = dist
+                end
+            end
+        end
+        return best
+    end
+
+    @ExecSpace("ServerOnly")
+    method void RemoveUnit(any deadUnit)
+        -- Unregisters a dead unit.
+        local units = self._T.units
+        for i = #units, 1, -1 do
+            if units[i] == deadUnit then table.remove(units, i) end
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void SettleResult()
+        -- Campaign settlement: a win pays the stage's reward and records the clear; a loss pays nothing.
+        ---@type BattleSide
+        local side = self:GetSideByUser(self.PlayerUserId)
+        ---@type PlayerData
+        local data = self:GetPlayerData(self.PlayerUserId)
+        if side == nil or data == nil then return end
+        local won = self.WinnerTeam == side.Team
+        local reward = 0
+        local stage = _BattleConfig:GetStage(self.StageId)
+        if won and stage ~= nil then reward = math.floor(stage.rewardMeso) end
+        self.RewardMeso = reward
+        data:GrantBattleResult(self.StageId, reward, won)
+    end
+
+    @ExecSpace("ServerOnly")
+    method void OnBaseDestroyed(integer team)
+        -- Ends the battle: the team whose base fell loses, the other team wins.
+        if self.State ~= "PLAYING" then return end
+        self.WinnerTeam = 3 - team
+        ---@type StageAI
+        local ai = self.Entity:GetComponent("script.StageAI")
+        if ai ~= nil then ai:Stop() end
+        for _, unit in ipairs(self._T.units) do unit:Halt() end
+        -- Settle first so the reward is already set when clients see the ENDED state.
+        self:SettleResult()
+        self.State = "ENDED"
+        log("[BattleDirector] battle ended winner=team " .. tostring(self.WinnerTeam) .. " elapsed=" .. string.format("%.1f", self.Elapsed))
+    end
+
+end
+
+
+
+

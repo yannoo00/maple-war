@@ -1,0 +1,23 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "directory://7c973585826c4eb48d9165fba8717f4a",
+  "ContentType": "x-mod/directory",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.7.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "entry_id": "directory://7c973585826c4eb48d9165fba8717f4a",
+      "name": "Commander",
+      "lock": false,
+      "folding": false,
+      "nameEditable": true
+    }
+  }
+}

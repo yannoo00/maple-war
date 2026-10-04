@@ -1,0 +1,68 @@
+@Component
+script StageAI extends Component
+
+    -- Campaign controller for one side: feeds the stage timetable into the director in place of player input.
+    -- The timetable is the authority, so its cards skip cost and cooldown checks (the side is FreePlay).
+    property integer Team = 2
+    @HideFromInspector property boolean Running = false
+    @HideFromInspector property number Elapsed = 0
+    @HideFromInspector property integer WaveIndex = 1
+    @HideFromInspector property number LoopTimer = 0
+    @HideFromInspector property number LoopInterval = 6
+    @HideFromInspector property number LoopMinInterval = 3
+
+    @ExecSpace("ServerOnly")
+    method void Begin(string stageId)
+        -- Starts playing the timetable of the given stage from time zero.
+        local stage = _BattleConfig:GetStage(stageId)
+        self._T.waves = _BattleConfig:GetStageWaves(stageId)
+        self._T.pool = {}
+        self.LoopInterval = 6
+        self.LoopMinInterval = 3
+        if stage ~= nil then
+            self._T.pool = stage.loopPool
+            self.LoopInterval = stage.loopStartInterval
+            self.LoopMinInterval = stage.loopMinInterval
+        end
+        self.Elapsed = 0
+        self.WaveIndex = 1
+        self.LoopTimer = 0
+        self.Running = true
+        log("[StageAI] begin stage=" .. stageId .. " waves=" .. tostring(#self._T.waves))
+    end
+
+    @ExecSpace("ServerOnly")
+    method void Stop()
+        -- Stops issuing cards.
+        self.Running = false
+    end
+
+    @ExecSpace("ServerOnly")
+    method void OnUpdate(number delta)
+        -- Issues the cards whose time has come, then keeps the pressure up from the loop pool.
+        if self.Running == false then return end
+        ---@type BattleDirector
+        local director = self.Entity:GetComponent("script.BattleDirector")
+        if director == nil or director.State ~= "PLAYING" then return end
+        self.Elapsed = self.Elapsed + delta
+        local waves = self._T.waves
+        if self.WaveIndex <= #waves then
+            local wave = waves[self.WaveIndex]
+            if self.Elapsed >= wave.time then
+                self.WaveIndex = self.WaveIndex + 1
+                director:PlayUnit(self.Team, wave.unitId, 0, wave.level)
+            end
+        elseif #self._T.pool > 0 then
+            self.LoopTimer = self.LoopTimer + delta
+            if self.LoopTimer >= self.LoopInterval then
+                self.LoopTimer = 0
+                self.LoopInterval = math.max(self.LoopMinInterval, self.LoopInterval - 0.3)
+                local pool = self._T.pool
+                director:PlayUnit(self.Team, pool[_UtilLogic:RandomIntegerRange(1, #pool)], 0, 1)
+            end
+        end
+    end
+
+end
+
+

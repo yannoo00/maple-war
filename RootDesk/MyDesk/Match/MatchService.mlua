@@ -1,0 +1,59 @@
+@Logic
+script MatchService extends Logic
+
+    @ExecSpace("ServerOnly")
+    method void EnterBattle(string userId, string stageId)
+        -- Lobby (static room) side: creates the user's own battle instance room, hands over the entry info, then moves the user in.
+        if _RoomService:IsInstanceRoom() then return end
+        local stage = _BattleConfig:GetStage(stageId)
+        if stage == nil then
+            log_error("[MatchService] unknown stage " .. stageId)
+            return
+        end
+        local mapName = stage.mapName
+        local key = "pve_" .. userId
+        local t0 = _UtilLogic.ElapsedSeconds
+        -- The room holds only the map of the chosen stage.
+        local room = _RoomService:CreateInstanceRoom(key, { mapName })
+        if room == nil then room = _RoomService:GetOrCreateInstanceRoom(key) end
+        local t1 = _UtilLogic.ElapsedSeconds
+        if room == nil then
+            log_error("[MatchService] instance room creation failed key=" .. key)
+            return
+        end
+        local entry = BattleEnterEvent()
+        entry.UserId = userId
+        entry.StageId = stageId
+        local code = _RoomService:RequestSendEventToRoomAndWait(entry, key)
+        local t2 = _UtilLogic.ElapsedSeconds
+        local moved = _RoomService:MoveUserToInstanceRoom(key, userId, mapName)
+        local t3 = _UtilLogic.ElapsedSeconds
+        log(string.format("[MatchService] enter key=%s stage=%s create=%.2fs send=%.2fs(code=%s) move=%.2fs moved=%s", key, stageId, t1 - t0, t2 - t1, tostring(code), t3 - t2, tostring(moved)))
+    end
+
+    @ExecSpace("ServerOnly")
+    @EventSender("Service", "RoomService")
+    handler HandleBattleEnterEvent(BattleEnterEvent event)
+        -- Battle (instance room) side: remembers which stage each arriving user asked for.
+        if self._T.entries == nil then self._T.entries = {} end
+        self._T.entries[event.UserId] = event.StageId
+        log("[MatchService] entry received room=" .. tostring(_RoomService.RoomKey) .. " user=" .. event.UserId .. " stage=" .. event.StageId)
+    end
+
+    @ExecSpace("ServerOnly")
+    method string GetEntryStage(string userId)
+        -- Returns the stage id handed over for this user, or an empty string when none arrived.
+        if self._T.entries == nil then return "" end
+        return self._T.entries[userId] or ""
+    end
+
+    @ExecSpace("ServerOnly")
+    method void LeaveBattle(string userId)
+        -- Battle (instance room) side: sends the user back to the lobby map of the static room.
+        if _RoomService:IsInstanceRoom() == false then return end
+        local t0 = _UtilLogic.ElapsedSeconds
+        local moved = _RoomService:MoveUserToStaticRoom(userId)
+        log(string.format("[MatchService] leave room=%s user=%s move=%.2fs moved=%s", tostring(_RoomService.RoomKey), userId, _UtilLogic.ElapsedSeconds - t0, tostring(moved)))
+    end
+
+end

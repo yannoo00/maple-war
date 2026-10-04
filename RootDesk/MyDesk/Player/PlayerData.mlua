@@ -1,0 +1,308 @@
+@Component
+script PlayerData extends Component
+
+    -- Server-authoritative persistent data of one player: meso, owned units with levels, deck and cleared stages.
+    -- Loaded once when the player entity appears in a room (lobby or battle instance), synced to the owner's
+    -- client only, and saved to the user's DataStorage at defined moments only:
+    -- unit purchase, level-up, deck change (debounced), battle end, and leaving the room.
+    @TargetUserSync property boolean Loaded = false
+    @TargetUserSync property integer Meso = 0
+    @TargetUserSync property string UnitsCsv = ""
+    @TargetUserSync property string DeckCsv = ""
+    @TargetUserSync property string StagesCsv = ""
+    -- Highest in-battle cost level this player may reach (raised with meso in the lobby).
+    @TargetUserSync property integer CostLevelCap = 3
+    property string StorageKey = "PlayerData"
+    property number DeckSaveDelay = 3
+    @HideFromInspector property boolean IsDirty = false
+    @HideFromInspector property integer SaveGeneration = 0
+    @HideFromInspector property integer DeckTimerId = 0
+
+    -- ===== Read helpers (server and owner client) =====
+
+    method table GetUnitLevels()
+        -- Returns owned units as a table: unit id -> level.
+        local levels = {}
+        for id, level in string.gmatch(self.UnitsCsv, "([^,:]+):(%d+)") do levels[id] = tonumber(level) end
+        return levels
+    end
+
+    method table GetDeckIds()
+        -- Returns the deck as an array of unit ids in slot order.
+        local ids = {}
+        for id in string.gmatch(self.DeckCsv, "[^,]+") do table.insert(ids, id) end
+        return ids
+    end
+
+    method boolean IsStageCleared(string stageId)
+        -- Returns true when the stage has been cleared at least once.
+        for id in string.gmatch(self.StagesCsv, "[^,]+") do
+            if id == stageId then return true end
+        end
+        return false
+    end
+
+    -- ===== Load =====
+
+    @ExecSpace("ServerOnly")
+    method void OnBeginPlay()
+        -- Loads this player's data from storage; a first-time player receives the starter set.
+        local profileCode = self.Entity.PlayerComponent.ProfileCode
+        local storage = _DataStorageService:GetUserDataStorage(profileCode)
+        local errorCode, raw = storage:GetAndWait(self.StorageKey)
+        if errorCode == 0 and raw ~= nil and raw ~= "" then
+            local data = _HttpService:JSONDecode(raw)
+            self.Meso = math.floor(data.meso or 0)
+            self.UnitsCsv = data.units or ""
+            self.DeckCsv = data.deck or ""
+            self.StagesCsv = data.stages or ""
+            self.CostLevelCap = math.max(_BattleConfig.DefaultCostLevelCap, math.floor(data.costCap or 0))
+            self:GrantMissingStarters()
+            log("[PlayerData] loaded meso=" .. tostring(self.Meso) .. " units=" .. self.UnitsCsv .. " deck=" .. self.DeckCsv .. " stages=" .. self.StagesCsv)
+        elseif errorCode == 0 or errorCode == 1000002 then
+            self:GiveStarterSet()
+            self:MarkDirty()
+            self:Save(false)
+            log("[PlayerData] new player: starter set units=" .. self.UnitsCsv .. " deck=" .. self.DeckCsv)
+        else
+            -- Never mark Loaded on a failed read: saving now would overwrite real data with defaults.
+            log_error("[PlayerData] load failed errorCode=" .. tostring(errorCode))
+            return
+        end
+        self.Loaded = true
+    end
+
+    @ExecSpace("ServerOnly")
+    method void GiveStarterSet()
+        -- Grants every starter unit at level 1 and fills the deck with the first DeckSize of them.
+        local units = {}
+        local deck = {}
+        for _, id in ipairs(_BattleConfig:GetStarterUnitIds()) do
+            table.insert(units, id .. ":1")
+            if #deck < _BattleConfig.DeckSize then table.insert(deck, id) end
+        end
+        self.Meso = 0
+        self.UnitsCsv = table.concat(units, ",")
+        self.DeckCsv = table.concat(deck, ",")
+        self.StagesCsv = ""
+        self.CostLevelCap = _BattleConfig.DefaultCostLevelCap
+    end
+
+    @ExecSpace("ServerOnly")
+    method void GrantMissingStarters()
+        -- Existing players receive starter units added to the table after their account was created.
+        local levels = self:GetUnitLevels()
+        local added = 0
+        for _, id in ipairs(_BattleConfig:GetStarterUnitIds()) do
+            if levels[id] == nil then
+                if self.UnitsCsv == "" then
+                    self.UnitsCsv = id .. ":1"
+                else
+                    self.UnitsCsv = self.UnitsCsv .. "," .. id .. ":1"
+                end
+                added = added + 1
+            end
+        end
+        if added > 0 then
+            self.Loaded = true
+            self:MarkDirty()
+            self:Save(false)
+            log("[PlayerData] granted " .. tostring(added) .. " new starter units")
+        end
+    end
+
+    -- ===== Save =====
+
+    @ExecSpace("ServerOnly")
+    method void MarkDirty()
+        -- Records that the in-memory data differs from storage.
+        self.IsDirty = true
+        self.SaveGeneration = self.SaveGeneration + 1
+    end
+
+    @ExecSpace("ServerOnly")
+    method void Save(boolean blocking)
+        -- Writes the data when it changed. blocking = true waits for storage (battle end, leaving a room).
+        if self.IsDirty == false then return end
+        if self.Loaded == false and self.UnitsCsv == "" then return end
+        local payload = _HttpService:JSONEncode({ meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, stages = self.StagesCsv, costCap = self.CostLevelCap })
+        local generation = self.SaveGeneration
+        local storage = _DataStorageService:GetUserDataStorage(self.Entity.PlayerComponent.ProfileCode)
+        if blocking then
+            local errorCode = storage:SetAndWait(self.StorageKey, payload)
+            self:OnSaved(errorCode, generation)
+        else
+            storage:SetAsync(self.StorageKey, payload, function(errorCode, key)
+                self:OnSaved(errorCode, generation)
+            end)
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void OnSaved(integer errorCode, integer generation)
+        -- Clears the dirty flag only when storage confirmed the write and nothing changed since it was serialized.
+        if errorCode ~= 0 then
+            log_error("[PlayerData] save failed errorCode=" .. tostring(errorCode))
+            return
+        end
+        if generation == self.SaveGeneration then self.IsDirty = false end
+        log("[PlayerData] saved meso=" .. tostring(self.Meso) .. " generation=" .. tostring(generation))
+    end
+
+    @ExecSpace("ServerOnly")
+    @EventSender("Service", "UserService")
+    handler HandleUserLeaveEvent(UserLeaveEvent event)
+        -- Last-chance save when this player leaves the world.
+        if event.UserId ~= self.Entity.PlayerComponent.UserId then return end
+        self:Save(true)
+    end
+
+    @ExecSpace("ServerOnly")
+    method void OnEndPlay()
+        -- Cancels a pending debounced deck save and flushes it at once when the entity leaves the room.
+        if self.DeckTimerId ~= 0 then
+            _TimerService:ClearTimer(self.DeckTimerId)
+            self.DeckTimerId = 0
+        end
+        self:Save(true)
+    end
+
+    -- ===== Mutations (server) =====
+
+    @ExecSpace("ServerOnly")
+    method void GrantBattleResult(string stageId, integer meso, boolean cleared)
+        -- Battle end: adds the reward, records a clear, and saves right away.
+        if self.Loaded == false then return end
+        if meso > 0 then self.Meso = self.Meso + meso end
+        if cleared and self:IsStageCleared(stageId) == false then
+            if self.StagesCsv == "" then
+                self.StagesCsv = stageId
+            else
+                self.StagesCsv = self.StagesCsv .. "," .. stageId
+            end
+        end
+        self:MarkDirty()
+        -- Async here: this runs inside the battle's update chain. Leaving the room flushes anything still pending.
+        self:Save(false)
+        log("[PlayerData] battle result stage=" .. stageId .. " meso+" .. tostring(meso) .. " cleared=" .. tostring(cleared) .. " total=" .. tostring(self.Meso))
+    end
+
+    @ExecSpace("ServerOnly")
+    method string BuyUnit(string unitId)
+        -- Buys a unit with meso. Returns "" on success or the reason it was refused.
+        if self.Loaded == false then return "not loaded" end
+        local cfg = _BattleConfig:GetUnit(unitId)
+        if cfg == nil or cfg.price <= 0 then return "not for sale" end
+        local levels = self:GetUnitLevels()
+        if levels[unitId] ~= nil then return "already owned" end
+        if self.Meso < cfg.price then return "not enough meso" end
+        self.Meso = self.Meso - math.floor(cfg.price)
+        if self.UnitsCsv == "" then
+            self.UnitsCsv = unitId .. ":1"
+        else
+            self.UnitsCsv = self.UnitsCsv .. "," .. unitId .. ":1"
+        end
+        self:MarkDirty()
+        self:Save(false)
+        return ""
+    end
+
+    @ExecSpace("ServerOnly")
+    method string LevelUpUnit(string unitId)
+        -- Raises an owned unit by one level with meso. Returns "" on success or the reason it was refused.
+        if self.Loaded == false then return "not loaded" end
+        local levels = self:GetUnitLevels()
+        local level = levels[unitId]
+        if level == nil then return "not owned" end
+        if level >= _BattleConfig:GetMaxLevel() then return "max level" end
+        local cost = math.floor(_BattleConfig:GetLevels()[level].upgradeCost)
+        if self.Meso < cost then return "not enough meso" end
+        self.Meso = self.Meso - cost
+        levels[unitId] = level + 1
+        -- Rebuild the csv in its existing order.
+        local parts = {}
+        for id in string.gmatch(self.UnitsCsv, "([^,:]+):%d+") do table.insert(parts, id .. ":" .. tostring(levels[id])) end
+        self.UnitsCsv = table.concat(parts, ",")
+        self:MarkDirty()
+        self:Save(false)
+        return ""
+    end
+
+    @ExecSpace("ServerOnly")
+    method string UnlockCostLevel()
+        -- Raises the in-battle cost level cap by one with meso. Returns "" on success or the reason it was refused.
+        if self.Loaded == false then return "not loaded" end
+        local nextLevel = _BattleConfig:GetCostLevels()[self.CostLevelCap + 1]
+        if nextLevel == nil then return "max level" end
+        local price = math.floor(nextLevel.unlockMeso)
+        if self.Meso < price then return "not enough meso" end
+        self.Meso = self.Meso - price
+        self.CostLevelCap = self.CostLevelCap + 1
+        self:MarkDirty()
+        self:Save(false)
+        return ""
+    end
+
+    @ExecSpace("ServerOnly")
+    method string SetDeck(table deckIds)
+        -- Replaces the deck. Units must be owned, unique, and at most DeckSize. Saved after a short debounce.
+        if self.Loaded == false then return "not loaded" end
+        if #deckIds < 1 then return "empty deck" end
+        if #deckIds > _BattleConfig.DeckSize then return "too many units" end
+        local levels = self:GetUnitLevels()
+        local seen = {}
+        for _, id in ipairs(deckIds) do
+            if levels[id] == nil then return "not owned: " .. id end
+            if seen[id] then return "duplicate: " .. id end
+            seen[id] = true
+        end
+        local csv = table.concat(deckIds, ",")
+        if csv == self.DeckCsv then return "" end
+        self.DeckCsv = csv
+        self:MarkDirty()
+        if self.DeckTimerId ~= 0 then _TimerService:ClearTimer(self.DeckTimerId) end
+        self.DeckTimerId = _TimerService:SetTimerOnce(function()
+            self.DeckTimerId = 0
+            self:Save(false)
+        end, self.DeckSaveDelay)
+        return ""
+    end
+
+    -- ===== Client requests =====
+
+    @ExecSpace("Server")
+    method void RequestBuyUnit(string unitId)
+        -- Client request: buy a unit.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        local reason = self:BuyUnit(unitId)
+        log("[PlayerData] buy " .. unitId .. " -> " .. (reason == "" and "ok" or reason) .. " meso=" .. tostring(self.Meso))
+    end
+
+    @ExecSpace("Server")
+    method void RequestLevelUp(string unitId)
+        -- Client request: level up an owned unit.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        local reason = self:LevelUpUnit(unitId)
+        log("[PlayerData] level up " .. unitId .. " -> " .. (reason == "" and "ok" or reason) .. " meso=" .. tostring(self.Meso) .. " units=" .. self.UnitsCsv)
+    end
+
+    @ExecSpace("Server")
+    method void RequestUnlockCostLevel()
+        -- Client request: raise the in-battle cost level cap.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        local reason = self:UnlockCostLevel()
+        log("[PlayerData] unlock cost level -> " .. (reason == "" and "ok" or reason) .. " cap=" .. tostring(self.CostLevelCap) .. " meso=" .. tostring(self.Meso))
+    end
+
+    @ExecSpace("Server")
+    method void RequestSetDeck(string deckCsv)
+        -- Client request: replace the deck (comma-separated unit ids).
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        local ids = {}
+        for id in string.gmatch(deckCsv, "[^,]+") do table.insert(ids, id) end
+        local reason = self:SetDeck(ids)
+        log("[PlayerData] set deck -> " .. (reason == "" and "ok" or reason) .. " deck=" .. self.DeckCsv)
+    end
+
+end
+

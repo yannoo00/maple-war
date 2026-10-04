@@ -1,0 +1,249 @@
+@Component
+script Commander extends Component
+
+    property number ScrollSpeed = 8
+    @HideFromInspector property number CamX = -16.8
+    @HideFromInspector property integer PendingSlot = 0
+
+    @ExecSpace("ClientOnly")
+    method void OnBeginPlay()
+        -- Starts the commander view on the ally base side.
+        if self.Entity ~= _UserService.LocalPlayer then return end
+        self.CamX = 0
+        self._T.camReady = false
+        log("[Commander] client ready camX=" .. tostring(self.CamX))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnUpdate(number delta)
+        -- Scrolls the camera left/right along the battlefield with A/D or the arrow keys.
+        if self.Entity ~= _UserService.LocalPlayer then return end
+        local map = self.Entity.CurrentMap
+        if not isvalid(map) then return end
+        ---@type BattleDirector
+        local director = map:GetComponent("script.BattleDirector")
+        if director == nil or director.AllyBaseX == director.EnemyBaseX then return end
+        -- Camera range: keep both towers inside the screen. If the whole field fits, min == max and the view is fixed.
+        local reach = _BattleConfig.ScreenHalfWidth - _BattleConfig.FieldMargin
+        local center = (director.AllyBaseX + director.EnemyBaseX) * 0.5
+        local camMin = math.min(center, director.AllyBaseX + reach)
+        local camMax = math.max(center, director.EnemyBaseX - reach)
+        if self._T.camReady ~= true then
+            self._T.camReady = true
+            self.CamX = camMin
+            log("[Commander] camera range " .. string.format("%.2f", camMin) .. " ~ " .. string.format("%.2f", camMax))
+        end
+        local move = 0
+        if _InputService:IsKeyPressed(KeyboardKey.A) or _InputService:IsKeyPressed(KeyboardKey.LeftArrow) then move = move - 1 end
+        if _InputService:IsKeyPressed(KeyboardKey.D) or _InputService:IsKeyPressed(KeyboardKey.RightArrow) then move = move + 1 end
+        if move ~= 0 then
+            local nextX = self.CamX + move * self.ScrollSpeed * delta
+            self.CamX = math.max(camMin, math.min(camMax, nextX))
+        end
+        local camera = self.Entity.CameraComponent
+        if isvalid(camera) then
+            local px = self.Entity.TransformComponent.WorldPosition.x
+            camera.CameraOffset = Vector2(self.CamX - px, 0)
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method any GetSideOf(boolean mine)
+        -- Client: returns the BattleSide this player controls (mine = true) or the opposing one (mine = false).
+        local map = self.Entity.CurrentMap
+        if not isvalid(map) then return nil end
+        local userId = self.Entity.PlayerComponent.UserId
+        local found = nil
+        for _, name in ipairs({ "AllyBase", "EnemyBase" }) do
+            local base = map:GetChildByName(name)
+            if isvalid(base) then
+                ---@type BattleSide
+                local side = base:GetComponent("script.BattleSide")
+                if side ~= nil and (side.ControllerUserId == userId) == mine then found = side end
+            end
+        end
+        return found
+    end
+
+    @ExecSpace("ClientOnly")
+    method any GetMySide()
+        -- Client: returns the BattleSide this player controls, or nil outside a battle.
+        return self:GetSideOf(true)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void SelectSlot(integer slot)
+        -- Plays a monster card at once; build and skill cards wait for a battlefield position.
+        ---@type BattleSide
+        local side = self:GetMySide()
+        if side == nil then return end
+        local unitId = side:GetDeckIds()[slot]
+        if unitId == nil then return end
+        local cfg = _BattleConfig:GetUnit(unitId)
+        if cfg.kind == "monster" then
+            self.PendingSlot = 0
+            self:RequestUseCard(slot, 0)
+        else
+            self.PendingSlot = slot
+            log("[Commander] targeting slot=" .. tostring(slot) .. " " .. unitId)
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    @EventSender("Service", "InputService")
+    handler HandleKeyDownEvent(KeyDownEvent event)
+        -- Number keys 1~0 select deck slots, Esc cancels targeting, R restarts after a battle ends.
+        if self.Entity ~= _UserService.LocalPlayer then return end
+        local key = event.key
+        local slotKeys = {
+            KeyboardKey.Alpha1, KeyboardKey.Alpha2, KeyboardKey.Alpha3, KeyboardKey.Alpha4, KeyboardKey.Alpha5,
+            KeyboardKey.Alpha6, KeyboardKey.Alpha7, KeyboardKey.Alpha8, KeyboardKey.Alpha9, KeyboardKey.Alpha0,
+        }
+        for slot, slotKey in ipairs(slotKeys) do
+            if key == slotKey then
+                self:SelectSlot(slot)
+                return
+            end
+        end
+        if key == KeyboardKey.Escape then
+            self.PendingSlot = 0
+        elseif key == KeyboardKey.B then
+            -- Temporary lobby input until the stage select screen exists (M2 Phase 5).
+            _LoadingLogic:Begin()
+            self:RequestEnterBattle("stage1")
+        elseif key == KeyboardKey.L then
+            _LoadingLogic:Begin()
+            self:RequestLeaveBattle()
+        elseif key == KeyboardKey.R then
+            self:RequestRestart()
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    @EventSender("Service", "InputService")
+    handler HandleScreenTouchEvent(ScreenTouchEvent event)
+        -- While targeting, a battlefield touch (not on UI) picks the position for the build or skill card.
+        if self.Entity ~= _UserService.LocalPlayer then return end
+        if self.PendingSlot == 0 then return end
+        if _InputService:IsPointerOverUI() then return end
+        local world = _UILogic:ScreenToWorldPosition(event.TouchPoint)
+        local slot = self.PendingSlot
+        self.PendingSlot = 0
+        self:RequestUseCard(slot, world.x)
+    end
+
+    @ExecSpace("Server")
+    method void RequestUpgradeCost()
+        -- Asks the battle director to raise this player's in-battle cost level.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        ---@type BattleDirector
+        local director = self:GetDirector()
+        if director == nil then return end
+        ---@type BattleSide
+        local side = director:GetSideByUser(senderUserId)
+        if side == nil then return end
+        director:UpgradeCostLevel(side.Team)
+    end
+
+    @ExecSpace("Server")
+    method void RequestUseCard(integer slot, number targetX)
+        -- Asks the battle director to play a deck card and reports the result back to this client.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        ---@type BattleDirector
+        local director = self:GetDirector()
+        if director == nil then return end
+        ---@type BattleSide
+        local side = director:GetSideByUser(senderUserId)
+        if side == nil then return end
+        local unitId = side:GetDeckIds()[slot]
+        local cooldown = director:UseCard(side.Team, slot, targetX)
+        if cooldown > 0 then
+            self:OnCardUsed(slot, unitId, targetX, cooldown, senderUserId)
+        end
+    end
+
+    @ExecSpace("Server")
+    method void RequestEnterBattle(string stageId)
+        -- Lobby only: asks for a private battle instance of the given stage.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        -- Server-side entry check: the stage must exist and its unlock stage must already be cleared.
+        local stage = _BattleConfig:GetStage(stageId)
+        if stage == nil then
+            log("[Commander] enter refused: unknown stage " .. stageId .. " user=" .. senderUserId)
+            return
+        end
+        if stage.unlockStage ~= "" then
+            ---@type PlayerData
+            local data = self.Entity:GetComponent("script.PlayerData")
+            if data == nil or data:IsStageCleared(stage.unlockStage) == false then
+                log("[Commander] enter refused: " .. stageId .. " is locked (needs " .. stage.unlockStage .. ") user=" .. senderUserId)
+                return
+            end
+        end
+        _MatchService:EnterBattle(senderUserId, stageId)
+    end
+
+    @ExecSpace("Server")
+    method void RequestLeaveBattle()
+        -- Battle only: returns this player to the lobby.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        _MatchService:LeaveBattle(senderUserId)
+    end
+
+    @ExecSpace("Server")
+    method void RequestBattleReady()
+        -- Battle only: this client has loaded the battle resources; the director may start.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        ---@type BattleDirector
+        local director = self:GetDirector()
+        if director == nil then return end
+        director:SetPlayerReady(senderUserId)
+    end
+
+    @ExecSpace("Server")
+    method void RequestRestart()
+        -- Restarts the battle once it has ended.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        local director = self:GetDirector()
+        if director == nil then return end
+        if director:GetSideByUser(senderUserId) == nil then return end
+        director:Restart()
+    end
+
+    @ExecSpace("ServerOnly")
+    method any GetDirector()
+        -- Returns the BattleDirector of the player's current map.
+        local map = self.Entity.CurrentMap
+        if not isvalid(map) then return nil end
+        local director = map:GetComponent("script.BattleDirector")
+        if director == nil then log_error("[Commander] BattleDirector not found on map") end
+        return director
+    end
+
+    @ExecSpace("Client")
+    method void OnCardUsed(integer slot, string unitId, number targetX, number cooldown)
+        -- Client-side presentation for a played card: HUD cooldown and the skill effect.
+        self._T.cooldownEnds = self._T.cooldownEnds or {}
+        self._T.cooldownEnds[slot] = _UtilLogic.ElapsedSeconds + cooldown
+        local cfg = _BattleConfig:GetUnit(unitId)
+        _BattleSound:Play("card")
+        if cfg ~= nil and cfg.kind == "skill" then
+            -- The effect is placed over the actual damage area by FieldFx.
+            _FieldFx:PlaySkillEffect(cfg, targetX)
+        end
+        log("[Commander] card used slot=" .. tostring(slot) .. " " .. unitId .. " cooldown=" .. tostring(cooldown))
+    end
+
+    @ExecSpace("ClientOnly")
+    method number GetCooldownRemain(integer slot)
+        -- Returns the remaining cooldown of a slot for the HUD.
+        local ends = self._T.cooldownEnds
+        if ends == nil or ends[slot] == nil then return 0 end
+        return math.max(0, ends[slot] - _UtilLogic.ElapsedSeconds)
+    end
+
+end
+
+
+
+

@@ -1,0 +1,69 @@
+@Logic
+script BattleSound extends Logic
+
+    property number HitMinInterval = 0.08
+
+    method table GetSounds()
+        -- Returns the sound table: key -> { ruid, volume, quiet }. Adding a sound is one line here.
+        -- quiet = true logs only the first play of that key (for sounds that fire many times a second).
+        local sounds = self._T.sounds
+        if sounds == nil then
+            sounds = {
+                bgm_battle = { ruid = "1d218b1555594e259e8dd37f205c9be0", volume = 0.35 },
+                hit = { ruid = "b5d5ccd2ae3a4adc9adc8cde1abdac0e", volume = 0.35, quiet = true },
+                card = { ruid = "87e5cd16a3ba43ab994d1ee2fcbc139a", volume = 0.6 },
+                win = { ruid = "2194bc42a2b14ecd85bc62cd2ab1872f", volume = 0.7 },
+                lose = { ruid = "9c5f07d0b623496fa8babf05dee4b941", volume = 0.7 },
+                click = { ruid = "972843e759204d3e9ad84e7d3fa94f83", volume = 0.6 },
+            }
+            self._T.sounds = sounds
+        end
+        return sounds
+    end
+
+    @ExecSpace("ClientOnly")
+    method void Play(string key)
+        -- Plays a one-shot sound by key on this client. The "hit" key is rate-limited so mass hits do not stack.
+        local sound = self:GetSounds()[key]
+        if sound == nil then
+            log_warning("[BattleSound] unknown sound key " .. key)
+            return
+        end
+        if key == "hit" then
+            local now = _UtilLogic.ElapsedSeconds
+            local last = self._T.lastHit
+            if last ~= nil and now - last < self.HitMinInterval then return end
+            self._T.lastHit = now
+        end
+        _SoundService:PlaySound(sound.ruid, sound.volume)
+        local played = self._T.played
+        if played == nil then
+            played = {}
+            self._T.played = played
+        end
+        if sound.quiet ~= true or played[key] == nil then
+            log("[BattleSound] play " .. key .. " ruid=" .. sound.ruid)
+        end
+        played[key] = true
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PlayBgm(string key)
+        -- Starts looping background music by key on this client.
+        local sound = self:GetSounds()[key]
+        if sound == nil then
+            log_warning("[BattleSound] unknown bgm key " .. key)
+            return
+        end
+        _SoundService:PlayBGM(sound.ruid, sound.volume)
+        log("[BattleSound] bgm started " .. key .. " ruid=" .. sound.ruid)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void StopBgm()
+        -- Stops the background music on this client.
+        _SoundService:StopBGM(true)
+        log("[BattleSound] bgm stopped")
+    end
+
+end

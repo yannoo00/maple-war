@@ -1,0 +1,71 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "model://battleunit",
+  "ContentType": "x-mod/model",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.7.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "Version": 1,
+      "Name": "BattleUnit",
+      "BaseModelId": null,
+      "Id": "battleunit",
+      "Components": [
+        "MOD.Core.TransformComponent",
+        "MOD.Core.SpriteRendererComponent",
+        "MOD.Core.RigidbodyComponent",
+        "MOD.Core.MovementComponent",
+        "MOD.Core.StateComponent",
+        "script.BattleUnit"
+      ],
+      "Properties": [],
+      "Values": [
+        {
+          "TargetType": "MOD.Core.SpriteRendererComponent",
+          "Name": "SpriteRUID",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": ""
+        },
+        {
+          "TargetType": "MOD.Core.SpriteRendererComponent",
+          "Name": "SortingLayer",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": "MapLayer0"
+        },
+        {
+          "TargetType": "MOD.Core.SpriteRendererComponent",
+          "Name": "OrderInLayer",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.Int32, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": 2
+        },
+        {
+          "TargetType": "MOD.Core.MovementComponent",
+          "Name": "InputSpeed",
+          "ValueType": {
+            "$type": "MODNativeType",
+            "type": "System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089"
+          },
+          "Value": 1
+        }
+      ],
+      "EventLinks": [],
+      "Children": []
+    }
+  }
+}

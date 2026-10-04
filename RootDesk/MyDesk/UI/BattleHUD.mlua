@@ -1,0 +1,404 @@
+@Component
+script BattleHUD extends Component
+
+    property Entity slot1 = "2f3c1e79-defe-4d1f-a6a3-db5bccf656f3"
+    property Entity slot2 = "edf4367e-faf0-4ddc-8a3f-83ed27a0b6b0"
+    property Entity slot3 = "9c7a19b5-2bef-43c5-9e8f-dc5961519b54"
+    property Entity slot4 = "c581ddfe-ba86-43c6-8437-8888cd7bc44e"
+    property Entity slot5 = "bc2f845e-6b01-4693-9a4a-fa32b1d49cf6"
+    property Entity slot6 = "888c3b5c-1a5c-4ed6-a18d-29c7568d1100"
+    property Entity slot7 = "52cfd3eb-c557-4426-8324-67a4261e1fe0"
+    property Entity slot8 = "82b0f23d-6b03-4ee7-88c4-2f34da84640c"
+    property Entity slot9 = "199b3cf2-5649-457e-90ad-36e2ae9b6fda"
+    property Entity slot10 = "5265fe6e-8fa6-4e58-a38d-b15e62f4e63f"
+    property TextGUIRendererComponent costText = "72569f18-c8ed-4434-a834-15eecbc46c00"
+    property Entity hintText = "f91a8765-50c0-45b7-aaa1-4958e8617766"
+    property TextGUIRendererComponent allyHpText = "7500f34a-4dbf-454b-a622-bbed41c9c0db"
+    property TextGUIRendererComponent enemyHpText = "09161ae3-a861-4ae2-8704-115070d396af"
+    property UITransformComponent allyHpFill = "f4a07fbe-c85a-4d22-a639-1d17a629f942"
+    property UITransformComponent enemyHpFill = "c7249ef5-e749-4c15-9f87-eb41e6c590a3"
+    property Entity resultPanel = "7dbea0c5-0735-4c23-91be-a514da25bba0"
+    property TextGUIRendererComponent resultTitle = "9a5c134a-9e8a-48db-8a8c-2b9b91a04a42"
+    property Entity restartButton = "5f7e38cf-9da6-47a9-ab56-153cefc9653f"
+    property TextGUIRendererComponent rewardText = "17d0fb37-ff25-42b2-8be3-a2140dd7511c"
+    property Entity lobbyButton = "177bfba2-0e4e-4206-97f5-2d4e28890fea"
+    property Entity leaveButton = "d2dd96f0-9b59-4e54-a4a6-264ae4c6a6dd"
+    property Entity costUpButton = "47981bee-9856-4688-bb7d-1f67bf65d72e"
+    property any costUpHandler = nil
+    property number HpBarWidth = 400
+    property any restartHandler = nil
+    property any lobbyHandler = nil
+    property any leaveHandler = nil
+    property table slotHandlers = {}
+
+    @ExecSpace("ClientOnly")
+    method void OnBeginPlay()
+        -- Binds the deck slots, fills the static card texts and wires the button clicks.
+        local slotEntities = {
+            self.slot1, self.slot2, self.slot3, self.slot4, self.slot5,
+            self.slot6, self.slot7, self.slot8, self.slot9, self.slot10,
+        }
+        -- Slots start empty; ApplyDeck fills them from the side this player controls.
+        local slots = {}
+        local cards = 0
+        self.slotHandlers = {}
+        for i = 1, _BattleConfig.DeckSize do
+            local entity = slotEntities[i]
+            if isvalid(entity) then
+                local cfg = nil
+                local nameEntity = entity:GetChildByName("Name")
+                local costEntity = entity:GetChildByName("Cost")
+                local dimEntity = entity:GetChildByName("Dim")
+                local cooldownEntity = entity:GetChildByName("Cooldown")
+                local iconEntity = entity:GetChildByName("Icon")
+                if isvalid(iconEntity) then iconEntity.Enable = false end
+                local slotIndex = i
+                local clickHandler = entity:ConnectEvent(ButtonClickEvent, function() self:OnSlotClicked(slotIndex) end)
+                table.insert(self.slotHandlers, { entity = entity, eventHandler = clickHandler })
+                nameEntity.TextGUIRendererComponent.Text = ""
+                costEntity.TextGUIRendererComponent.Text = ""
+                entity.ButtonComponent.Enable = false
+                dimEntity.Enable = (cfg == nil)
+                cooldownEntity.Enable = false
+                table.insert(slots, {
+                    entity = entity, nameText = nameEntity.TextGUIRendererComponent, costText = costEntity.TextGUIRendererComponent,
+                    cfg = cfg, dim = dimEntity, cooldown = cooldownEntity, icon = iconEntity,
+                    cooldownText = cooldownEntity.TextGUIRendererComponent,
+                    dimmed = (cfg == nil), shown = 0,
+                })
+            end
+        end
+        self._T.slots = slots
+        self._T.view = {}
+
+        if isvalid(self.restartButton) then
+            self.restartHandler = self.restartButton:ConnectEvent(ButtonClickEvent, self.OnRestartClicked)
+        end
+        if isvalid(self.lobbyButton) then
+            self.lobbyHandler = self.lobbyButton:ConnectEvent(ButtonClickEvent, self.OnLeaveClicked)
+        end
+        if isvalid(self.leaveButton) then
+            self.leaveHandler = self.leaveButton:ConnectEvent(ButtonClickEvent, self.OnLeaveClicked)
+            self.leaveButton.Enable = false
+        end
+        if isvalid(self.costUpButton) then
+            self.costUpHandler = self.costUpButton:ConnectEvent(ButtonClickEvent, self.OnCostUpClicked)
+            self.costUpButton.Enable = false
+        end
+        if isvalid(self.hintText) then self.hintText.Enable = false end
+        if isvalid(self.resultPanel) then self.resultPanel.Enable = false end
+        log("[BattleHUD] initialized slots=" .. tostring(#slots) .. " cards=" .. tostring(cards))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void ApplyDeck(table deckIds)
+        -- Fills the slots from a deck (array of unit ids); slots beyond the deck are emptied and disabled.
+        local cards = 0
+        local icons = 0
+        local iconPairs = {}
+        for i, slot in ipairs(self._T.slots) do
+            local cfg = nil
+            if deckIds[i] ~= nil then cfg = _BattleConfig:GetUnit(deckIds[i]) end
+            slot.cfg = cfg
+            -- Unit / skill image of the card; hidden for an empty slot or a unit without an image.
+            local iconRuid = ""
+            if cfg ~= nil then iconRuid = _BattleConfig:GetIconRuid(deckIds[i]) end
+            if isvalid(slot.icon) then
+                if iconRuid ~= "" then
+                    slot.icon.SpriteGUIRendererComponent.ImageRUID = DataRef(iconRuid)
+                    icons = icons + 1
+                    table.insert(iconPairs, deckIds[i] .. "=" .. iconRuid)
+                end
+                slot.icon.Enable = iconRuid ~= ""
+            end
+            _BattleConfig:PaintRarityFrame(slot.entity, cfg ~= nil and deckIds[i] or "")
+            if cfg ~= nil then
+                cards = cards + 1
+                slot.nameText.Text = cfg.name
+                slot.costText.Text = tostring(cfg.cost)
+            else
+                slot.nameText.Text = ""
+                slot.costText.Text = ""
+            end
+            slot.entity.ButtonComponent.Enable = cfg ~= nil
+            slot.dimmed = (cfg == nil)
+            slot.dim.Enable = slot.dimmed
+            slot.shown = 0
+            slot.cooldown.Enable = false
+        end
+        log("[BattleHUD] deck applied cards=" .. tostring(cards) .. " icons=" .. tostring(icons) .. " [" .. table.concat(iconPairs, " ") .. "]")
+    end
+
+    @ExecSpace("ClientOnly")
+    method any GetCommander()
+        -- Returns the local player's Commander component, or nil until the player exists.
+        local player = _UserService.LocalPlayer
+        if not isvalid(player) then return nil end
+        return player:GetComponent("script.Commander")
+    end
+
+    @ExecSpace("ClientOnly")
+    method any GetDirector()
+        -- Returns the BattleDirector on the battle map, or nil until the map is loaded on this client.
+        local player = _UserService.LocalPlayer
+        if not isvalid(player) then return nil end
+        local map = player.CurrentMap
+        if not isvalid(map) then return nil end
+        return map:GetComponent("script.BattleDirector")
+    end
+
+    @ExecSpace("ClientOnly")
+    method void SetHudVisible(boolean visible)
+        -- Shows or hides the battle panels; the hint and result panel stay hidden until the battle state turns them on.
+        if isvalid(self.slot1) then self.slot1.Parent:SetEnable(visible) end
+        if isvalid(self.costText) then self.costText.Entity:SetEnable(visible) end
+        if isvalid(self.allyHpText) then self.allyHpText.Entity.Parent.Parent:SetEnable(visible) end
+        if isvalid(self.leaveButton) then self.leaveButton:SetEnable(visible) end
+        if isvalid(self.costUpButton) then self.costUpButton:SetEnable(visible) end
+        if isvalid(self.hintText) then self.hintText.Enable = false end
+        if isvalid(self.resultPanel) then self.resultPanel.Enable = false end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnSlotClicked(integer slot)
+        -- Plays or selects the deck card of the clicked slot through the Commander.
+        ---@type Commander
+        local commander = self:GetCommander()
+        if commander == nil then return end
+        _BattleSound:Play("click")
+        log("[BattleHUD] slot clicked " .. tostring(slot))
+        commander:SelectSlot(slot)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnCostUpClicked()
+        -- Asks the server to raise the in-battle cost level (bigger cost cap, faster income).
+        ---@type Commander
+        local commander = self:GetCommander()
+        if commander == nil then return end
+        _BattleSound:Play("click")
+        log("[BattleHUD] cost upgrade clicked")
+        commander:RequestUpgradeCost()
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnRestartClicked()
+        -- Asks the server to restart the battle from the result panel.
+        ---@type Commander
+        local commander = self:GetCommander()
+        if commander == nil then return end
+        _BattleSound:Play("click")
+        log("[BattleHUD] restart clicked")
+        commander:RequestRestart()
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnLeaveClicked()
+        -- Asks the server to return this player to the lobby (leave button and the result panel's lobby button).
+        ---@type Commander
+        local commander = self:GetCommander()
+        if commander == nil then return end
+        _BattleSound:Play("click")
+        log("[BattleHUD] leave clicked, returning to lobby")
+        _LoadingLogic:Begin()
+        commander:RequestLeaveBattle()
+    end
+
+    @ExecSpace("ClientOnly")
+    method void SetBaseHp(TextGUIRendererComponent label, UITransformComponent fill, string title, number hp, number maxHp)
+        -- Writes one base HP readout and resizes its fill bar.
+        if isvalid(label) then
+            label.Text = title .. " " .. tostring(math.floor(hp)) .. " / " .. tostring(math.floor(maxHp))
+        end
+        if isvalid(fill) then
+            local ratio = 0
+            if maxHp > 0 then ratio = math.max(0, math.min(1, hp / maxHp)) end
+            fill.RectSize = Vector2(self.HpBarWidth * ratio, fill.RectSize.y)
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnUpdate(number delta)
+        -- Mirrors the battle state into the HUD; widgets are only written when their value changes.
+        local slots = self._T.slots
+        local view = self._T.view
+        if slots == nil or view == nil then return end
+        ---@type BattleDirector
+        local director = self:GetDirector()
+        ---@type Commander
+        local commander = self:GetCommander()
+        if commander == nil then return end
+
+        -- The HUD only shows on a map that has a BattleDirector (a battle instance), not in the lobby.
+        local inBattle = director ~= nil
+        if inBattle ~= view.inBattle then
+            self:SetHudVisible(inBattle)
+            view = { inBattle = inBattle }
+            self._T.view = view
+            if inBattle == false then _BattleSound:StopBgm() end
+            log("[BattleHUD] inBattle=" .. tostring(inBattle))
+        end
+        if inBattle == false then return end
+
+        -- Everything below is read from "my side" and "the other side", never from fixed teams.
+        ---@type BattleSide
+        local mySide = commander:GetSideOf(true)
+        ---@type BattleSide
+        local otherSide = commander:GetSideOf(false)
+        if mySide == nil or otherSide == nil then return end
+        if mySide.DeckCsv ~= view.deckCsv then
+            view.deckCsv = mySide.DeckCsv
+            self:ApplyDeck(mySide:GetDeckIds())
+        end
+
+        local state = director.State
+        if state == "ENDED" then
+            if director.WinnerTeam == mySide.Team then state = "WIN" else state = "LOSE" end
+        end
+        local cost = math.floor(mySide.Cost)
+        if cost ~= view.cost then
+            view.cost = cost
+            if isvalid(self.costText) then
+                self.costText.Text = "코스트 " .. tostring(cost) .. " / " .. tostring(math.floor(mySide.CostMax))
+            end
+            -- Cost level button: shows the level and the price of the next one; dimmed when it cannot be bought now.
+            if isvalid(self.costUpButton) then
+                local current = _BattleConfig:GetCostLevels()[mySide.CostLevel]
+                local atCap = mySide.CostLevel >= mySide.CostLevelCap or current == nil or current.upgradeCost <= 0
+                local label = "코스트 Lv " .. tostring(mySide.CostLevel)
+                local usable = false
+                if atCap then
+                    label = label .. "\n최대"
+                else
+                    label = label .. "\n강화 " .. tostring(math.floor(current.upgradeCost))
+                    usable = cost >= current.upgradeCost and state == "PLAYING"
+                end
+                if label ~= view.costUpLabel then
+                    view.costUpLabel = label
+                    self.costUpButton.TextGUIRendererComponent.Text = label
+                    log("[BattleHUD] cost level " .. tostring(mySide.CostLevel) .. "/" .. tostring(mySide.CostLevelCap) .. " max=" .. tostring(math.floor(mySide.CostMax)))
+                end
+                if usable ~= view.costUpUsable then
+                    view.costUpUsable = usable
+                    self.costUpButton.ButtonComponent.Enable = usable
+                    local dim = self.costUpButton:GetChildByName("Dim")
+                    if isvalid(dim) then dim.Enable = usable == false end
+                end
+            end
+            local step = cost // 100
+            if step ~= view.costStep then
+                view.costStep = step
+                log("[BattleHUD] cost=" .. tostring(cost))
+            end
+        end
+
+        ---@type BattleUnit
+        local myBase = mySide.Entity:GetComponent("script.BattleUnit")
+        ---@type BattleUnit
+        local otherBase = otherSide.Entity:GetComponent("script.BattleUnit")
+        local maxHp = myBase.MaxHp
+        if myBase.Hp ~= view.allyHp or maxHp ~= view.maxHp then
+            view.allyHp = myBase.Hp
+            self:SetBaseHp(self.allyHpText, self.allyHpFill, "아군 기지", view.allyHp, maxHp)
+        end
+        if otherBase.Hp ~= view.enemyHp or maxHp ~= view.maxHp then
+            view.enemyHp = otherBase.Hp
+            self:SetBaseHp(self.enemyHpText, self.enemyHpFill, "적 기지", view.enemyHp, maxHp)
+        end
+        view.maxHp = maxHp
+
+        for i, slot in ipairs(slots) do
+            if slot.cfg ~= nil then
+                local shown = math.ceil(commander:GetCooldownRemain(i))
+                if shown ~= slot.shown then
+                    if slot.shown == 0 then
+                        log("[BattleHUD] slot " .. tostring(i) .. " cooldown started " .. tostring(shown) .. "s")
+                    elseif shown == 0 then
+                        log("[BattleHUD] slot " .. tostring(i) .. " cooldown ended")
+                    end
+                    slot.shown = shown
+                    slot.cooldown.Enable = shown > 0
+                    if shown > 0 then slot.cooldownText.Text = tostring(shown) end
+                end
+                local dimmed = shown > 0 or cost < slot.cfg.cost or state ~= "PLAYING"
+                if dimmed ~= slot.dimmed then
+                    slot.dimmed = dimmed
+                    slot.dim.Enable = dimmed
+                end
+            end
+        end
+
+        local pending = commander.PendingSlot
+        if pending ~= view.pending then
+            view.pending = pending
+            if isvalid(self.hintText) then self.hintText.Enable = pending ~= 0 end
+            log("[BattleHUD] targeting hint " .. tostring(pending ~= 0) .. " slot=" .. tostring(pending))
+        end
+
+        if state ~= view.state then
+            view.state = state
+            local ended = state == "WIN" or state == "LOSE"
+            if isvalid(self.resultTitle) then
+                if state == "WIN" then
+                    self.resultTitle.Text = "승리"
+                elseif state == "LOSE" then
+                    self.resultTitle.Text = "패배"
+                end
+            end
+            if isvalid(self.resultPanel) then self.resultPanel.Enable = ended end
+            if state == "PLAYING" then
+                _BattleSound:PlayBgm("bgm_battle")
+            elseif ended then
+                _BattleSound:StopBgm()
+                if state == "WIN" then
+                    _BattleSound:Play("win")
+                else
+                    _BattleSound:Play("lose")
+                end
+            end
+            log("[BattleHUD] state=" .. state .. " resultPanel=" .. tostring(ended))
+        end
+
+        -- Earned meso line of the result panel, from the director's synced reward of the finished battle.
+        if state == "WIN" or state == "LOSE" then
+            local reward = director.RewardMeso
+            if reward ~= view.reward then
+                view.reward = reward
+                if isvalid(self.rewardText) then self.rewardText.Text = "획득 메소 +" .. tostring(reward) end
+                log("[BattleHUD] result reward shown: 획득 메소 +" .. tostring(reward))
+            end
+        else
+            view.reward = nil
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnEndPlay()
+        -- Disconnects every button click handler.
+        for _, rec in ipairs(self.slotHandlers) do
+            if isvalid(rec.entity) then rec.entity:DisconnectEvent(ButtonClickEvent, rec.eventHandler) end
+        end
+        self.slotHandlers = {}
+        if self.restartHandler ~= nil and isvalid(self.restartButton) then
+            self.restartButton:DisconnectEvent(ButtonClickEvent, self.restartHandler)
+        end
+        self.restartHandler = nil
+        if self.lobbyHandler ~= nil and isvalid(self.lobbyButton) then
+            self.lobbyButton:DisconnectEvent(ButtonClickEvent, self.lobbyHandler)
+        end
+        self.lobbyHandler = nil
+        if self.leaveHandler ~= nil and isvalid(self.leaveButton) then
+            self.leaveButton:DisconnectEvent(ButtonClickEvent, self.leaveHandler)
+        end
+        self.leaveHandler = nil
+        if self.costUpHandler ~= nil and isvalid(self.costUpButton) then
+            self.costUpButton:DisconnectEvent(ButtonClickEvent, self.costUpHandler)
+        end
+        self.costUpHandler = nil
+    end
+
+end
+
+
+
+

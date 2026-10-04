@@ -1,0 +1,253 @@
+@Logic
+script BattleFx extends Logic
+
+    property string HpBarModelId = "battlehpbar"
+    property string ProjectileModelId = "battleprojectile"
+    property integer BarCells = 16
+    property number BarHeight = 0.12
+    property number DefaultBarWidth = 0.8
+    property number DefaultBarY = 0.8
+    property number PixelUnit = 0.01
+    property number ProjectileAimY = 0.35
+
+    @ExecSpace("ClientOnly")
+    method void RegisterUnit(BattleUnit unit)
+        -- Starts tracking a battle unit on this client; its HP bar is created once its synced state arrives.
+        local recs = self._T.recs
+        if recs == nil then
+            recs = {}
+            self._T.recs = recs
+        end
+        local rec = { unit = unit, entity = unit.Entity, name = unit.Entity.Name, hitLogged = false, shotLogged = false }
+        unit._T.fx = rec
+        table.insert(recs, rec)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void UnregisterUnit(BattleUnit unit)
+        -- Stops tracking a unit that left play and removes its HP bar.
+        local rec = unit._T.fx
+        if rec == nil then return end
+        unit._T.fx = nil
+        self:RemoveBar(rec, "unit removed")
+        local recs = self._T.recs
+        if recs == nil then return end
+        for i = #recs, 1, -1 do
+            if recs[i] == rec then table.remove(recs, i) end
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void EnsureBar(table rec)
+        -- Creates the client-local HP bar entity for a unit as soon as its team, unit id and HP are known.
+        ---@type BattleUnit
+        local unit = rec.unit
+        if rec.barFailed == true or unit.Team == 0 or unit.UnitId == "" or unit.Hp <= 0 then return end
+        local cfg = _BattleConfig:GetUnit(unit.UnitId)
+        if cfg == nil then return end
+        local map = rec.entity.CurrentMap
+        if not isvalid(map) then return end
+
+        local seq = (self._T.seq or 0) + 1
+        self._T.seq = seq
+        local offsetY = (cfg.barY or self.DefaultBarY) * _BattleConfig.UnitScale
+        local pos = rec.entity.TransformComponent.WorldPosition
+        local bar = _SpawnService:SpawnByModelId(self.HpBarModelId, "HpBar_" .. tostring(seq), Vector3(pos.x, pos.y + offsetY, 0), map)
+        local pixel = nil
+        if isvalid(bar) then pixel = bar.PixelRendererComponent end
+        if not isvalid(pixel) then
+            rec.barFailed = true
+            log_error("[BattleFx] hp bar spawn failed for " .. rec.name .. " model=" .. self.HpBarModelId)
+            return
+        end
+
+        local width = self.BarCells + 2
+        local height = 4
+        pixel:ResetWithColor(width, height, Color(0, 0, 0, 0.9))
+        pixel.SortingLayer = "MapLayer0"
+        pixel.OrderInLayer = 10
+        local barWidth = (cfg.barWidth or self.DefaultBarWidth) * _BattleConfig.UnitScale
+        bar.TransformComponent.Scale = Vector3(barWidth / (width * self.PixelUnit), self.BarHeight / (height * self.PixelUnit), 1)
+
+        rec.bar = bar
+        rec.pixel = pixel
+        rec.offsetY = offsetY
+        rec.px = pos.x
+        rec.py = pos.y
+        rec.filled = nil
+        rec.lastHp = unit.Hp
+        self:DrawBar(rec)
+        log("[BattleFx] hp bar created " .. rec.name .. " team=" .. tostring(unit.Team) .. " hp=" .. tostring(unit.Hp) .. "/" .. tostring(unit.MaxHp))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void DrawBar(table rec)
+        -- Repaints the bar pixels from the unit's synced Hp / MaxHp; allies are green, enemies red.
+        local pixel = rec.pixel
+        if pixel == nil then return end
+        ---@type BattleUnit
+        local unit = rec.unit
+        local ratio = 0
+        if unit.MaxHp > 0 then ratio = math.max(0, math.min(1, unit.Hp / unit.MaxHp)) end
+        local cells = self.BarCells
+        local filled = math.ceil(ratio * cells)
+        if filled == rec.filled then return end
+        rec.filled = filled
+
+        local border = Color(0, 0, 0, 0.9)
+        local empty = Color(0.2, 0.2, 0.22, 0.9)
+        local fill = Color(0.95, 0.27, 0.22, 1)
+        if unit.Team == 1 then fill = Color(0.3, 0.9, 0.35, 1) end
+        local width = cells + 2
+        local height = 4
+        local pixels = {}
+        for y = 1, height do
+            for x = 1, width do
+                local color = border
+                if x > 1 and x < width and y > 1 and y < height then
+                    if x - 1 <= filled then
+                        color = fill
+                    else
+                        color = empty
+                    end
+                end
+                pixels[(y - 1) * width + x] = color
+            end
+        end
+        pixel:SetPixels(pixels)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void RemoveBar(table rec, string reason)
+        -- Destroys a unit's HP bar entity.
+        local bar = rec.bar
+        if bar == nil then return end
+        rec.bar = nil
+        rec.pixel = nil
+        rec.filled = nil
+        if isvalid(bar) then bar:Destroy() end
+        log("[BattleFx] hp bar removed " .. rec.name .. " (" .. reason .. ")")
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnUnitHpSync(BattleUnit unit)
+        -- Reacts to a synced Hp / MaxHp change: hit feedback when Hp dropped, bar repaint, bar removal on death.
+        local rec = unit._T.fx
+        if rec == nil or rec.bar == nil then return end
+        local hp = unit.Hp
+        local prev = rec.lastHp
+        rec.lastHp = hp
+        if prev ~= nil and hp < prev then self:PlayHit(rec, prev, hp) end
+        if hp <= 0 then
+            self:RemoveBar(rec, "dead")
+        else
+            self:DrawBar(rec)
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PlayHit(table rec, number prevHp, number hp)
+        -- Plays the hit effect at the unit and the hit sound. Only the first hit of each unit is logged.
+        local pos = rec.entity.TransformComponent.WorldPosition
+        local scale = _BattleConfig.HitEffectScale * _BattleConfig.UnitScale
+        local effectPos = Vector3(pos.x, pos.y + rec.offsetY * 0.5, 0)
+        local serial = _EffectService:PlayEffect(_BattleConfig.HitEffectRuid, rec.entity, effectPos, 0, Vector3(scale, scale, 1), false)
+        _BattleSound:Play("hit")
+        if rec.hitLogged == false then
+            rec.hitLogged = true
+            log("[BattleFx] first hit " .. rec.name .. " hp " .. tostring(prevHp) .. "->" .. tostring(hp) .. " effect=" .. tostring(serial) .. " sound=hit")
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnAttackFired(BattleUnit attacker, Entity target, number travelTime)
+        -- Spawns a client-local projectile that flies from the attacker to the target during the hit delay.
+        local cfg = _BattleConfig:GetUnit(attacker.UnitId)
+        if cfg == nil or cfg.projectileRuid == nil then return end
+        local source = attacker.Entity
+        if not isvalid(source) or not isvalid(target) then return end
+        local map = source.CurrentMap
+        if not isvalid(map) then return end
+
+        local seq = (self._T.seq or 0) + 1
+        self._T.seq = seq
+        local from = source.TransformComponent.WorldPosition
+        local to = target.TransformComponent.WorldPosition
+        local startY = from.y + (cfg.projectileY or self.ProjectileAimY) * _BattleConfig.UnitScale
+        local shot = _SpawnService:SpawnByModelId(self.ProjectileModelId, "Shot_" .. tostring(seq), Vector3(from.x, startY, 0), map)
+        if not isvalid(shot) then
+            log_error("[BattleFx] projectile spawn failed model=" .. self.ProjectileModelId)
+            return
+        end
+        -- Projectile sprites face left: flip when flying to the right.
+        local size = (cfg.projectileScale or 1) * _BattleConfig.UnitScale
+        local dir = 1
+        if to.x < from.x then dir = -1 end
+        shot.SpriteRendererComponent.SpriteRUID = cfg.projectileRuid
+        shot.TransformComponent.Scale = Vector3(-dir * size, size, 1)
+
+        local rec = attacker._T.fx
+        local logged = rec ~= nil and rec.shotLogged == false
+        if logged then
+            rec.shotLogged = true
+            log("[BattleFx] projectile spawned " .. source.Name .. " -> " .. target.Name .. " time=" .. string.format("%.2f", travelTime) .. " ruid=" .. cfg.projectileRuid)
+        end
+        local shots = self._T.shots
+        if shots == nil then
+            shots = {}
+            self._T.shots = shots
+        end
+        table.insert(shots, {
+            entity = shot, target = target, name = source.Name, logged = logged,
+            sx = from.x, sy = startY, tx = to.x, ty = to.y + self.ProjectileAimY * _BattleConfig.UnitScale,
+            elapsed = 0, duration = math.max(0.1, travelTime),
+        })
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnUpdate(number delta)
+        -- Keeps HP bars above their units and advances projectiles. Nothing is written for units that stand still.
+        local recs = self._T.recs
+        if recs ~= nil then
+            for i = #recs, 1, -1 do
+                local rec = recs[i]
+                if not isvalid(rec.entity) then
+                    self:RemoveBar(rec, "unit removed")
+                    table.remove(recs, i)
+                else
+                    if rec.bar == nil then self:EnsureBar(rec) end
+                    if rec.bar ~= nil then
+                        local pos = rec.entity.TransformComponent.WorldPosition
+                        if pos.x ~= rec.px or pos.y ~= rec.py then
+                            rec.px = pos.x
+                            rec.py = pos.y
+                            rec.bar.TransformComponent.WorldPosition = Vector3(pos.x, pos.y + rec.offsetY, 0)
+                        end
+                    end
+                end
+            end
+        end
+
+        local shots = self._T.shots
+        if shots ~= nil then
+            for i = #shots, 1, -1 do
+                local shot = shots[i]
+                shot.elapsed = shot.elapsed + delta
+                if isvalid(shot.target) then
+                    local to = shot.target.TransformComponent.WorldPosition
+                    shot.tx = to.x
+                    shot.ty = to.y + self.ProjectileAimY * _BattleConfig.UnitScale
+                end
+                local k = math.min(1, shot.elapsed / shot.duration)
+                if k >= 1 or not isvalid(shot.entity) then
+                    if isvalid(shot.entity) then shot.entity:Destroy() end
+                    if shot.logged then log("[BattleFx] projectile arrived " .. shot.name) end
+                    table.remove(shots, i)
+                else
+                    shot.entity.TransformComponent.WorldPosition = Vector3(shot.sx + (shot.tx - shot.sx) * k, shot.sy + (shot.ty - shot.sy) * k, 0)
+                end
+            end
+        end
+    end
+
+end

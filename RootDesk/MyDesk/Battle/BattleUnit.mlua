@@ -1,0 +1,221 @@
+@Component
+script BattleUnit extends Component
+
+    @Sync property integer Team = 0
+    @Sync property number MaxHp = 100
+    @Sync property number Hp = 100
+    @Sync property string UnitId = ""
+    property string Kind = "monster"
+    property number AttackPower = 10
+    property number AttackRange = 0.7
+    property number AttackInterval = 1.0
+    property number AttackPlayRate = 1.0
+    property number AttackPose = 0.35
+    property number AttackHitDelay = 0
+    property number MoveSpeed = 1.0
+    property number GoalX = 0
+    property string StandRUID = ""
+    property string MoveRUID = ""
+    property string AttackRUID = ""
+    property string DieRUID = ""
+
+    @HideFromInspector property boolean Ready = false
+    @HideFromInspector property boolean IsDead = false
+    @HideFromInspector property string Mode = ""
+    @HideFromInspector property number AttackTimer = 0
+    @HideFromInspector property number PoseTimer = 0
+    @HideFromInspector property number HitTimer = 0
+    @HideFromInspector property any PendingTarget = nil
+    @HideFromInspector property any Director = nil
+    @HideFromInspector property boolean HasProjectile = false
+
+    @ExecSpace("ServerOnly")
+    method void Setup(integer team, string unitId, table cfg, any director, number goalX)
+        -- Applies a unit definition (monster / build / base) and starts its battle behavior.
+        self.Team = team
+        self.UnitId = unitId
+        self.Kind = cfg.kind
+        self.MaxHp = cfg.maxHp
+        self.Hp = cfg.maxHp
+        self.AttackPower = cfg.attack
+        self.AttackRange = cfg.range * _BattleConfig.RangeScale
+        self.AttackInterval = cfg.attackInterval
+        self.AttackPlayRate = cfg.attackPlayRate
+        self.AttackPose = cfg.attackPose
+        self.AttackHitDelay = cfg.attackHitDelay
+        self.MoveSpeed = cfg.speed
+        self.StandRUID = cfg.standRuid
+        self.MoveRUID = cfg.moveRuid
+        self.AttackRUID = cfg.attackRuid
+        self.DieRUID = cfg.dieRuid
+        self.GoalX = goalX
+        self.Director = director
+        self.HasProjectile = cfg.projectileRuid ~= nil
+        self.IsDead = false
+        self.PendingTarget = nil
+        self.PoseTimer = 0
+        self.Mode = ""
+
+        local movement = self.Entity.MovementComponent
+        if isvalid(movement) and cfg.speed > 0 then movement.InputSpeed = cfg.speed * _BattleConfig.SpeedScale end
+
+        if cfg.kind ~= "base" then
+            -- Sprites face left by default: allies (team 1) face right, so flip Scale.x negative.
+            local dir = self:GetDirection()
+            local size = cfg.scale * _BattleConfig.UnitScale
+            self.Entity.TransformComponent.Scale = Vector3(-dir * size, size, 1)
+        end
+
+        self.Ready = true
+        if cfg.speed > 0 then
+            self:SetMode("MOVE")
+        else
+            self:SetMode("HOLD")
+        end
+        log("[BattleUnit] setup " .. self.Entity.Name .. " kind=" .. cfg.kind .. " team=" .. tostring(team) .. " hp=" .. tostring(self.Hp))
+    end
+
+    method integer GetDirection()
+        -- Returns +1 for allies (advance right) and -1 for enemies (advance left).
+        if self.Team == 1 then return 1 end
+        return -1
+    end
+
+    @ExecSpace("ServerOnly")
+    method void SetSprite(string ruid, number playRate)
+        -- Swaps the playing clip and its play rate.
+        local sprite = self.Entity.SpriteRendererComponent
+        if isvalid(sprite) and ruid ~= "" then
+            sprite.PlayRate = playRate
+            sprite.SpriteRUID = ruid
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void StopMoving()
+        -- Stops body movement when the unit has a movement component.
+        local movement = self.Entity.MovementComponent
+        if isvalid(movement) then movement:Stop() end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void SetMode(string newMode)
+        -- Switches behavior mode (MOVE / ATTACK / HOLD) and its clip.
+        if self.Mode == newMode then return end
+        self.Mode = newMode
+        if newMode == "MOVE" then
+            self:SetSprite(self.MoveRUID, 1)
+        else
+            self:StopMoving()
+            self:SetSprite(self.StandRUID, 1)
+            if newMode == "ATTACK" then self.AttackTimer = 0.3 end
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void Halt()
+        -- Freezes the unit when the battle ends.
+        self.Ready = false
+        self.PendingTarget = nil
+        self:StopMoving()
+        if self.IsDead == false then self:SetSprite(self.StandRUID, 1) end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void OnUpdate(number delta)
+        -- Advances toward the enemy base, stopping to fight any enemy target in range.
+        if self.Ready == false or self.IsDead then return end
+        local director = self.Director
+        if director == nil then return end
+
+        if self.PoseTimer > 0 then
+            self.PoseTimer = self.PoseTimer - delta
+            if self.PoseTimer <= 0 and self.Mode ~= "MOVE" then self:SetSprite(self.StandRUID, 1) end
+        end
+
+        if self.PendingTarget ~= nil then
+            self.HitTimer = self.HitTimer - delta
+            if self.HitTimer <= 0 then
+                local pending = self.PendingTarget
+                self.PendingTarget = nil
+                if pending.IsDead == false and isvalid(pending.Entity) then pending:TakeDamage(self.AttackPower) end
+            end
+        end
+
+        if self.AttackPower <= 0 then return end
+
+        local x = self.Entity.TransformComponent.WorldPosition.x
+        local dir = self:GetDirection()
+        local target = director:FindTarget(self.Team, x, self.AttackRange)
+        if target ~= nil then
+            self:SetMode("ATTACK")
+            self.AttackTimer = self.AttackTimer - delta
+            if self.AttackTimer <= 0 then
+                self.AttackTimer = self.AttackInterval
+                self.PoseTimer = self.AttackPose
+                self:SetSprite(self.AttackRUID, self.AttackPlayRate)
+                self.PendingTarget = target
+                self.HitTimer = self.AttackHitDelay
+                if self.HasProjectile then self:NotifyAttack(target.Entity, self.AttackHitDelay) end
+            end
+        elseif self.MoveSpeed <= 0 or (self.GoalX - x) * dir <= self.AttackRange then
+            self:SetMode("HOLD")
+        else
+            self:SetMode("MOVE")
+            self.Entity.MovementComponent:MoveToDirection(Vector2(dir, 0), delta)
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void TakeDamage(number amount)
+        -- Reduces HP and kills the unit at zero.
+        if self.IsDead or self.Ready == false then return end
+        self.Hp = math.max(0, self.Hp - amount)
+        if self.Hp <= 0 then self:Die() end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void Die()
+        -- Monsters and builds play the death clip and are destroyed; a base ends the battle instead.
+        self.IsDead = true
+        self.PendingTarget = nil
+        self:StopMoving()
+        local director = self.Director
+        log("[BattleUnit] " .. self.Entity.Name .. " died")
+        if self.Kind == "base" then
+            if director ~= nil then director:OnBaseDestroyed(self.Team) end
+            return
+        end
+        self:SetSprite(self.DieRUID, 1)
+        if director ~= nil then director:RemoveUnit(self) end
+        local entity = self.Entity
+        _TimerService:SetTimerOnce(function()
+            if isvalid(entity) then entity:Destroy() end
+        end, 0.6)
+    end
+
+    @ExecSpace("Multicast")
+    method void NotifyAttack(Entity target, number travelTime)
+        -- Tells every client that a ranged attack started, so it can show the projectile (visual only).
+        _BattleFx:OnAttackFired(self, target, travelTime)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnBeginPlay()
+        -- Registers this unit with the client presentation layer (HP bar, hit feedback).
+        _BattleFx:RegisterUnit(self)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnSyncProperty(string name, any value)
+        -- Forwards synced HP changes to the client presentation layer.
+        if name == "Hp" or name == "MaxHp" then _BattleFx:OnUnitHpSync(self) end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnEndPlay()
+        -- Removes this unit's client presentation when it leaves play.
+        _BattleFx:UnregisterUnit(self)
+    end
+
+end

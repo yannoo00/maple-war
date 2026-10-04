@@ -1,0 +1,520 @@
+@Component
+script LobbyUI extends Component
+
+    -- Client-only lobby screen manager: main / stage select / deck edit / shop.
+    -- One screen is visible at a time. Every screen is drawn from the local player's synced PlayerData and the
+    -- BattleConfig tables, so it survives the client rebuild that happens when the player changes rooms.
+    -- List items (stage cards, deck slots, owned unit cards, shop rows) are clones of one hidden template each,
+    -- kept in a pool and refilled from data.
+    property Entity root = "6b22638e-f8c3-4021-af16-83b6431b83d1"
+    property TextGUIRendererComponent mesoText = "199ca810-1315-4c0c-a33d-28a8e6efbc26"
+    property Entity backButton = "4275fc9b-8ee2-4be2-bb8d-3cb28b93872b"
+    property Entity mainPanel = "ab6ea8ae-7a68-43a1-be5a-6e919aa02909"
+    property Entity stagePanel = "247875af-5886-4c77-b76b-98b40878f8bb"
+    property Entity deckPanel = "e4e74826-8784-4f47-92ab-4e53a7a20ac3"
+    property Entity shopPanel = "a7de029a-43b9-4fc7-88cb-6a2da3d555fc"
+    property Entity battleButton = "1d2c2c69-98ef-47be-bca5-6b1564a542f4"
+    property Entity deckButton = "8d74687f-7c8c-4dbd-9c7b-9a39b46c9ae3"
+    property Entity shopButton = "5e5e66d8-2776-4467-9012-c6bde1fbac24"
+    property Entity stageCard = "02bc7b91-fea7-477e-96b4-140b8c9a7626"
+    property Entity enterButton = "f4d775ac-a40c-4ab9-b8ef-c4635b630560"
+    property TextGUIRendererComponent deckTitle = "000a7f11-86a6-4b27-9bcb-bd8f0f2c741c"
+    property Entity deckSlot = "2dbffcc1-1943-4ab1-899d-b11f9a873533"
+    property Entity ownedCard = "fa11ad9f-b166-4161-bdac-bf8238aad76f"
+    property Entity capButton = "978e0fec-922d-418a-a1d5-315320c528d0"
+    property Entity shopRow = "5caa3dd8-5041-415b-a902-7436445522d6"
+    @HideFromInspector property string Screen = "main"
+    @HideFromInspector property string SelectedStage = ""
+    property table clickHandlers = {}
+
+    -- ===== Setup =====
+
+    @ExecSpace("ClientOnly")
+    method void OnBeginPlay()
+        -- Hides everything until the first update decides lobby or battle, and wires the fixed buttons.
+        self.clickHandlers = {}
+        self._T.pools = {}
+        self._T.view = {}
+        self.Screen = "main"
+        self.SelectedStage = ""
+        if isvalid(self.root) then self.root.Enable = false end
+        for _, template in ipairs({ self.stageCard, self.deckSlot, self.ownedCard, self.shopRow }) do
+            if isvalid(template) then template.Enable = false end
+        end
+        self:Bind(self.battleButton, function() self:OnMenuClicked("stage") end)
+        self:Bind(self.deckButton, function() self:OnMenuClicked("deck") end)
+        self:Bind(self.shopButton, function() self:OnMenuClicked("shop") end)
+        self:Bind(self.backButton, function() self:OnBackClicked() end)
+        self:Bind(self.enterButton, function() self:OnEnterClicked() end)
+        self:Bind(self.capButton, function() self:OnCapClicked() end)
+        log("[LobbyUI] initialized handlers=" .. tostring(#self.clickHandlers))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void Bind(Entity button, any callback)
+        -- Connects a button click and remembers the handler so OnEndPlay can disconnect it.
+        if not isvalid(button) then return end
+        local clickHandler = button:ConnectEvent(ButtonClickEvent, callback)
+        table.insert(self.clickHandlers, { entity = button, eventHandler = clickHandler })
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnEndPlay()
+        -- Disconnects every button click handler.
+        for _, rec in ipairs(self.clickHandlers) do
+            if isvalid(rec.entity) then rec.entity:DisconnectEvent(ButtonClickEvent, rec.eventHandler) end
+        end
+        self.clickHandlers = {}
+    end
+
+    -- ===== Data access =====
+
+    @ExecSpace("ClientOnly")
+    method any GetData()
+        -- Returns the local player's PlayerData component, or nil until the player exists.
+        local player = _UserService.LocalPlayer
+        if not isvalid(player) then return nil end
+        return player:GetComponent("script.PlayerData")
+    end
+
+    @ExecSpace("ClientOnly")
+    method table GetOwnableUnits()
+        -- Returns the unit definitions a player can own (monster / build / skill, starter or for sale) in table order.
+        local list = self._T.ownable
+        if list ~= nil then return list end
+        list = {}
+        for _, unit in pairs(_BattleConfig:GetUnits()) do
+            local playable = unit.kind == "monster" or unit.kind == "build" or unit.kind == "skill"
+            if playable and (unit.starter or unit.price > 0) then table.insert(list, unit) end
+        end
+        table.sort(list, function(a, b) return a.order < b.order end)
+        self._T.ownable = list
+        return list
+    end
+
+    @ExecSpace("ClientOnly")
+    method string KindLabel(string kind)
+        -- Returns the display name of a unit kind.
+        if kind == "monster" then return "몬스터" end
+        if kind == "build" then return "설치물" end
+        if kind == "skill" then return "스킬" end
+        return kind
+    end
+
+    -- ===== Lobby / battle switch and change detection =====
+
+    @ExecSpace("ClientOnly")
+    method void OnUpdate(number delta)
+        -- Shows the lobby UI only on a map without a BattleDirector, and redraws when the synced player data changes.
+        local view = self._T.view
+        if view == nil then return end
+        local player = _UserService.LocalPlayer
+        if not isvalid(player) then return end
+        local map = player.CurrentMap
+        if not isvalid(map) then return end
+        local inLobby = map:GetComponent("script.BattleDirector") == nil
+        if inLobby ~= view.inLobby then
+            view.inLobby = inLobby
+            view.signature = nil
+            if isvalid(self.root) then self.root.Enable = inLobby end
+            log("[LobbyUI] inLobby=" .. tostring(inLobby) .. " map=" .. map.Name)
+            if inLobby then self:ShowScreen("main") end
+        end
+        if inLobby == false then return end
+        ---@type PlayerData
+        local data = player:GetComponent("script.PlayerData")
+        if data == nil then return end
+        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.StagesCsv .. "|" .. tostring(data.CostLevelCap)
+        if signature ~= view.signature then
+            view.signature = signature
+            log("[LobbyUI] data changed loaded=" .. tostring(data.Loaded) .. " meso=" .. tostring(data.Meso) .. " units=" .. data.UnitsCsv .. " deck=" .. data.DeckCsv .. " stages=" .. data.StagesCsv)
+            self:Render()
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void ShowScreen(string screen)
+        -- Switches to one lobby screen (main / stage / deck / shop) and draws it.
+        self.Screen = screen
+        if isvalid(self.mainPanel) then self.mainPanel.Enable = screen == "main" end
+        if isvalid(self.stagePanel) then self.stagePanel.Enable = screen == "stage" end
+        if isvalid(self.deckPanel) then self.deckPanel.Enable = screen == "deck" end
+        if isvalid(self.shopPanel) then self.shopPanel.Enable = screen == "shop" end
+        if isvalid(self.backButton) then self.backButton.Enable = screen ~= "main" end
+        log("[LobbyUI] screen=" .. screen)
+        self:Render()
+    end
+
+    @ExecSpace("ClientOnly")
+    method void Render()
+        -- Draws the meso readout and the current screen from the synced player data.
+        ---@type PlayerData
+        local data = self:GetData()
+        if data == nil then return end
+        if isvalid(self.mesoText) then
+            if data.Loaded then
+                self.mesoText.Text = "메소 " .. tostring(data.Meso)
+            else
+                self.mesoText.Text = "메소 -"
+            end
+        end
+        if data.Loaded == false then return end
+        if self.Screen == "stage" then
+            self:RenderStages(data)
+        elseif self.Screen == "deck" then
+            self:RenderDeck(data)
+        elseif self.Screen == "shop" then
+            self:RenderShop(data)
+        end
+    end
+
+    -- ===== List items =====
+
+    @ExecSpace("ClientOnly")
+    method table SyncPool(string key, Entity template, integer count, string buttonChild, any onClick)
+        -- Keeps a pool of template clones for one list: creates missing items, shows the first `count`, hides the rest.
+        -- buttonChild = "" means the item itself is the button; otherwise the named child is.
+        local pool = self._T.pools[key]
+        if pool == nil then
+            pool = {}
+            self._T.pools[key] = pool
+        end
+        while #pool < count do
+            local index = #pool + 1
+            local entity = template:Clone(key .. tostring(index))
+            local item = { entity = entity, index = index, key = "", locked = false }
+            local button = entity
+            if buttonChild ~= "" then button = entity:GetChildByName(buttonChild) end
+            item.button = button
+            self:Bind(button, function() onClick(item) end)
+            table.insert(pool, item)
+        end
+        for i, item in ipairs(pool) do
+            local shown = i <= count
+            if item.entity.Enable ~= shown then item.entity.Enable = shown end
+        end
+        return pool
+    end
+
+    @ExecSpace("ClientOnly")
+    method void SetChildText(Entity parent, string childName, string text)
+        -- Writes the text of a named child label.
+        local child = parent:GetChildByName(childName)
+        if isvalid(child) then child.TextGUIRendererComponent.Text = text end
+    end
+
+    @ExecSpace("ClientOnly")
+    method string SetChildIcon(Entity parent, string unitId)
+        -- Shows the unit / skill image in the item's "Icon" child, or hides it when there is none; returns the RUID used.
+        local child = parent:GetChildByName("Icon")
+        if not isvalid(child) then return "" end
+        local ruid = ""
+        if unitId ~= "" then ruid = _BattleConfig:GetIconRuid(unitId) end
+        if ruid ~= "" then child.SpriteGUIRendererComponent.ImageRUID = DataRef(ruid) end
+        local shown = ruid ~= ""
+        if child.Enable ~= shown then child.Enable = shown end
+        return ruid
+    end
+
+    @ExecSpace("ClientOnly")
+    method void SetChildEnable(Entity parent, string childName, boolean enable)
+        -- Shows or hides a named child (overlays such as Lock / Select / Dim).
+        local child = parent:GetChildByName(childName)
+        if isvalid(child) and child.Enable ~= enable then child.Enable = enable end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void SetButtonEnabled(Entity button, boolean enabled)
+        -- Enables or disables a button; a disabled button shows its Dim overlay.
+        if not isvalid(button) then return end
+        button.ButtonComponent.Enable = enabled
+        self:SetChildEnable(button, "Dim", enabled == false)
+    end
+
+    -- ===== Stage select =====
+
+    @ExecSpace("ClientOnly")
+    method void RenderStages(PlayerData data)
+        -- Builds one card per stage in table order: name, cleared / locked state and reward.
+        local ids = _BattleConfig:GetStageIds()
+        local items = self:SyncPool("stage", self.stageCard, #ids, "", function(item) self:OnStageCardClicked(item.key) end)
+        local states = {}
+        local selectedValid = false
+        for i, id in ipairs(ids) do
+            local stage = _BattleConfig:GetStage(id)
+            local item = items[i]
+            local unlocked = stage.unlockStage == "" or data:IsStageCleared(stage.unlockStage)
+            local cleared = data:IsStageCleared(id)
+            item.key = id
+            item.locked = unlocked == false
+            local status = "도전 가능"
+            local state = "open"
+            if item.locked then
+                status = "잠김"
+                state = "locked"
+            elseif cleared then
+                status = "클리어"
+                state = "cleared"
+            end
+            self:SetChildText(item.entity, "Name", stage.name)
+            self:SetChildText(item.entity, "Status", status)
+            self:SetChildText(item.entity, "Reward", "보상 " .. tostring(math.floor(stage.rewardMeso)) .. " 메소")
+            self:SetChildEnable(item.entity, "Lock", item.locked)
+            item.entity.ButtonComponent.Enable = unlocked
+            if id == self.SelectedStage and unlocked then selectedValid = true end
+            table.insert(states, id .. ":" .. state)
+        end
+        if selectedValid == false then self.SelectedStage = "" end
+        for i = 1, #ids do
+            self:SetChildEnable(items[i].entity, "Select", items[i].key == self.SelectedStage)
+        end
+        self:SetButtonEnabled(self.enterButton, self.SelectedStage ~= "")
+        log("[LobbyUI] stage list built count=" .. tostring(#ids) .. " states=" .. table.concat(states, ",") .. " selected=" .. self.SelectedStage)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnStageCardClicked(string stageId)
+        -- Selects an unlocked stage card; a locked stage cannot be selected.
+        ---@type PlayerData
+        local data = self:GetData()
+        local stage = _BattleConfig:GetStage(stageId)
+        if data == nil or stage == nil then return end
+        if stage.unlockStage ~= "" and data:IsStageCleared(stage.unlockStage) == false then
+            log("[LobbyUI] stage " .. stageId .. " is locked, not selected")
+            return
+        end
+        _BattleSound:Play("click")
+        self.SelectedStage = stageId
+        log("[LobbyUI] stage selected " .. stageId)
+        self:RenderStages(data)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnEnterClicked()
+        -- Asks the server to start a battle on the selected stage (the server checks the unlock again).
+        if self.SelectedStage == "" then return end
+        local player = _UserService.LocalPlayer
+        if not isvalid(player) then return end
+        ---@type Commander
+        local commander = player:GetComponent("script.Commander")
+        if commander == nil then return end
+        _BattleSound:Play("click")
+        log("[LobbyUI] enter battle requested stage=" .. self.SelectedStage)
+        _LoadingLogic:Begin()
+        commander:RequestEnterBattle(self.SelectedStage)
+    end
+
+    -- ===== Deck edit =====
+
+    @ExecSpace("ClientOnly")
+    method void RenderDeck(PlayerData data)
+        -- Draws the deck slots in slot order and one card per owned unit; units already in the deck are marked.
+        local deck = data:GetDeckIds()
+        local levels = data:GetUnitLevels()
+        local deckSize = _BattleConfig.DeckSize
+        if isvalid(self.deckTitle) then
+            self.deckTitle.Text = "덱 편성 (" .. tostring(#deck) .. " / " .. tostring(deckSize) .. ")"
+        end
+        local inDeck = {}
+        local slotIcons = 0
+        local ownedIcons = 0
+        local slots = self:SyncPool("slot", self.deckSlot, deckSize, "", function(item) self:OnDeckSlotClicked(item.index) end)
+        for i = 1, deckSize do
+            local item = slots[i]
+            local unitId = deck[i]
+            local cfg = nil
+            if unitId ~= nil then cfg = _BattleConfig:GetUnit(unitId) end
+            if cfg ~= nil then
+                inDeck[unitId] = true
+                item.key = unitId
+                self:SetChildText(item.entity, "Name", cfg.name)
+                self:SetChildText(item.entity, "Info", "Lv " .. tostring(levels[unitId] or 1) .. " · " .. tostring(math.floor(cfg.cost)))
+                if self:SetChildIcon(item.entity, unitId) ~= "" then slotIcons = slotIcons + 1 end
+                _BattleConfig:PaintRarityFrame(item.entity, unitId)
+            else
+                item.key = ""
+                self:SetChildIcon(item.entity, "")
+                _BattleConfig:PaintRarityFrame(item.entity, "")
+                self:SetChildText(item.entity, "Name", "빈 슬롯")
+                self:SetChildText(item.entity, "Info", "")
+            end
+            self:SetChildText(item.entity, "Index", tostring(i))
+            item.entity.ButtonComponent.Enable = cfg ~= nil
+        end
+        local owned = {}
+        for _, unit in ipairs(self:GetOwnableUnits()) do
+            if levels[unit.id] ~= nil then table.insert(owned, unit) end
+        end
+        local cards = self:SyncPool("owned", self.ownedCard, #owned, "", function(item) self:OnOwnedCardClicked(item.key) end)
+        for i, unit in ipairs(owned) do
+            local item = cards[i]
+            item.key = unit.id
+            self:SetChildText(item.entity, "Name", unit.name)
+            local kindText = self:KindLabel(unit.kind)
+            if inDeck[unit.id] == true then kindText = kindText .. " · 편성됨" end
+            self:SetChildText(item.entity, "Kind", kindText)
+            self:SetChildText(item.entity, "Info", "Lv " .. tostring(levels[unit.id]) .. " · 코스트 " .. tostring(math.floor(unit.cost)))
+            self:SetChildEnable(item.entity, "InDeck", inDeck[unit.id] == true)
+            if self:SetChildIcon(item.entity, unit.id) ~= "" then ownedIcons = ownedIcons + 1 end
+            _BattleConfig:PaintRarityFrame(item.entity, unit.id)
+        end
+        log("[LobbyUI] deck icons slots=" .. tostring(slotIcons) .. "/" .. tostring(#deck) .. " owned=" .. tostring(ownedIcons) .. "/" .. tostring(#owned))
+        log("[LobbyUI] deck rendered deck=" .. data.DeckCsv .. " count=" .. tostring(#deck) .. "/" .. tostring(deckSize) .. " owned=" .. tostring(#owned))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnOwnedCardClicked(string unitId)
+        -- Appends an owned unit that is not in the deck to the first empty slot and sends the new deck.
+        ---@type PlayerData
+        local data = self:GetData()
+        if data == nil or unitId == "" then return end
+        local deck = data:GetDeckIds()
+        for _, id in ipairs(deck) do
+            if id == unitId then
+                log("[LobbyUI] " .. unitId .. " is already in the deck")
+                return
+            end
+        end
+        if #deck >= _BattleConfig.DeckSize then
+            log("[LobbyUI] deck is full, " .. unitId .. " not added")
+            return
+        end
+        _BattleSound:Play("click")
+        table.insert(deck, unitId)
+        local csv = table.concat(deck, ",")
+        log("[LobbyUI] deck change sent (add " .. unitId .. ") csv=" .. csv)
+        data:RequestSetDeck(csv)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnDeckSlotClicked(integer slot)
+        -- Removes the unit in the clicked deck slot and sends the new deck; the last unit cannot be removed.
+        ---@type PlayerData
+        local data = self:GetData()
+        if data == nil then return end
+        local deck = data:GetDeckIds()
+        local unitId = deck[slot]
+        if unitId == nil then return end
+        if #deck <= 1 then
+            log("[LobbyUI] the deck needs at least one unit, " .. unitId .. " kept")
+            return
+        end
+        _BattleSound:Play("click")
+        table.remove(deck, slot)
+        local csv = table.concat(deck, ",")
+        log("[LobbyUI] deck change sent (remove " .. unitId .. " slot " .. tostring(slot) .. ") csv=" .. csv)
+        data:RequestSetDeck(csv)
+    end
+
+    -- ===== Shop and upgrade =====
+
+    @ExecSpace("ClientOnly")
+    method void RenderShop(PlayerData data)
+        -- Draws one row per ownable unit: owned units offer a level-up, the others a purchase.
+        local units = self:GetOwnableUnits()
+        local levels = data:GetUnitLevels()
+        local levelTable = _BattleConfig:GetLevels()
+        local maxLevel = _BattleConfig:GetMaxLevel()
+        -- In-battle cost level cap: one button that unlocks the next level with meso.
+        if isvalid(self.capButton) then
+            local nextLevel = _BattleConfig:GetCostLevels()[data.CostLevelCap + 1]
+            local capLabel = "코스트 레벨 한도 Lv " .. tostring(data.CostLevelCap)
+            local capEnabled = false
+            if nextLevel == nil then
+                capLabel = capLabel .. " (최대)"
+            else
+                capLabel = capLabel .. " → " .. tostring(data.CostLevelCap + 1) .. " · " .. tostring(math.floor(nextLevel.unlockMeso)) .. " 메소"
+                capEnabled = data.Meso >= nextLevel.unlockMeso
+            end
+            self.capButton.TextGUIRendererComponent.Text = capLabel
+            self:SetButtonEnabled(self.capButton, capEnabled)
+            log("[LobbyUI] cost cap button: " .. capLabel .. " enabled=" .. tostring(capEnabled))
+        end
+        local rows = self:SyncPool("shop", self.shopRow, #units, "Action", function(item) self:OnShopActionClicked(item.key) end)
+        local summary = {}
+        local icons = 0
+        local iconSamples = {}
+        for i, unit in ipairs(units) do
+            local item = rows[i]
+            item.key = unit.id
+            local iconRuid = self:SetChildIcon(item.entity, unit.id)
+            _BattleConfig:PaintRarityFrame(item.entity, unit.id)
+            if iconRuid ~= "" then icons = icons + 1 end
+            if i <= 2 or unit.kind == "skill" then table.insert(iconSamples, unit.id .. "=" .. iconRuid) end
+            local level = levels[unit.id]
+            local label = ""
+            local enabled = false
+            self:SetChildText(item.entity, "Name", unit.name)
+            self:SetChildText(item.entity, "Kind", self:KindLabel(unit.kind) .. " · 코스트 " .. tostring(math.floor(unit.cost)))
+            if level ~= nil then
+                self:SetChildText(item.entity, "Level", "Lv " .. tostring(level))
+                if level >= maxLevel then
+                    label = "최대 레벨"
+                else
+                    local cost = math.floor(levelTable[level].upgradeCost)
+                    label = "레벨업 " .. tostring(cost) .. " 메소"
+                    enabled = data.Meso >= cost
+                end
+            else
+                self:SetChildText(item.entity, "Level", "미보유")
+                if unit.price > 0 then
+                    label = "구매 " .. tostring(math.floor(unit.price)) .. " 메소"
+                    enabled = data.Meso >= unit.price
+                else
+                    label = "구매 불가"
+                end
+            end
+            item.button.TextGUIRendererComponent.Text = label
+            self:SetButtonEnabled(item.button, enabled)
+            table.insert(summary, unit.id .. "=" .. (level ~= nil and ("Lv" .. tostring(level)) or "none") .. (enabled and "+" or "-"))
+        end
+        log("[LobbyUI] shop icons " .. tostring(icons) .. "/" .. tostring(#units) .. " " .. table.concat(iconSamples, " "))
+        log("[LobbyUI] shop rendered rows=" .. tostring(#units) .. " meso=" .. tostring(data.Meso) .. " [" .. table.concat(summary, " ") .. "]")
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnCapClicked()
+        -- Sends a request to raise the in-battle cost level cap with meso.
+        ---@type PlayerData
+        local data = self:GetData()
+        if data == nil then return end
+        _BattleSound:Play("click")
+        log("[LobbyUI] cost cap unlock requested")
+        data:RequestUnlockCostLevel()
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnShopActionClicked(string unitId)
+        -- Sends a level-up request for an owned unit, or a purchase request for one that is not owned.
+        ---@type PlayerData
+        local data = self:GetData()
+        if data == nil or unitId == "" then return end
+        _BattleSound:Play("click")
+        if data:GetUnitLevels()[unitId] ~= nil then
+            log("[LobbyUI] level-up requested " .. unitId .. " meso=" .. tostring(data.Meso))
+            data:RequestLevelUp(unitId)
+        else
+            log("[LobbyUI] purchase requested " .. unitId .. " meso=" .. tostring(data.Meso))
+            data:RequestBuyUnit(unitId)
+        end
+    end
+
+    -- ===== Navigation =====
+
+    @ExecSpace("ClientOnly")
+    method void OnMenuClicked(string screen)
+        -- Main menu button: opens the stage select, deck or shop screen.
+        _BattleSound:Play("click")
+        self:ShowScreen(screen)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnBackClicked()
+        -- Back button: returns to the lobby main screen.
+        _BattleSound:Play("click")
+        self:ShowScreen("main")
+    end
+
+end
+
+

@@ -1,0 +1,97 @@
+@Component
+script BattleSide extends Component
+
+    -- One side of a battle. Lives on that side's base entity next to its BattleUnit.
+    -- Holds everything a controller (a player or a stage AI) plays with: deck, cost and cooldowns.
+    @Sync property integer Team = 0
+    @Sync property string ControllerUserId = ""
+    @Sync property string DeckCsv = ""
+    @Sync property number Cost = 0
+    @Sync property number CostMax = 0
+    -- In-battle cost level: starts at 1 every battle, raised by paying cost, up to the player's unlocked cap.
+    @Sync property integer CostLevel = 1
+    @Sync property integer CostLevelCap = 1
+    property boolean FreePlay = false
+
+    method table GetDeckIds()
+        -- Returns the deck as an array of unit ids (slot order). Usable on server and client.
+        local ids = {}
+        for id in string.gmatch(self.DeckCsv, "[^,]+") do table.insert(ids, id) end
+        return ids
+    end
+
+    @ExecSpace("ServerOnly")
+    method void Reset(integer team, table deckIds, table unitLevels, string controllerUserId, boolean freePlay, integer costLevelCap)
+        -- Prepares the side for a new battle. unitLevels maps unit id -> level for the deck's units;
+        -- costLevelCap is the highest in-battle cost level this side may reach.
+        self.Team = team
+        self.ControllerUserId = controllerUserId
+        self.FreePlay = freePlay
+        self.DeckCsv = table.concat(deckIds, ",")
+        self.Cost = _BattleConfig.CostStart
+        local costLevels = _BattleConfig:GetCostLevels()
+        self.CostLevel = 1
+        self.CostLevelCap = math.max(1, math.min(#costLevels, costLevelCap))
+        self.CostMax = costLevels[1].costMax
+        self._T.regenRate = costLevels[1].regenRate
+        self._T.cooldowns = {}
+        self._T.levels = unitLevels
+        log("[BattleSide] reset team=" .. tostring(team) .. " controller=" .. (controllerUserId ~= "" and controllerUserId or "AI") .. " deck=" .. self.DeckCsv)
+    end
+
+    @ExecSpace("ServerOnly")
+    method integer GetUnitLevel(string unitId)
+        -- Returns the level this side plays the unit at (1 when unknown).
+        local levels = self._T.levels
+        if levels == nil or levels[unitId] == nil then return 1 end
+        return levels[unitId]
+    end
+
+    @ExecSpace("ServerOnly")
+    method void Tick(number delta)
+        -- Cost income and cooldown countdown, driven by the director's clock.
+        self.Cost = math.min(self.CostMax, self.Cost + _BattleConfig.CostPerSecond * (self._T.regenRate or 1) * delta)
+        local cooldowns = self._T.cooldowns
+        if cooldowns == nil then return end
+        for slot, remain in pairs(cooldowns) do
+            if remain > 0 then cooldowns[slot] = remain - delta end
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method string UpgradeCostLevel()
+        -- Pays cost to raise the in-battle cost level by one (bigger cap, faster income).
+        -- Returns "" on success or the reason it was refused.
+        local costLevels = _BattleConfig:GetCostLevels()
+        local current = costLevels[self.CostLevel]
+        local nextLevel = costLevels[self.CostLevel + 1]
+        if current == nil or nextLevel == nil then return "max level" end
+        if self.CostLevel >= self.CostLevelCap then return "cap " .. tostring(self.CostLevelCap) end
+        if self.Cost < current.upgradeCost then return "cost " .. string.format("%.0f", self.Cost) .. "/" .. tostring(current.upgradeCost) end
+        self.Cost = self.Cost - current.upgradeCost
+        self.CostLevel = self.CostLevel + 1
+        self.CostMax = nextLevel.costMax
+        self._T.regenRate = nextLevel.regenRate
+        return ""
+    end
+
+    @ExecSpace("ServerOnly")
+    method string CheckCard(integer slot, table cfg)
+        -- Returns "" when the slot's card may be played now, otherwise the reason it is rejected.
+        if self.FreePlay then return "" end
+        local remain = self._T.cooldowns[slot]
+        if remain ~= nil and remain > 0 then return "cooldown " .. string.format("%.1f", remain) end
+        if self.Cost < cfg.cost then return "cost " .. string.format("%.0f", self.Cost) .. "/" .. tostring(cfg.cost) end
+        return ""
+    end
+
+    @ExecSpace("ServerOnly")
+    method void PayCard(integer slot, table cfg)
+        -- Charges the card's cost and starts its cooldown.
+        if self.FreePlay then return end
+        self.Cost = self.Cost - cfg.cost
+        self._T.cooldowns[slot] = cfg.cooldown
+    end
+
+end
+

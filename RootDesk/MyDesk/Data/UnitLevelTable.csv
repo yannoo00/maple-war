@@ -1,0 +1,11 @@
+﻿Level,StatRate,UpgradeCost,#Memo
+1,1.0,100,"StatRate는 HP·공격력·스킬 피해 배율, UpgradeCost는 이 레벨에서 다음 레벨로 올리는 메소"
+2,1.1,200,"StatRate는 HP·공격력·스킬 피해 배율, UpgradeCost는 이 레벨에서 다음 레벨로 올리는 메소"
+3,1.2,300,"StatRate는 HP·공격력·스킬 피해 배율, UpgradeCost는 이 레벨에서 다음 레벨로 올리는 메소"
+4,1.3,400,"StatRate는 HP·공격력·스킬 피해 배율, UpgradeCost는 이 레벨에서 다음 레벨로 올리는 메소"
+5,1.4,500,"StatRate는 HP·공격력·스킬 피해 배율, UpgradeCost는 이 레벨에서 다음 레벨로 올리는 메소"
+6,1.5,600,"StatRate는 HP·공격력·스킬 피해 배율, UpgradeCost는 이 레벨에서 다음 레벨로 올리는 메소"
+7,1.6,700,"StatRate는 HP·공격력·스킬 피해 배율, UpgradeCost는 이 레벨에서 다음 레벨로 올리는 메소"
+8,1.7,800,"StatRate는 HP·공격력·스킬 피해 배율, UpgradeCost는 이 레벨에서 다음 레벨로 올리는 메소"
+9,1.8,900,"StatRate는 HP·공격력·스킬 피해 배율, UpgradeCost는 이 레벨에서 다음 레벨로 올리는 메소"
+10,1.9,1000,"StatRate는 HP·공격력·스킬 피해 배율, UpgradeCost는 이 레벨에서 다음 레벨로 올리는 메소"

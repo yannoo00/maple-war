@@ -1,0 +1,7 @@
+@Event
+script BattleEnterEvent extends EventType
+
+    property string UserId = ""
+    property string StageId = ""
+
+end

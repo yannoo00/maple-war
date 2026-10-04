@@ -1,0 +1,288 @@
+@Logic
+script BattleConfig extends Logic
+
+    -- Read-only access point for battle definitions. Unit, level, stage and wave data live in the
+    -- datasets under Data/ (UnitTable, UnitLevelTable, StageTable, StageWaveTable); this script only
+    -- loads and caches them. World-wide tuning knobs stay here as properties.
+    -- Fallback ground height; each stage map has its own in StageTable (GroundY), exposed as BattleDirector.GroundY.
+    property number GroundY = -1.36
+    -- Units appear standing at the spawn portal, just above the ground (no drop from the air).
+    property number SpawnYOffset = 0.03
+    -- Global scale knobs. Unit sizes, distances and speeds in the unit table are authored at scale 1
+    -- and multiplied by these, so the whole battlefield can be resized with three numbers.
+    property number UnitScale = 0.65
+    property number RangeScale = 0.65
+    property number SpeedScale = 0.5
+    -- Units spawn this far in front of their base tower. Tower positions are read from the map entities.
+    property number SpawnOffsetX = 1.0
+    -- Half of the visible screen width in world units (PC) and the margin kept outside each tower.
+    property number ScreenHalfWidth = 6.4
+    property number FieldMargin = 1.0
+    -- Cost at battle start and base income per second. The cost cap and the income multiplier come from
+    -- the side's in-battle cost level (CostLevelTable). DefaultCostLevelCap is how far a new player can upgrade.
+    property number CostStart = 100
+    property number CostPerSecond = 20
+    property integer DefaultCostLevelCap = 3
+    property integer DeckSize = 10
+    -- Presentation only (client): generic hit effect played where a unit loses HP.
+    property string HitEffectRuid = "5b8906410c264922affb37fd5b5280e2"
+    property number HitEffectScale = 0.7
+
+    method number Num(string text, number fallback)
+        -- Converts a dataset cell to a number; blank or invalid cells give the fallback.
+        if text == nil or text == "" then return fallback end
+        return tonumber(text) or fallback
+    end
+
+    method any OptNum(string text)
+        -- Converts an optional dataset cell to a number, or nil when the cell is blank.
+        if text == nil or text == "" then return nil end
+        return tonumber(text)
+    end
+
+    method any OptText(string text)
+        -- Returns an optional dataset cell, or nil when the cell is blank.
+        if text == nil or text == "" then return nil end
+        return text
+    end
+
+    method table GetUnits()
+        -- Returns every unit definition keyed by unit id (monster / build / skill / base), loaded once from UnitTable.
+        -- Optional presentation fields (client only): barY / barWidth, projectileRuid / projectileScale, effectRuid / effectScale.
+        local units = self._T.units
+        if units ~= nil then return units end
+        units = {}
+        local ds = _DataService:GetTable("UnitTable")
+        local count = 0
+        if ds ~= nil then count = ds:GetRowCount() end
+        for i = 1, count do
+            local id = ds:GetCell(i, "UnitId")
+            if id ~= nil and id ~= "" then
+                units[id] = {
+                    id = id,
+                    kind = ds:GetCell(i, "Kind"),
+                    name = ds:GetCell(i, "Name"),
+                    rarity = self:OptText(ds:GetCell(i, "Rarity")) or "normal",
+                    cost = self:Num(ds:GetCell(i, "Cost"), 0),
+                    cooldown = self:Num(ds:GetCell(i, "Cooldown"), 0),
+                    price = self:Num(ds:GetCell(i, "Price"), 0),
+                    starter = self:Num(ds:GetCell(i, "Starter"), 0) > 0,
+                    order = i,
+                    maxHp = self:Num(ds:GetCell(i, "MaxHp"), 1),
+                    attack = self:Num(ds:GetCell(i, "Attack"), 0),
+                    range = self:Num(ds:GetCell(i, "Range"), 0),
+                    attackInterval = self:Num(ds:GetCell(i, "AttackInterval"), 1),
+                    speed = self:Num(ds:GetCell(i, "Speed"), 0),
+                    scale = self:Num(ds:GetCell(i, "Scale"), 1),
+                    standRuid = ds:GetCell(i, "StandRuid") or "",
+                    moveRuid = ds:GetCell(i, "MoveRuid") or "",
+                    attackRuid = ds:GetCell(i, "AttackRuid") or "",
+                    dieRuid = ds:GetCell(i, "DieRuid") or "",
+                    attackPlayRate = self:Num(ds:GetCell(i, "AttackPlayRate"), 1),
+                    attackPose = self:Num(ds:GetCell(i, "AttackPose"), 0),
+                    attackHitDelay = self:Num(ds:GetCell(i, "AttackHitDelay"), 0),
+                    projectileRuid = self:OptText(ds:GetCell(i, "ProjectileRuid")),
+                    projectileScale = self:OptNum(ds:GetCell(i, "ProjectileScale")),
+                    barY = self:OptNum(ds:GetCell(i, "BarY")),
+                    barWidth = self:OptNum(ds:GetCell(i, "BarWidth")),
+                    damage = self:Num(ds:GetCell(i, "SkillDamage"), 0),
+                    radius = self:Num(ds:GetCell(i, "SkillRadius"), 0),
+                    hitDelay = self:Num(ds:GetCell(i, "SkillHitDelay"), 0),
+                    effectRuid = self:OptText(ds:GetCell(i, "EffectRuid")),
+                    effectScale = self:Num(ds:GetCell(i, "EffectScale"), 1),
+                }
+            end
+        end
+        self._T.units = units
+        log("[BattleConfig] UnitTable loaded rows=" .. tostring(count))
+        return units
+    end
+
+    method table GetUnit(string unitId)
+        -- Returns one unit definition at level 1, or nil when the id is unknown.
+        return self:GetUnits()[unitId]
+    end
+
+    method string GetIconRuid(string unitId)
+        -- Returns the RUID to show a unit or skill as a static icon in UI (thumbnail of its stand clip or effect clip).
+        local unit = self:GetUnit(unitId)
+        if unit == nil then return "" end
+        local ruid = unit.standRuid
+        if unit.kind == "skill" then ruid = unit.effectRuid or "" end
+        if ruid == nil or ruid == "" then return "" end
+        return "thumbnail://" .. ruid
+    end
+
+    method Color GetRarityColor(string unitId)
+        -- Returns the frame color of a unit's rarity (normal / rare / epic / unique / legendary) for UI.
+        local unit = self:GetUnit(unitId)
+        local rarity = "normal"
+        if unit ~= nil then rarity = unit.rarity end
+        if rarity == "rare" then return Color(0.25, 0.55, 1, 1) end
+        if rarity == "epic" then return Color(0.66, 0.33, 0.97, 1) end
+        if rarity == "unique" then return Color(1, 0.85, 0.2, 1) end
+        if rarity == "legendary" then return Color(0.6, 0.95, 0.25, 1) end
+        return Color(0.62, 0.62, 0.62, 1)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PaintRarityFrame(Entity item, string unitId)
+        -- Colors the item's "Rarity" frame (four edge sprites) by the unit's rarity; an empty unit id hides the frame.
+        local frame = item:GetChildByName("Rarity")
+        if not isvalid(frame) then return end
+        local shown = unitId ~= "" and self:GetUnit(unitId) ~= nil
+        if frame.Enable ~= shown then frame.Enable = shown end
+        if shown == false then return end
+        local color = self:GetRarityColor(unitId)
+        for _, edge in ipairs(frame.Children) do
+            if edge.SpriteGUIRendererComponent ~= nil then edge.SpriteGUIRendererComponent.Color = color end
+        end
+    end
+
+    method table GetLevels()
+        -- Returns the level table as an array: { statRate, upgradeCost } per level, loaded once from UnitLevelTable.
+        local levels = self._T.levels
+        if levels ~= nil then return levels end
+        levels = {}
+        local ds = _DataService:GetTable("UnitLevelTable")
+        local count = 0
+        if ds ~= nil then count = ds:GetRowCount() end
+        for i = 1, count do
+            local level = math.floor(self:Num(ds:GetCell(i, "Level"), i))
+            levels[level] = {
+                statRate = self:Num(ds:GetCell(i, "StatRate"), 1),
+                upgradeCost = self:Num(ds:GetCell(i, "UpgradeCost"), 0),
+            }
+        end
+        self._T.levels = levels
+        log("[BattleConfig] UnitLevelTable loaded rows=" .. tostring(count))
+        return levels
+    end
+
+    method table GetCostLevels()
+        -- Returns the in-battle cost level table as an array: { costMax, regenRate, upgradeCost, unlockMeso } per level.
+        local levels = self._T.costLevels
+        if levels ~= nil then return levels end
+        levels = {}
+        local ds = _DataService:GetTable("CostLevelTable")
+        local count = 0
+        if ds ~= nil then count = ds:GetRowCount() end
+        for i = 1, count do
+            local level = math.floor(self:Num(ds:GetCell(i, "Level"), i))
+            levels[level] = {
+                costMax = self:Num(ds:GetCell(i, "CostMax"), 200),
+                regenRate = self:Num(ds:GetCell(i, "RegenRate"), 1),
+                upgradeCost = self:Num(ds:GetCell(i, "UpgradeCost"), 0),
+                unlockMeso = self:Num(ds:GetCell(i, "UnlockMeso"), 0),
+            }
+        end
+        self._T.costLevels = levels
+        log("[BattleConfig] CostLevelTable loaded rows=" .. tostring(count))
+        return levels
+    end
+
+    method integer GetMaxLevel()
+        -- Returns the highest level defined in UnitLevelTable.
+        return #self:GetLevels()
+    end
+
+    method table GetUnitAtLevel(string unitId, integer level)
+        -- Returns a copy of a unit definition with HP, attack and skill damage scaled by the level's stat rate.
+        local base = self:GetUnit(unitId)
+        if base == nil then return nil end
+        local levels = self:GetLevels()
+        local entry = levels[math.max(1, math.min(#levels, level))]
+        local rate = 1
+        if entry ~= nil then rate = entry.statRate end
+        local unit = {}
+        for key, value in pairs(base) do unit[key] = value end
+        unit.level = level
+        unit.maxHp = base.maxHp * rate
+        unit.attack = base.attack * rate
+        unit.damage = base.damage * rate
+        return unit
+    end
+
+    method table GetStarterUnitIds()
+        -- Returns the ids of the units every new player receives (Starter = 1 in UnitTable), in table order.
+        local list = {}
+        for _, unit in pairs(self:GetUnits()) do
+            if unit.starter then table.insert(list, unit) end
+        end
+        table.sort(list, function(a, b) return a.order < b.order end)
+        local ids = {}
+        for _, unit in ipairs(list) do table.insert(ids, unit.id) end
+        return ids
+    end
+
+    method table GetStage(string stageId)
+        -- Returns one stage definition from StageTable, or nil when the id is unknown.
+        local stages = self._T.stages
+        if stages == nil then
+            stages = {}
+            local stageIds = {}
+            local ds = _DataService:GetTable("StageTable")
+            local count = 0
+            if ds ~= nil then count = ds:GetRowCount() end
+            for i = 1, count do
+                local id = ds:GetCell(i, "StageId")
+                if id ~= nil and id ~= "" then
+                    table.insert(stageIds, id)
+                    local pool = {}
+                    for unitId in string.gmatch(ds:GetCell(i, "LoopPool") or "", "[^;]+") do table.insert(pool, unitId) end
+                    stages[id] = {
+                        id = id,
+                        name = ds:GetCell(i, "Name"),
+                        mapName = self:OptText(ds:GetCell(i, "MapName")) or "battle",
+                        groundY = self:Num(ds:GetCell(i, "GroundY"), self.GroundY),
+                        baseHp = self:Num(ds:GetCell(i, "BaseHp"), 1000),
+                        rewardMeso = self:Num(ds:GetCell(i, "RewardMeso"), 0),
+                        unlockStage = ds:GetCell(i, "UnlockStage") or "",
+                        loopPool = pool,
+                        loopStartInterval = self:Num(ds:GetCell(i, "LoopStartInterval"), 6),
+                        loopMinInterval = self:Num(ds:GetCell(i, "LoopMinInterval"), 3),
+                    }
+                end
+            end
+            self._T.stages = stages
+            self._T.stageIds = stageIds
+            log("[BattleConfig] StageTable loaded rows=" .. tostring(count))
+        end
+        return stages[stageId]
+    end
+
+    method table GetStageIds()
+        -- Returns every stage id in StageTable row order (read-only list for stage select screens).
+        if self._T.stageIds == nil then self:GetStage("") end
+        return self._T.stageIds
+    end
+
+    method table GetStageWaves(string stageId)
+        -- Returns a stage's timetable from StageWaveTable as an array of { time, unitId, level }, sorted by time.
+        local all = self._T.waves
+        if all == nil then
+            all = {}
+            local ds = _DataService:GetTable("StageWaveTable")
+            local count = 0
+            if ds ~= nil then count = ds:GetRowCount() end
+            for i = 1, count do
+                local id = ds:GetCell(i, "StageId")
+                if id ~= nil and id ~= "" then
+                    if all[id] == nil then all[id] = {} end
+                    table.insert(all[id], {
+                        time = self:Num(ds:GetCell(i, "Time"), 0),
+                        unitId = ds:GetCell(i, "UnitId"),
+                        level = math.floor(self:Num(ds:GetCell(i, "Level"), 1)),
+                    })
+                end
+            end
+            for _, waves in pairs(all) do
+                table.sort(waves, function(a, b) return a.time < b.time end)
+            end
+            self._T.waves = all
+            log("[BattleConfig] StageWaveTable loaded rows=" .. tostring(count))
+        end
+        return all[stageId] or {}
+    end
+
+end

@@ -1,0 +1,273 @@
+@Logic
+script FieldFx extends Logic
+
+    -- Client-only battlefield visuals that are not tied to one unit:
+    -- spawn portals at each side's spawn point, and the targeting preview shown while a
+    -- build or skill card waits for a position (ghost of the build, shaded no-build area, skill range box).
+    property string SpriteModelId = "battleprojectile"
+    property string RectModelId = "battlehpbar"
+    property string PortalRuid = "bd627432fff34eeab9bb23460875bf24"
+    property number PortalScale = 0.4
+    property number PortalY = 0.71
+    property number PixelUnit = 0.01
+    property number ShadeHeight = 4.0
+    property number SkillBoxHeight = 1.2
+
+    @ExecSpace("ClientOnly")
+    method Entity SpawnSprite(Entity map, string name, string ruid, integer order)
+        -- Creates a client-local sprite entity on the map.
+        local entity = _SpawnService:SpawnByModelId(self.SpriteModelId, name, Vector3(0, 0, 0), map)
+        if not isvalid(entity) then
+            log_error("[FieldFx] sprite spawn failed model=" .. self.SpriteModelId)
+            return nil
+        end
+        local sprite = entity.SpriteRendererComponent
+        sprite.SpriteRUID = ruid
+        sprite.SortingLayer = "MapLayer0"
+        sprite.OrderInLayer = order
+        return entity
+    end
+
+    @ExecSpace("ClientOnly")
+    method Entity SpawnRect(Entity map, string name, Color color, integer order)
+        -- Creates a client-local solid-color rectangle (1 pixel-rect unit = 4x4 pixels) on the map.
+        local entity = _SpawnService:SpawnByModelId(self.RectModelId, name, Vector3(0, 0, 0), map)
+        if not isvalid(entity) or not isvalid(entity.PixelRendererComponent) then
+            log_error("[FieldFx] rect spawn failed model=" .. self.RectModelId)
+            return nil
+        end
+        local pixel = entity.PixelRendererComponent
+        pixel:ResetWithColor(4, 4, color)
+        pixel.SortingLayer = "MapLayer0"
+        pixel.OrderInLayer = order
+        return entity
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PlaceRect(Entity rect, number left, number right, number bottom, number height)
+        -- Stretches a rectangle entity over the given world area; an empty area hides it.
+        if not isvalid(rect) then return end
+        local width = right - left
+        if width <= 0.01 then
+            rect:SetVisible(false)
+            return
+        end
+        rect:SetVisible(true)
+        rect.TransformComponent.WorldPosition = Vector3((left + right) * 0.5, bottom + height * 0.5, 0)
+        rect.TransformComponent.Scale = Vector3(width / (4 * self.PixelUnit), height / (4 * self.PixelUnit), 1)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PlaySkillEffect(table cfg, number centerX)
+        -- Plays a skill's effect so that it visually covers the damage area: centred on centerX,
+        -- as wide as the area (2 x radius), standing on the ground. Effect clips keep their pivot wherever the
+        -- original skill needed it (often far to one side), so the offset is computed from the clip's largest frame.
+        local ruid = cfg.effectRuid
+        if ruid == nil or ruid == "" then return end
+        local player = _UserService.LocalPlayer
+        if not isvalid(player) then return end
+        local groundY = _BattleConfig.GroundY
+        if isvalid(player.CurrentMap) then
+            ---@type BattleDirector
+            local director = player.CurrentMap:GetComponent("script.BattleDirector")
+            if director ~= nil then groundY = director.GroundY end
+        end
+        if self._T.effectGeo == nil then self._T.effectGeo = {} end
+        local geo = self._T.effectGeo[ruid]
+        if geo == nil then
+            local clip = _ResourceService:LoadAnimationClipAndWait(ruid)
+            geo = { width = 1, height = 1, offsetX = 0, offsetY = 0 }
+            if clip ~= nil and clip.Frames ~= nil then
+                local best = nil
+                for i = 1, #clip.Frames do
+                    local sprite = clip.Frames[i].FrameSprite
+                    if best == nil or sprite.Width > best.Width then best = sprite end
+                end
+                if best ~= nil then
+                    local ppu = best.PixelPerUnit
+                    local pivot = best.PivotPixel
+                    geo.width = best.Width / ppu
+                    geo.height = best.Height / ppu
+                    -- Sprite centre relative to its pivot, in world units at scale 1.
+                    geo.offsetX = (best.Width * 0.5 - pivot.x) / ppu
+                    geo.offsetY = (best.Height * 0.5 - pivot.y) / ppu
+                end
+            end
+            self._T.effectGeo[ruid] = geo
+        end
+        local areaWidth = cfg.radius * _BattleConfig.RangeScale * 2
+        local size = areaWidth / geo.width * (cfg.effectScale or 1)
+        local x = centerX - geo.offsetX * size
+        local y = groundY + geo.height * size * 0.5 - geo.offsetY * size
+        local serial = _EffectService:PlayEffect(ruid, player, Vector3(x, y, 0), 0, Vector3(size, size, 1), false)
+        log("[FieldFx] skill effect " .. tostring(cfg.id) .. " centerX=" .. string.format("%.2f", centerX) .. " width=" .. string.format("%.2f", areaWidth) .. " scale=" .. string.format("%.2f", size) .. " serial=" .. tostring(serial))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void HidePreview()
+        -- Hides every targeting preview element.
+        local fx = self._T.fx
+        if fx == nil or fx.previewShown == false then return end
+        fx.previewShown = false
+        if isvalid(fx.ghost) then fx.ghost:SetVisible(false) end
+        if isvalid(fx.shadeLeft) then fx.shadeLeft:SetVisible(false) end
+        if isvalid(fx.shadeRight) then fx.shadeRight:SetVisible(false) end
+        if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnUpdate(number delta)
+        -- Keeps the portals in place and drives the targeting preview from the Commander's pending slot.
+        local player = _UserService.LocalPlayer
+        if not isvalid(player) then return end
+        local map = player.CurrentMap
+        if not isvalid(map) then return end
+        ---@type BattleDirector
+        local director = map:GetComponent("script.BattleDirector")
+        if director == nil or director.AllyBaseX == director.EnemyBaseX then return end
+        ---@type Commander
+        local commander = player:GetComponent("script.Commander")
+        if commander == nil then return end
+
+        -- (Re)create the visuals when the battle map changes (a room move rebuilds the client).
+        local fx = self._T.fx
+        if fx == nil or fx.map ~= map or not isvalid(fx.portalAlly) then
+            fx = { map = map, previewShown = false, ghostRuid = "" }
+            self._T.fx = fx
+            fx.portalAlly = self:SpawnSprite(map, "PortalAlly", self.PortalRuid, 1)
+            fx.portalEnemy = self:SpawnSprite(map, "PortalEnemy", self.PortalRuid, 1)
+            fx.ghost = self:SpawnSprite(map, "BuildGhost", self.PortalRuid, 9)
+            fx.shadeLeft = self:SpawnRect(map, "ShadeLeft", Color(0, 0, 0, 0.4), 8)
+            fx.shadeRight = self:SpawnRect(map, "ShadeRight", Color(0, 0, 0, 0.4), 8)
+            fx.skillBox = self:SpawnRect(map, "SkillBox", Color(1, 0.25, 0.2, 0.35), 8)
+            if isvalid(fx.ghost) then
+                fx.ghost.SpriteRendererComponent.Color = Color(1, 1, 1, 0.5)
+                fx.ghost:SetVisible(false)
+            end
+            if isvalid(fx.shadeLeft) then fx.shadeLeft:SetVisible(false) end
+            if isvalid(fx.shadeRight) then fx.shadeRight:SetVisible(false) end
+            if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
+            fx.portalX1 = nil
+            log("[FieldFx] visuals created")
+        end
+
+        local groundY = director.GroundY
+        local offset = _BattleConfig.SpawnOffsetX
+        local allySpawnX = director.AllyBaseX + offset
+        local enemySpawnX = director.EnemyBaseX - offset
+        if fx.portalX1 ~= allySpawnX or fx.portalX2 ~= enemySpawnX or fx.portalGround ~= groundY then
+            fx.portalGround = groundY
+            fx.portalX1 = allySpawnX
+            fx.portalX2 = enemySpawnX
+            local size = self.PortalScale
+            for _, item in ipairs({ { fx.portalAlly, allySpawnX }, { fx.portalEnemy, enemySpawnX } }) do
+                if isvalid(item[1]) then
+                    item[1].TransformComponent.WorldPosition = Vector3(item[2], groundY + self.PortalY, 0)
+                    item[1].TransformComponent.Scale = Vector3(size, size, 1)
+                end
+            end
+            log("[FieldFx] portals at x=" .. string.format("%.2f", allySpawnX) .. " / " .. string.format("%.2f", enemySpawnX))
+        end
+
+        -- Preload once per battle every clip this battle can show: my deck (units, projectiles, skill effects)
+        -- and the stage's enemy units. The server keeps the battle WAITING until this client reports ready,
+        -- so nothing appears late while its clip loads.
+        if fx.preloaded ~= true and director.StageId ~= "" then
+            ---@type PlayerData
+            local data = player:GetComponent("script.PlayerData")
+            if data ~= nil and data.Loaded then
+                fx.preloaded = true
+                local ids = {}
+                for _, id in ipairs(data:GetDeckIds()) do ids[id] = true end
+                for _, wave in ipairs(_BattleConfig:GetStageWaves(director.StageId)) do ids[wave.unitId] = true end
+                local stage = _BattleConfig:GetStage(director.StageId)
+                if stage ~= nil then
+                    for _, id in ipairs(stage.loopPool) do ids[id] = true end
+                end
+                local seen = {}
+                local ruids = { self.PortalRuid, _BattleConfig.HitEffectRuid }
+                seen[self.PortalRuid] = true
+                seen[_BattleConfig.HitEffectRuid] = true
+                for id, _ in pairs(ids) do
+                    local unit = _BattleConfig:GetUnit(id)
+                    if unit ~= nil then
+                        for _, ruid in ipairs({ unit.standRuid, unit.moveRuid, unit.attackRuid, unit.dieRuid, unit.projectileRuid or "", unit.effectRuid or "" }) do
+                            if ruid ~= "" and seen[ruid] == nil then
+                                seen[ruid] = true
+                                table.insert(ruids, ruid)
+                            end
+                        end
+                    end
+                end
+                local count = #ruids
+                local startedAt = _UtilLogic.ElapsedSeconds
+                log("[FieldFx] preloading battle clips count=" .. tostring(count))
+                _ResourceService:PreloadAsync(ruids, function(results)
+                    log("[FieldFx] battle clips preloaded count=" .. tostring(count) .. " in " .. string.format("%.2f", _UtilLogic.ElapsedSeconds - startedAt) .. "s, reporting ready")
+                    commander:RequestBattleReady()
+                end)
+            end
+        end
+
+        -- Targeting preview.
+        local slot = commander.PendingSlot
+        ---@type BattleSide
+        local side = commander:GetSideOf(true)
+        if slot == 0 or side == nil or director.State ~= "PLAYING" then
+            self:HidePreview()
+            return
+        end
+        local unitId = side:GetDeckIds()[slot]
+        local cfg = nil
+        if unitId ~= nil then cfg = _BattleConfig:GetUnit(unitId) end
+        if cfg == nil then
+            self:HidePreview()
+            return
+        end
+        if fx.previewShown == false then
+            fx.previewShown = true
+            log("[FieldFx] preview shown slot=" .. tostring(slot) .. " " .. unitId .. " kind=" .. cfg.kind)
+        end
+        local cursor = _UILogic:ScreenToWorldPosition(_InputService:GetCursorPosition())
+        local screenLeft = (director.AllyBaseX + director.EnemyBaseX) * 0.5 - _BattleConfig.ScreenHalfWidth * 2
+        local screenRight = (director.AllyBaseX + director.EnemyBaseX) * 0.5 + _BattleConfig.ScreenHalfWidth * 2
+        local shadeBottom = groundY - 0.4
+
+        if cfg.kind == "build" then
+            -- Same rule as the server (BattleDirector.PlayUnit): own half, between the spawn point and the middle.
+            local dir = 1
+            if side.Team ~= 1 then dir = -1 end
+            local baseX = director.AllyBaseX
+            if side.Team ~= 1 then baseX = director.EnemyBaseX end
+            local spawnX = baseX + dir * offset
+            local middle = (director.AllyBaseX + director.EnemyBaseX) * 0.5
+            local minX = math.min(spawnX, middle)
+            local maxX = math.max(spawnX, middle)
+            local x = math.max(minX, math.min(maxX, cursor.x))
+            if isvalid(fx.ghost) then
+                if fx.ghostRuid ~= cfg.standRuid then
+                    fx.ghostRuid = cfg.standRuid
+                    fx.ghost.SpriteRendererComponent.SpriteRUID = cfg.standRuid
+                end
+                local size = cfg.scale * _BattleConfig.UnitScale
+                fx.ghost.TransformComponent.Scale = Vector3(-dir * size, size, 1)
+                fx.ghost.TransformComponent.WorldPosition = Vector3(x, groundY, 0)
+                fx.ghost:SetVisible(true)
+            end
+            self:PlaceRect(fx.shadeLeft, screenLeft, minX, shadeBottom, self.ShadeHeight)
+            self:PlaceRect(fx.shadeRight, maxX, screenRight, shadeBottom, self.ShadeHeight)
+            if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
+        elseif cfg.kind == "skill" then
+            local radius = cfg.radius * _BattleConfig.RangeScale
+            self:PlaceRect(fx.skillBox, cursor.x - radius, cursor.x + radius, groundY, self.SkillBoxHeight)
+            if isvalid(fx.ghost) then fx.ghost:SetVisible(false) end
+            if isvalid(fx.shadeLeft) then fx.shadeLeft:SetVisible(false) end
+            if isvalid(fx.shadeRight) then fx.shadeRight:SetVisible(false) end
+        else
+            self:HidePreview()
+        end
+    end
+
+end
+
+
