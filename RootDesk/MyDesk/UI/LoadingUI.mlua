@@ -54,4 +54,3 @@ script LoadingUI extends Component
     end
 
 end
-

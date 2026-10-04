@@ -64,5 +64,3 @@ script StageAI extends Component
     end
 
 end
-
-

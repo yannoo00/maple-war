@@ -381,7 +381,3 @@ script BattleDirector extends Component
     end
 
 end
-
-
-
-

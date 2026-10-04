@@ -269,5 +269,3 @@ script FieldFx extends Logic
     end
 
 end
-
-

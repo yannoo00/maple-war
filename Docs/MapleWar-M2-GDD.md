@@ -103,7 +103,7 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 - 🟡 스타터 세트 20종 구성과 유닛 표 채우기(구매용 유닛 포함)  ⚠️ needs user test: 새 유닛들의 크기·공격 타이밍·방향이 자연스러운지 (스테이지 2에서 예티·라이오너 등 소환과 지면 위 이동은 화면 확인). 공격 시간은 프레임 수로 추정한 값
 - 🟡 스테이지 3~5개와 시간표 작성 → 스테이지 5개, 직선 해금, 스테이지마다 다른 타일의 전용 맵(`battle`, `battle2`~`battle5`)  ⚠️ needs user test: 스테이지 3~5 맵의 모양(2·5번만 화면 확인), 각 스테이지 플레이
 - 🟡 유닛·스킬 이미지 표시: 상점, 덱 편성, 전투 슬롯  ⚠️ needs user test: 실제 화면에서 이미지와 글자 배치, 전투 중 쿨타임 표시가 이미지 위에 그려지는지 (세 화면 모두 스크린샷으로 아이콘 표시 확인됨). 알려진 문제: 상점·덱 화면을 처음 열 때 목록 생성에 3~4초 걸리고 그동안 빈 카드가 잠깐 보임
-- ⬜ 샘플·잔여물 정리: `map/` 전체를 나열해 맵마다 점검(템플릿 샘플, 쓰지 않는 맵), M1의 임시 입력(R 재시작 등) 정리
+- 🟡 샘플·잔여물 정리: `map/` 전체를 나열해 맵마다 점검(템플릿 샘플, 쓰지 않는 맵), M1의 임시 입력(R 재시작 등) 정리  ⚠️ needs user test: 메이커 연결이 끊긴 상태에서 수정해 빌드·플레이 미확인. 리프레시 후 빌드 오류가 없는지, 숫자 키 1~0과 Esc가 그대로 동작하는지, B·L·R 키가 더 이상 반응하지 않는지
 
 ## 7. Data-driven
 정의 데이터는 Phase 3에서 전부 데이터셋(CSV)으로 옮긴다. 그 전의 Phase 1~2는 기존 `BattleConfig` 테이블을 그대로 쓴다.
@@ -131,3 +131,4 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 | 2026-10-04 | Add | 로딩 화면과 준비 대기: 전투 입장·퇴장 때 로딩 화면(`LoadingUI`, `LoadingLogic`)을 띄우고, 클라이언트가 그 전투의 클립(내 덱 + 스테이지 적 유닛 + 포탈·피격 이펙트) 로드를 마쳤다고 알릴 때까지(`Commander:RequestBattleReady` → `BattleDirector:SetPlayerReady`) 전투를 `WAITING`으로 둔다. 응답이 없으면 `ReadyTimeout`(10초) 뒤에 시작 | 사용자 결정 — 리소스 로드를 기다렸다가 시작하고 그동안 로딩 화면 표시 | 로그 확인: 입장 시 로딩 표시 → 클립 47개 로드 → 준비 보고 → 전투 시작(대기 0.65초) → 로딩 숨김. 퇴장 시에도 표시 후 로비에서 숨김. 화면 모양과 클릭 경로(스테이지 버튼, 나가기 버튼)는 사용자 확인 필요 |
 | 2026-10-04 | Add | 유닛 등급(rarity) 5단계: `UnitTable`에 `Rarity` 열(normal / rare / epic / unique / legendary), 몬스터·설치물·스킬 모두 적용. 상점 행, 덱 편성 슬롯·보유 카드, 전투 슬롯에 등급 색 테두리(회색·파랑·보라·노랑·연두) 표시(`BattleConfig:GetRarityColor`, `PaintRarityFrame`) | 사용자 요청 | 등급은 현재 표시 전용이며 능력치·가격에 영향 없음. 34종 배정은 임의값(밸런스 패스 때 재조정). 세 화면 모두 화면 확인 완료 |
 | 2026-10-04 | Add | 전투 중 코스트 레벨(인게임 레벨): 매 전투 Lv 1에서 시작, 전투 화면 좌측 하단 버튼으로 코스트를 지불해 올린다. 레벨마다 코스트 최대 보유량이 커지고 회복 속도가 1.25배씩 곱해진다(Lv1 200 → Lv2 400 → Lv3 800). 기본 한도는 Lv 3, 로비 상점에서 메소로 한도를 Lv 10까지 연다. 데이터는 `CostLevelTable`(CostMax, RegenRate, UpgradeCost, UnlockMeso), 한도는 `PlayerData.CostLevelCap`(저장), 전투 중 상태는 `BattleSide.CostLevel`·`CostLevelCap`, 요청은 `Commander:RequestUpgradeCost` → `BattleDirector:UpgradeCostLevel` | 사용자 요청 — 게임의 핵심 규칙으로 추가 | `BattleConfig.CostMax` 속성 삭제(표로 대체). Lv 4 이상 최대 보유량, 강화 비용, 한도 해금 메소는 잠정값. 로그 확인: Lv1→2→3 강화, 한도에서 거부, 메소 부족 시 한도 해금 거부. 버튼 실제 클릭은 사용자 확인 필요 |
+| 2026-10-04 | Modify | 정리: 임시 키 B(스테이지 1 입장)·L(퇴장)·R(재시작) 제거 — 입장은 스테이지 선택 화면, 퇴장과 재시작은 HUD 버튼으로만. 맵 6개(`map01`, `battle`, `battle2`~`battle5`) 점검 결과 템플릿 샘플·쓰지 않는 엔티티 없음, `RootDesk/MyDesk`에 템플릿 스크립트 없음, `BattleConfig`의 속성은 모두 사용 중 | M2 Phase 6 정리 항목 | 메이커가 꺼진 상태라 리프레시·플레이 확인은 아직 못 함 |

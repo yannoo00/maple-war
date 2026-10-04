@@ -94,4 +94,3 @@ script BattleSide extends Component
     end
 
 end
-

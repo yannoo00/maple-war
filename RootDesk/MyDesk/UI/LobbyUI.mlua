@@ -516,5 +516,3 @@ script LobbyUI extends Component
     end
 
 end
-
-

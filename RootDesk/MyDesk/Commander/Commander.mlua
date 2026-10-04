@@ -92,7 +92,7 @@ script Commander extends Component
     @ExecSpace("ClientOnly")
     @EventSender("Service", "InputService")
     handler HandleKeyDownEvent(KeyDownEvent event)
-        -- Number keys 1~0 select deck slots, Esc cancels targeting, R restarts after a battle ends.
+        -- Number keys 1~0 select deck slots, Esc cancels targeting.
         if self.Entity ~= _UserService.LocalPlayer then return end
         local key = event.key
         local slotKeys = {
@@ -107,15 +107,6 @@ script Commander extends Component
         end
         if key == KeyboardKey.Escape then
             self.PendingSlot = 0
-        elseif key == KeyboardKey.B then
-            -- Temporary lobby input until the stage select screen exists (M2 Phase 5).
-            _LoadingLogic:Begin()
-            self:RequestEnterBattle("stage1")
-        elseif key == KeyboardKey.L then
-            _LoadingLogic:Begin()
-            self:RequestLeaveBattle()
-        elseif key == KeyboardKey.R then
-            self:RequestRestart()
         end
     end
 
@@ -243,7 +234,3 @@ script Commander extends Component
     end
 
 end
-
-
-
-

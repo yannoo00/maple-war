@@ -398,7 +398,3 @@ script BattleHUD extends Component
     end
 
 end
-
-
-
-
