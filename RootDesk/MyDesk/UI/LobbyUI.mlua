@@ -1,7 +1,7 @@
 @Component
 script LobbyUI extends Component
 
-    -- Client-only lobby screen manager: main / stage select / deck edit / shop.
+    -- Client-only lobby screen manager: main / stage select / deck edit / shop / ticket shop.
     -- One screen is visible at a time. Every screen is drawn from the local player's synced PlayerData and the
     -- BattleConfig tables, so it survives the client rebuild that happens when the player changes rooms.
     -- List items (stage cards, deck slots, owned unit cards, shop rows) are clones of one hidden template each,
@@ -23,6 +23,10 @@ script LobbyUI extends Component
     property Entity ownedCard = "fa11ad9f-b166-4161-bdac-bf8238aad76f"
     property Entity capButton = "978e0fec-922d-418a-a1d5-315320c528d0"
     property Entity shopRow = "5caa3dd8-5041-415b-a902-7436445522d6"
+    property TextGUIRendererComponent ticketText = "6689281e-c16f-4cbb-be3d-1d6a382a9e7f"
+    property Entity ticketButton = "7e088d7b-0575-4603-9c7f-e9f1381bc4f8"
+    property Entity ticketPanel = "31e9cdb0-9466-4e48-9262-5b606dc46cf8"
+    property Entity ticketRow = "3d367bb5-26bd-4492-8d98-1a00702da4ad"
     @HideFromInspector property string Screen = "main"
     @HideFromInspector property string SelectedStage = ""
     property table clickHandlers = {}
@@ -38,7 +42,7 @@ script LobbyUI extends Component
         self.Screen = "main"
         self.SelectedStage = ""
         if isvalid(self.root) then self.root.Enable = false end
-        for _, template in ipairs({ self.stageCard, self.deckSlot, self.ownedCard, self.shopRow }) do
+        for _, template in ipairs({ self.stageCard, self.deckSlot, self.ownedCard, self.shopRow, self.ticketRow }) do
             if isvalid(template) then template.Enable = false end
         end
         self:Bind(self.battleButton, function() self:OnMenuClicked("stage") end)
@@ -47,6 +51,7 @@ script LobbyUI extends Component
         self:Bind(self.backButton, function() self:OnBackClicked() end)
         self:Bind(self.enterButton, function() self:OnEnterClicked() end)
         self:Bind(self.capButton, function() self:OnCapClicked() end)
+        self:Bind(self.ticketButton, function() self:OnMenuClicked("ticket") end)
         log("[LobbyUI] initialized handlers=" .. tostring(#self.clickHandlers))
     end
 
@@ -124,22 +129,46 @@ script LobbyUI extends Component
         ---@type PlayerData
         local data = player:GetComponent("script.PlayerData")
         if data == nil then return end
-        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.StagesCsv .. "|" .. tostring(data.CostLevelCap)
+        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.StagesCsv .. "|" .. tostring(data.CostLevelCap) .. "|" .. data.WalletCsv
         if signature ~= view.signature then
             view.signature = signature
-            log("[LobbyUI] data changed loaded=" .. tostring(data.Loaded) .. " meso=" .. tostring(data.Meso) .. " units=" .. data.UnitsCsv .. " deck=" .. data.DeckCsv .. " stages=" .. data.StagesCsv)
+            log("[LobbyUI] data changed loaded=" .. tostring(data.Loaded) .. " meso=" .. tostring(data.Meso) .. " units=" .. data.UnitsCsv .. " deck=" .. data.DeckCsv .. " stages=" .. data.StagesCsv .. " wallet=" .. data.WalletCsv)
             self:Render()
+        end
+        -- The refill countdown moves every second without any data change.
+        self:UpdateTicketText(data)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void UpdateTicketText(PlayerData data)
+        -- Writes the entry ticket readout: amount / max and, while refilling, the time until the next +1.
+        if not isvalid(self.ticketText) then return end
+        local cfg = _BattleConfig:GetCurrency(_BattleConfig.EntryCurrencyId)
+        if cfg == nil then return end
+        local text = cfg.name .. " -"
+        if data.Loaded then
+            text = cfg.name .. " " .. tostring(data:GetCurrencyAmount(cfg.id)) .. " / " .. tostring(cfg.max)
+            local nextAt = data:GetCurrencyNextAt(cfg.id)
+            if nextAt > 0 then
+                local remain = math.max(0, math.ceil(nextAt - _UtilLogic.ServerElapsedSeconds))
+                text = text .. string.format(" · +1 %02d:%02d", math.floor(remain / 60), math.floor(remain % 60))
+            end
+        end
+        if text ~= self._T.ticketLabel then
+            self._T.ticketLabel = text
+            self.ticketText.Text = text
         end
     end
 
     @ExecSpace("ClientOnly")
     method void ShowScreen(string screen)
-        -- Switches to one lobby screen (main / stage / deck / shop) and draws it.
+        -- Switches to one lobby screen (main / stage / deck / shop / ticket) and draws it.
         self.Screen = screen
         if isvalid(self.mainPanel) then self.mainPanel.Enable = screen == "main" end
         if isvalid(self.stagePanel) then self.stagePanel.Enable = screen == "stage" end
         if isvalid(self.deckPanel) then self.deckPanel.Enable = screen == "deck" end
         if isvalid(self.shopPanel) then self.shopPanel.Enable = screen == "shop" end
+        if isvalid(self.ticketPanel) then self.ticketPanel.Enable = screen == "ticket" end
         if isvalid(self.backButton) then self.backButton.Enable = screen ~= "main" end
         log("[LobbyUI] screen=" .. screen)
         self:Render()
@@ -165,6 +194,8 @@ script LobbyUI extends Component
             self:RenderDeck(data)
         elseif self.Screen == "shop" then
             self:RenderShop(data)
+        elseif self.Screen == "ticket" then
+            self:RenderTicketShop()
         end
     end
 
@@ -235,7 +266,11 @@ script LobbyUI extends Component
 
     @ExecSpace("ClientOnly")
     method void RenderStages(PlayerData data)
-        -- Builds one card per stage in table order: name, cleared / locked state and reward.
+        -- Builds one card per stage in table order: name, cleared / locked state, entry cost and reward.
+        local ticket = _BattleConfig:GetCurrency(_BattleConfig.EntryCurrencyId)
+        local ticketName = "입장권"
+        if ticket ~= nil then ticketName = ticket.name end
+        local held = data:GetCurrencyAmount(_BattleConfig.EntryCurrencyId)
         local ids = _BattleConfig:GetStageIds()
         local items = self:SyncPool("stage", self.stageCard, #ids, "", function(item) self:OnStageCardClicked(item.key) end)
         local states = {}
@@ -259,6 +294,7 @@ script LobbyUI extends Component
             self:SetChildText(item.entity, "Name", stage.name)
             self:SetChildText(item.entity, "Status", status)
             self:SetChildText(item.entity, "Reward", "보상 " .. tostring(math.floor(stage.rewardMeso)) .. " 메소")
+            self:SetChildText(item.entity, "Cost", ticketName .. " " .. tostring(math.floor(stage.entryCost)))
             self:SetChildEnable(item.entity, "Lock", item.locked)
             item.entity.ButtonComponent.Enable = unlocked
             if id == self.SelectedStage and unlocked then selectedValid = true end
@@ -268,8 +304,21 @@ script LobbyUI extends Component
         for i = 1, #ids do
             self:SetChildEnable(items[i].entity, "Select", items[i].key == self.SelectedStage)
         end
-        self:SetButtonEnabled(self.enterButton, self.SelectedStage ~= "")
-        log("[LobbyUI] stage list built count=" .. tostring(#ids) .. " states=" .. table.concat(states, ",") .. " selected=" .. self.SelectedStage)
+        -- Enter button: needs a selected stage and enough entry tickets for it.
+        local enterLabel = "입장"
+        local canEnter = false
+        if self.SelectedStage ~= "" then
+            local cost = math.floor(_BattleConfig:GetStage(self.SelectedStage).entryCost)
+            if held >= cost then
+                canEnter = true
+                if cost > 0 then enterLabel = "입장 (" .. ticketName .. " " .. tostring(cost) .. ")" end
+            else
+                enterLabel = ticketName .. " 부족"
+            end
+        end
+        if isvalid(self.enterButton) then self.enterButton.TextGUIRendererComponent.Text = enterLabel end
+        self:SetButtonEnabled(self.enterButton, canEnter)
+        log("[LobbyUI] stage list built count=" .. tostring(#ids) .. " states=" .. table.concat(states, ",") .. " selected=" .. self.SelectedStage .. " enter=" .. enterLabel .. " held=" .. tostring(held))
     end
 
     @ExecSpace("ClientOnly")
@@ -298,6 +347,15 @@ script LobbyUI extends Component
         ---@type Commander
         local commander = player:GetComponent("script.Commander")
         if commander == nil then return end
+        -- Same check as the button state; the server checks again and is the one that takes the tickets.
+        ---@type PlayerData
+        local data = self:GetData()
+        local stage = _BattleConfig:GetStage(self.SelectedStage)
+        if data == nil or stage == nil then return end
+        if data:GetCurrencyAmount(_BattleConfig.EntryCurrencyId) < stage.entryCost then
+            log("[LobbyUI] not enough entry tickets for " .. self.SelectedStage)
+            return
+        end
         _BattleSound:Play("click")
         log("[LobbyUI] enter battle requested stage=" .. self.SelectedStage)
         _LoadingLogic:Begin()
@@ -445,7 +503,13 @@ script LobbyUI extends Component
             local label = ""
             local enabled = false
             self:SetChildText(item.entity, "Name", unit.name)
-            self:SetChildText(item.entity, "Kind", self:KindLabel(unit.kind) .. " · 코스트 " .. tostring(math.floor(unit.cost)))
+            -- Kind line: unit kind, attack type (monsters and builds only) and summon cost.
+            local kindText = self:KindLabel(unit.kind)
+            local attackLabel = _BattleConfig:GetAttackTypeLabel(unit.attackType)
+            if attackLabel ~= "" then kindText = kindText .. " · " .. attackLabel end
+            local attributeLabel = _BattleConfig:GetAttributeLabel(unit.attribute)
+            if attributeLabel ~= "" then kindText = kindText .. " · " .. attributeLabel end
+            self:SetChildText(item.entity, "Kind", kindText .. " · 코스트 " .. tostring(math.floor(unit.cost)))
             if level ~= nil then
                 self:SetChildText(item.entity, "Level", "Lv " .. tostring(level))
                 if level >= maxLevel then
@@ -499,13 +563,79 @@ script LobbyUI extends Component
         end
     end
 
+    -- ===== Ticket shop (World Shop products paid with Worldcoin) =====
+
+    @ExecSpace("ClientOnly")
+    method void RenderTicketShop()
+        -- Draws one row per product of ShopProductTable; a product without a World Shop id is not on sale yet.
+        local products = _BattleConfig:GetShopProducts()
+        local rows = self:SyncPool("ticket", self.ticketRow, #products, "Action", function(item) self:OnTicketBuyClicked(item.index) end)
+        local summary = {}
+        for i, product in ipairs(products) do
+            local item = rows[i]
+            local onSale = product.productId ~= ""
+            self:SetChildText(item.entity, "Name", product.label)
+            local price = nil
+            if self._T.prices ~= nil then price = self._T.prices[product.productId] end
+            if price ~= nil then
+                self:SetChildText(item.entity, "Kind", "월드 코인 " .. tostring(price) .. " · 결제 즉시 지급")
+            else
+                self:SetChildText(item.entity, "Kind", "월드 코인으로 구매 · 결제 즉시 지급")
+            end
+            if onSale then
+                item.button.TextGUIRendererComponent.Text = "구매"
+            else
+                item.button.TextGUIRendererComponent.Text = "준비 중"
+            end
+            self:SetButtonEnabled(item.button, onSale)
+            table.insert(summary, product.label .. (onSale and "+" or "-"))
+        end
+        log("[LobbyUI] ticket shop rendered rows=" .. tostring(#products) .. " [" .. table.concat(summary, ", ") .. "]")
+    end
+
+    @ExecSpace("ClientOnly")
+    method void LoadTicketPrices()
+        -- Asks the World Shop once for the registered price of each product (this waits for the service),
+        -- then redraws the ticket shop so the rows show the price.
+        if self._T.pricesRequested == true then return end
+        self._T.pricesRequested = true
+        local prices = {}
+        for _, product in ipairs(_BattleConfig:GetShopProducts()) do
+            if product.productId ~= "" then
+                local info = _WorldShopService:GetProductAndWait(product.productId)
+                if info ~= nil then
+                    prices[product.productId] = info.Price
+                    log("[LobbyUI] product " .. product.productId .. " price=" .. tostring(info.Price) .. " name=" .. tostring(info.Name))
+                else
+                    log("[LobbyUI] product " .. product.productId .. " was not found in the World Shop")
+                end
+            end
+        end
+        self._T.prices = prices
+        if self.Screen == "ticket" then self:RenderTicketShop() end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnTicketBuyClicked(integer index)
+        -- Opens the World Shop purchase window of the product; the server delivers it when the payment completes.
+        local product = _BattleConfig:GetShopProducts()[index]
+        if product == nil or product.productId == "" then return end
+        _BattleSound:Play("click")
+        log("[LobbyUI] purchase window requested product=" .. product.productId .. " (" .. product.label .. ")")
+        _WorldShopService:PromptPurchase(product.productId)
+    end
+
     -- ===== Navigation =====
 
     @ExecSpace("ClientOnly")
     method void OnMenuClicked(string screen)
-        -- Main menu button: opens the stage select, deck or shop screen.
+        -- Menu button: opens the stage select, deck, shop or ticket shop screen.
         _BattleSound:Play("click")
         self:ShowScreen(screen)
+        -- The price lookup waits for the World Shop, so it runs on its own after the screen is already up.
+        if screen == "ticket" then
+            _TimerService:SetTimerOnce(function() self:LoadTicketPrices() end, 0.05)
+        end
     end
 
     @ExecSpace("ClientOnly")

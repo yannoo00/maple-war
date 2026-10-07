@@ -341,6 +341,21 @@ script BattleDirector extends Component
     end
 
     @ExecSpace("ServerOnly")
+    method table FindTargetsInRange(integer team, number x, number range)
+        -- Returns every living target (monster / build / base) of the opposing team within range of x,
+        -- for area attacks. Same distance rule as FindTarget.
+        local targets = {}
+        for _, unit in ipairs(self._T.units) do
+            if unit.Team ~= team and unit.IsDead == false and isvalid(unit.Entity) then
+                if math.abs(unit.Entity.TransformComponent.WorldPosition.x - x) <= range then
+                    table.insert(targets, unit)
+                end
+            end
+        end
+        return targets
+    end
+
+    @ExecSpace("ServerOnly")
     method void RemoveUnit(any deadUnit)
         -- Unregisters a dead unit.
         local units = self._T.units

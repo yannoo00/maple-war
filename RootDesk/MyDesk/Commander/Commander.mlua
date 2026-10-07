@@ -157,21 +157,66 @@ script Commander extends Component
     method void RequestEnterBattle(string stageId)
         -- Lobby only: asks for a private battle instance of the given stage.
         if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
-        -- Server-side entry check: the stage must exist and its unlock stage must already be cleared.
+        local userId = senderUserId
+        -- One entry at a time: the steps below wait for storage, and a second click must not pay twice.
+        if self._T.entering == true then return end
+        -- Server-side entry check: the stage must exist, its unlock stage must already be cleared,
+        -- and the player must hold the stage's entry cost.
         local stage = _BattleConfig:GetStage(stageId)
         if stage == nil then
-            log("[Commander] enter refused: unknown stage " .. stageId .. " user=" .. senderUserId)
+            self:RefuseEnter("unknown stage " .. stageId, userId)
             return
         end
-        if stage.unlockStage ~= "" then
-            ---@type PlayerData
-            local data = self.Entity:GetComponent("script.PlayerData")
-            if data == nil or data:IsStageCleared(stage.unlockStage) == false then
-                log("[Commander] enter refused: " .. stageId .. " is locked (needs " .. stage.unlockStage .. ") user=" .. senderUserId)
+        ---@type PlayerData
+        local data = self.Entity:GetComponent("script.PlayerData")
+        if data == nil or data.Loaded == false then
+            self:RefuseEnter("player data not loaded", userId)
+            return
+        end
+        if stage.unlockStage ~= "" and data:IsStageCleared(stage.unlockStage) == false then
+            self:RefuseEnter(stageId .. " is locked (needs " .. stage.unlockStage .. ")", userId)
+            return
+        end
+        local currencyId = _BattleConfig.EntryCurrencyId
+        local cost = math.floor(stage.entryCost)
+        self._T.entering = true
+        if cost > 0 then
+            if data:SpendCurrency(currencyId, cost) == false then
+                self._T.entering = false
+                self:RefuseEnter("not enough " .. currencyId .. " (needs " .. tostring(cost) .. ", has " .. tostring(data:GetCurrencyAmount(currencyId)) .. ")", userId)
+                return
+            end
+            -- The battle room reads storage again, so the spend must be stored before the move.
+            if data:SaveNow() == false then
+                data:AddCurrency(currencyId, cost)
+                self._T.entering = false
+                self:RefuseEnter("save failed, entry cost returned", userId)
                 return
             end
         end
-        _MatchService:EnterBattle(senderUserId, stageId)
+        if _MatchService:EnterBattle(userId, stageId) == false then
+            -- The player was not moved: give the entry cost back.
+            if cost > 0 then
+                data:AddCurrency(currencyId, cost)
+                data:Save(false)
+            end
+            self._T.entering = false
+            self:RefuseEnter("battle room failed, entry cost returned", userId)
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void RefuseEnter(string reason, string userId)
+        -- Logs a refused entry and tells the requesting client so it can drop its loading screen.
+        log("[Commander] enter refused: " .. reason .. " user=" .. userId)
+        self:OnEnterRefused(reason, userId)
+    end
+
+    @ExecSpace("Client")
+    method void OnEnterRefused(string reason)
+        -- Client: the server did not start the battle; hide the loading screen shown at the click.
+        _LoadingLogic:Cancel()
+        log("[Commander] enter refused by server: " .. reason)
     end
 
     @ExecSpace("Server")
@@ -193,11 +238,26 @@ script Commander extends Component
 
     @ExecSpace("Server")
     method void RequestRestart()
-        -- Restarts the battle once it has ended.
+        -- Restarts the battle once it has ended. A restart is another entry, so it pays the stage's entry cost.
         if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        ---@type BattleDirector
         local director = self:GetDirector()
         if director == nil then return end
         if director:GetSideByUser(senderUserId) == nil then return end
+        if director.State ~= "ENDED" then return end
+        local stage = _BattleConfig:GetStage(director.StageId)
+        local cost = 0
+        if stage ~= nil then cost = math.floor(stage.entryCost) end
+        if cost > 0 then
+            local currencyId = _BattleConfig.EntryCurrencyId
+            ---@type PlayerData
+            local data = self.Entity:GetComponent("script.PlayerData")
+            if data == nil or data:SpendCurrency(currencyId, cost) == false then
+                log("[Commander] restart refused: not enough " .. currencyId .. " (needs " .. tostring(cost) .. ") user=" .. senderUserId)
+                return
+            end
+            data:Save(false)
+        end
         director:Restart()
     end
 

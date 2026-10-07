@@ -48,6 +48,24 @@ script BattleSound extends Logic
     end
 
     @ExecSpace("ClientOnly")
+    method void PlayRuid(string ruid, number volume)
+        -- Plays a unit's own one-shot sound (attack / damage / die) by RUID. The same sound is not started again
+        -- within HitMinInterval, so many units acting at once do not stack it. Only its first play is logged.
+        if ruid == nil or ruid == "" then return end
+        local lasts = self._T.lastRuid
+        if lasts == nil then
+            lasts = {}
+            self._T.lastRuid = lasts
+        end
+        local now = _UtilLogic.ElapsedSeconds
+        local last = lasts[ruid]
+        if last ~= nil and now - last < self.HitMinInterval then return end
+        if last == nil then log("[BattleSound] play unit sound ruid=" .. ruid) end
+        lasts[ruid] = now
+        _SoundService:PlaySound(ruid, volume)
+    end
+
+    @ExecSpace("ClientOnly")
     method void PlayBgm(string key)
         -- Starts looping background music by key on this client.
         local sound = self:GetSounds()[key]

@@ -185,13 +185,12 @@ script FieldFx extends Logic
                     for _, id in ipairs(stage.loopPool) do ids[id] = true end
                 end
                 local seen = {}
-                local ruids = { self.PortalRuid, _BattleConfig.HitEffectRuid }
+                local ruids = { self.PortalRuid }
                 seen[self.PortalRuid] = true
-                seen[_BattleConfig.HitEffectRuid] = true
                 for id, _ in pairs(ids) do
                     local unit = _BattleConfig:GetUnit(id)
                     if unit ~= nil then
-                        for _, ruid in ipairs({ unit.standRuid, unit.moveRuid, unit.attackRuid, unit.dieRuid, unit.projectileRuid or "", unit.effectRuid or "" }) do
+                        for _, ruid in ipairs({ unit.standRuid, unit.moveRuid, unit.attackRuid, unit.dieRuid, unit.hitRuid or "", unit.projectileRuid or "", unit.attackEffectRuid or "", unit.effectRuid or "" }) do
                             if ruid ~= "" and seen[ruid] == nil then
                                 seen[ruid] = true
                                 table.insert(ruids, ruid)

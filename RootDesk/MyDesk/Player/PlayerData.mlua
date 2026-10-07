@@ -1,10 +1,11 @@
 @Component
 script PlayerData extends Component
 
-    -- Server-authoritative persistent data of one player: meso, owned units with levels, deck and cleared stages.
+    -- Server-authoritative persistent data of one player: meso, owned units with levels, deck, cleared stages
+    -- and the wallet (time-refilled currencies such as the campaign entry ticket).
     -- Loaded once when the player entity appears in a room (lobby or battle instance), synced to the owner's
     -- client only, and saved to the user's DataStorage at defined moments only:
-    -- unit purchase, level-up, deck change (debounced), battle end, and leaving the room.
+    -- unit purchase, level-up, deck change (debounced), currency spend / purchase, battle end, and leaving the room.
     @TargetUserSync property boolean Loaded = false
     @TargetUserSync property integer Meso = 0
     @TargetUserSync property string UnitsCsv = ""
@@ -12,11 +13,17 @@ script PlayerData extends Component
     @TargetUserSync property string StagesCsv = ""
     -- Highest in-battle cost level this player may reach (raised with meso in the lobby).
     @TargetUserSync property integer CostLevelCap = 3
+    -- Wallet as "currencyId:amount:nextAt,...". nextAt is the _UtilLogic.ServerElapsedSeconds at which the
+    -- next +1 arrives in this room (0 = not refilling). Written by the server only (PublishWallet).
+    @TargetUserSync property string WalletCsv = ""
     property string StorageKey = "PlayerData"
     property number DeckSaveDelay = 3
     @HideFromInspector property boolean IsDirty = false
     @HideFromInspector property integer SaveGeneration = 0
     @HideFromInspector property integer DeckTimerId = 0
+    @HideFromInspector property integer WalletTimerId = 0
+    -- How many processed World Shop purchase ids are remembered to refuse a repeated delivery.
+    property integer PurchaseHistorySize = 20
 
     -- ===== Read helpers (server and owner client) =====
 
@@ -42,6 +49,22 @@ script PlayerData extends Component
         return false
     end
 
+    method integer GetCurrencyAmount(string currencyId)
+        -- Returns how much of a currency the player holds (0 for an unknown currency).
+        for id, amount in string.gmatch(self.WalletCsv, "([^,:]+):(%d+):[^,]*") do
+            if id == currencyId then return math.floor(tonumber(amount)) end
+        end
+        return 0
+    end
+
+    method number GetCurrencyNextAt(string currencyId)
+        -- Returns the _UtilLogic.ServerElapsedSeconds at which the currency gains its next +1, or 0 when it is not refilling.
+        for id, nextAt in string.gmatch(self.WalletCsv, "([^,:]+):%d+:([^,]*)") do
+            if id == currencyId then return tonumber(nextAt) or 0 end
+        end
+        return 0
+    end
+
     -- ===== Load =====
 
     @ExecSpace("ServerOnly")
@@ -57,10 +80,19 @@ script PlayerData extends Component
             self.DeckCsv = data.deck or ""
             self.StagesCsv = data.stages or ""
             self.CostLevelCap = math.max(_BattleConfig.DefaultCostLevelCap, math.floor(data.costCap or 0))
+            self:LoadPurchases(data.purchases)
+            -- An account saved before a currency existed receives that currency's start amount once.
+            local granted = self:LoadWallet(data.wallet)
             self:GrantMissingStarters()
-            log("[PlayerData] loaded meso=" .. tostring(self.Meso) .. " units=" .. self.UnitsCsv .. " deck=" .. self.DeckCsv .. " stages=" .. self.StagesCsv)
+            if granted then
+                self:MarkDirty()
+                self:Save(false)
+            end
+            log("[PlayerData] loaded meso=" .. tostring(self.Meso) .. " units=" .. self.UnitsCsv .. " deck=" .. self.DeckCsv .. " stages=" .. self.StagesCsv .. " wallet=" .. self.WalletCsv)
         elseif errorCode == 0 or errorCode == 1000002 then
             self:GiveStarterSet()
+            self:LoadPurchases(nil)
+            self:LoadWallet(nil)
             self:MarkDirty()
             self:Save(false)
             log("[PlayerData] new player: starter set units=" .. self.UnitsCsv .. " deck=" .. self.DeckCsv)
@@ -70,6 +102,7 @@ script PlayerData extends Component
             return
         end
         self.Loaded = true
+        self:StartWalletTimer()
     end
 
     @ExecSpace("ServerOnly")
@@ -125,7 +158,7 @@ script PlayerData extends Component
         -- Writes the data when it changed. blocking = true waits for storage (battle end, leaving a room).
         if self.IsDirty == false then return end
         if self.Loaded == false and self.UnitsCsv == "" then return end
-        local payload = _HttpService:JSONEncode({ meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, stages = self.StagesCsv, costCap = self.CostLevelCap })
+        local payload = self:BuildPayload()
         local generation = self.SaveGeneration
         local storage = _DataStorageService:GetUserDataStorage(self.Entity.PlayerComponent.ProfileCode)
         if blocking then
@@ -136,6 +169,28 @@ script PlayerData extends Component
                 self:OnSaved(errorCode, generation)
             end)
         end
+    end
+
+    @ExecSpace("ServerOnly")
+    method string BuildPayload()
+        -- Serializes everything that is stored for this player.
+        return _HttpService:JSONEncode({
+            meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, stages = self.StagesCsv, costCap = self.CostLevelCap,
+            wallet = self:ExportWallet(), purchases = table.concat(self._T.purchases or {}, ","),
+        })
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean SaveNow()
+        -- Writes the data and waits for storage. Returns true only when storage confirmed the write.
+        -- Used where the next step depends on the stored value (a room move makes the next room read storage again).
+        if self.Loaded == false then return false end
+        local payload = self:BuildPayload()
+        local generation = self.SaveGeneration
+        local storage = _DataStorageService:GetUserDataStorage(self.Entity.PlayerComponent.ProfileCode)
+        local errorCode = storage:SetAndWait(self.StorageKey, payload)
+        self:OnSaved(errorCode, generation)
+        return errorCode == 0
     end
 
     @ExecSpace("ServerOnly")
@@ -160,11 +215,186 @@ script PlayerData extends Component
     @ExecSpace("ServerOnly")
     method void OnEndPlay()
         -- Cancels a pending debounced deck save and flushes it at once when the entity leaves the room.
+        if self.WalletTimerId ~= 0 then
+            _TimerService:ClearTimer(self.WalletTimerId)
+            self.WalletTimerId = 0
+        end
         if self.DeckTimerId ~= 0 then
             _TimerService:ClearTimer(self.DeckTimerId)
             self.DeckTimerId = 0
         end
         self:Save(true)
+    end
+
+    -- ===== Wallet (server) =====
+    -- Each currency is held as { n = amount, at = UTC seconds }: "n as of `at`, refilling since `at`".
+    -- The refill is always recomputed from that pair, so it needs no save of its own and keeps running
+    -- while the player is offline. Only spending and granting change what is stored.
+
+    @ExecSpace("ServerOnly")
+    method integer NowSeconds()
+        -- Returns the server's UTC clock in whole seconds.
+        return math.floor(DateTime.UtcNow.Elapsed / 1000)
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean LoadWallet(any saved)
+        -- Builds the wallet from the saved table (nil for a new player). A currency that is not in the save
+        -- starts at its StartAmount; returns true when that happened so the caller can save.
+        local now = self:NowSeconds()
+        local wallet = {}
+        local granted = false
+        for id, cfg in pairs(_BattleConfig:GetCurrencies()) do
+            local entry = nil
+            if saved ~= nil then entry = saved[id] end
+            if entry ~= nil then
+                wallet[id] = { n = math.max(0, math.floor(entry.n or 0)), at = math.floor(entry.at or now) }
+            else
+                wallet[id] = { n = cfg.startAmount, at = now }
+                granted = true
+            end
+        end
+        self._T.wallet = wallet
+        self:NormalizeWallet()
+        self:PublishWallet()
+        return granted
+    end
+
+    @ExecSpace("ServerOnly")
+    method table ExportWallet()
+        -- Returns the wallet in its stored form: currency id -> { n, at }.
+        local out = {}
+        for id, entry in pairs(self._T.wallet or {}) do
+            out[id] = { n = entry.n, at = entry.at }
+        end
+        return out
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean NormalizeWallet()
+        -- Applies the refill earned since each currency's `at`. Returns true when an amount changed.
+        local wallet = self._T.wallet
+        if wallet == nil then return false end
+        local now = self:NowSeconds()
+        local changed = false
+        for id, entry in pairs(wallet) do
+            local cfg = _BattleConfig:GetCurrency(id)
+            if cfg ~= nil then
+                if entry.at > now then entry.at = now end
+                if cfg.regenSeconds <= 0 or entry.n >= cfg.max then
+                    -- Not refilling (purchases may hold it above max); the clock restarts when it drops below max.
+                    entry.at = now
+                else
+                    local gained = math.floor((now - entry.at) / cfg.regenSeconds)
+                    if gained > 0 then
+                        entry.n = entry.n + gained
+                        entry.at = entry.at + gained * cfg.regenSeconds
+                        if entry.n >= cfg.max then
+                            entry.n = cfg.max
+                            entry.at = now
+                        end
+                        changed = true
+                    end
+                end
+            end
+        end
+        return changed
+    end
+
+    @ExecSpace("ServerOnly")
+    method void PublishWallet()
+        -- Rewrites WalletCsv for the owner's client when the wallet changed.
+        local wallet = self._T.wallet
+        if wallet == nil then return end
+        local now = self:NowSeconds()
+        local ids = {}
+        for id, _ in pairs(wallet) do table.insert(ids, id) end
+        table.sort(ids)
+        local parts = {}
+        for _, id in ipairs(ids) do
+            local entry = wallet[id]
+            local cfg = _BattleConfig:GetCurrency(id)
+            local nextAt = 0
+            if cfg ~= nil and cfg.regenSeconds > 0 and entry.n < cfg.max then
+                nextAt = _UtilLogic.ServerElapsedSeconds + (cfg.regenSeconds - (now - entry.at))
+            end
+            table.insert(parts, id .. ":" .. tostring(math.floor(entry.n)) .. ":" .. string.format("%.1f", nextAt))
+        end
+        local csv = table.concat(parts, ",")
+        if csv ~= self.WalletCsv then self.WalletCsv = csv end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void StartWalletTimer()
+        -- While the player is in this room, checks once a second whether a currency gained a point.
+        if self.WalletTimerId ~= 0 then return end
+        self.WalletTimerId = _TimerService:SetTimerRepeat(function()
+            if self:NormalizeWallet() then
+                self:PublishWallet()
+                log("[PlayerData] wallet refilled " .. self.WalletCsv)
+            end
+        end, 1)
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean SpendCurrency(string currencyId, integer amount)
+        -- Takes `amount` of a currency. Returns false (and takes nothing) when the player does not hold enough.
+        -- The caller decides when to save.
+        if self.Loaded == false or self._T.wallet == nil then return false end
+        local entry = self._T.wallet[currencyId]
+        if entry == nil or amount < 0 then return false end
+        self:NormalizeWallet()
+        if entry.n < amount then return false end
+        entry.n = entry.n - amount
+        self:PublishWallet()
+        self:MarkDirty()
+        log("[PlayerData] spent " .. currencyId .. " -" .. tostring(amount) .. " -> " .. tostring(entry.n))
+        return true
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean AddCurrency(string currencyId, integer amount)
+        -- Gives `amount` of a currency; the result may exceed the currency's max. The caller decides when to save.
+        if self.Loaded == false or self._T.wallet == nil then return false end
+        local entry = self._T.wallet[currencyId]
+        if entry == nil or amount <= 0 then return false end
+        self:NormalizeWallet()
+        entry.n = entry.n + amount
+        self:NormalizeWallet()
+        self:PublishWallet()
+        self:MarkDirty()
+        log("[PlayerData] gained " .. currencyId .. " +" .. tostring(amount) .. " -> " .. tostring(entry.n))
+        return true
+    end
+
+    @ExecSpace("ServerOnly")
+    method void LoadPurchases(any csv)
+        -- Restores the list of recently processed World Shop purchase ids.
+        local list = {}
+        if csv ~= nil then
+            for id in string.gmatch(tostring(csv), "[^,]+") do table.insert(list, id) end
+        end
+        self._T.purchases = list
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean GrantPurchase(string purchaseId, string currencyId, integer amount)
+        -- Delivers a World Shop purchase. Returns true when the purchase is (or already was) delivered,
+        -- false when it cannot be delivered now and must be retried.
+        if self.Loaded == false or self._T.purchases == nil then return false end
+        for _, id in ipairs(self._T.purchases) do
+            if id == purchaseId then
+                log("[PlayerData] purchase " .. purchaseId .. " was already delivered")
+                return true
+            end
+        end
+        if self:AddCurrency(currencyId, amount) == false then return false end
+        table.insert(self._T.purchases, purchaseId)
+        while #self._T.purchases > self.PurchaseHistorySize do table.remove(self._T.purchases, 1) end
+        self:MarkDirty()
+        self:Save(false)
+        log("[PlayerData] purchase " .. purchaseId .. " delivered " .. currencyId .. " +" .. tostring(amount))
+        return true
     end
 
     -- ===== Mutations (server) =====

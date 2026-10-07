@@ -1,7 +1,7 @@
 # 메이플 워 (가칭) — 횡스크롤 라인 대전 기획서 (GDD, M2)
 
 > 🔖 **AI note — resuming?** If you're reading this in a new session to continue/resume this game, load the `msw-planning` skill FIRST and follow its resume flow (read `MapleWar-Roadmap.md` + `Archive/As-built.md` → reconstruct state → reconcile) — don't edit or implement straight from this doc. **Before touching any `⬜/🟡/✅` state or running a completion, Read the skill's `references/build-management.md` IN FULL.**
-> Last updated: 2026-10-03 / Stage: Phase 6 in progress (Phase 5 awaiting user tests)
+> Last updated: 2026-10-06 / Stage: complete (M2 done 2026-10-06 — 사용자가 기본 UI 테스트를 마치고 종료 결정. Phase 6의 세부 확인 항목은 로드맵 Backlog로 이월)
 
 ## 1. One-line concept
 > "로비에서 덱을 짜고 스테이지를 골라 자기만의 전투 인스턴스에 들어가 싸우고, 메소를 받아 유닛을 사고 키우는 캠페인 뼈대. 전투 코어는 양 진영 대칭이라 이후 대전 모드가 같은 구조를 쓴다."
@@ -90,16 +90,16 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 - ✅ 전투 입장 시 덱·레벨 반영, 종료 시 메소 지급과 스테이지 클리어 기록
 - ✅ 유닛 구매와 레벨업(메소 차감, 서버 검증)
 
-### Phase 5 — "로비에서 준비하고 들어간다"
-> 구현 완료, 사용자 테스트 대기(2026-10-04). 모든 버튼 경로는 클라이언트에서 핸들러를 직접 호출해 확인했다(MCP로는 UI 버튼 클릭·스크롤을 재현할 수 없음). 구현: `ui/LobbyUI.ui` + `UI/LobbyUI.mlua`(`/ui/LobbyUI/Controller`, 전부 ClientOnly). 현재 맵에 BattleDirector가 없을 때만 표시, 플레이어 데이터 동기화 값이 바뀔 때만 다시 그림, 목록은 템플릿 복제 풀. `BattleConfig:GetStageIds()` 추가, `Commander.RequestEnterBattle`에 서버 해금 검증 추가.
-- 🟡 화면 전환 관리자와 로비 기본 화면(메소 표시 포함)  ⚠️ needs user test: 버튼 실제 클릭 (메인 화면 배치는 스크린샷 확인)
-- 🟡 스테이지 선택 화면(해금 상태 표시, 입장)  ⚠️ needs user test: 카드 선택·입장 클릭, 가로 스크롤 (3개 스테이지·잠금·서버 거부는 로그 확인)
-- 🟡 덱 편성 화면(보유 유닛에서 최대 10종 선택)  ⚠️ needs user test: 넣기·빼기 클릭, 카드 글자 배치(스크린샷 이후 수정분), 덱 10장 가득 찬 상태
-- 🟡 상점·강화 화면(구매, 레벨업)  ⚠️ needs user test: 버튼 클릭, 세로 스크롤, 최대 레벨 표시 (레벨업·구매·메소 부족 비활성은 로그 확인)
-- 🟡 전투 결과 화면에 획득 메소 표시 후 로비 복귀  ⚠️ needs user test: 결과 패널과 "로비로"·"나가기" 버튼의 모양과 클릭 (획득 메소 표시·로비 복귀는 로그 확인)
+### Phase 5 — "로비에서 준비하고 들어간다" (done)
+> 사용자 기본 UI 테스트 완료(2026-10-06). 구현 완료(2026-10-04). 모든 버튼 경로는 클라이언트에서 핸들러를 직접 호출해 확인했다(MCP로는 UI 버튼 클릭·스크롤을 재현할 수 없음). 구현: `ui/LobbyUI.ui` + `UI/LobbyUI.mlua`(`/ui/LobbyUI/Controller`, 전부 ClientOnly). 현재 맵에 BattleDirector가 없을 때만 표시, 플레이어 데이터 동기화 값이 바뀔 때만 다시 그림, 목록은 템플릿 복제 풀. `BattleConfig:GetStageIds()` 추가, `Commander.RequestEnterBattle`에 서버 해금 검증 추가.
+- ✅ 화면 전환 관리자와 로비 기본 화면(메소 표시 포함)
+- ✅ 스테이지 선택 화면(해금 상태 표시, 입장)
+- ✅ 덱 편성 화면(보유 유닛에서 최대 10종 선택)
+- ✅ 상점·강화 화면(구매, 레벨업)
+- ✅ 전투 결과 화면에 획득 메소 표시 후 로비 복귀
 
-### Phase 6 — "콘텐츠가 들어간다"
-> 진행 중(2026-10-04). 유닛 34종(스타터 20 = 몬스터 14 + 설치물 3 + 스킬 3, 그 외 적 겸 구매용 14), 스테이지 5개와 전용 맵 5개. 새 유닛은 공식 리소스 팩의 stand/move/attack1/die1 클립을 쓴다. 수치는 역할별 잠정값(밸런스 미조정).
+### Phase 6 — "콘텐츠가 들어간다" (closed)
+> 2026-10-06 사용자 결정으로 종료. 아래 🟡 항목의 "needs user test" 세부 확인은 따로 보고받지 않았으므로 로드맵 Backlog("M2 이월 확인")로 옮겼다. 구현(2026-10-04): 유닛 34종(스타터 20 = 몬스터 14 + 설치물 3 + 스킬 3, 그 외 적 겸 구매용 14), 스테이지 5개와 전용 맵 5개. 새 유닛은 공식 리소스 팩의 stand/move/attack1/die1 클립을 쓴다. 수치는 역할별 잠정값(밸런스 미조정).
 - 🟡 스타터 세트 20종 구성과 유닛 표 채우기(구매용 유닛 포함)  ⚠️ needs user test: 새 유닛들의 크기·공격 타이밍·방향이 자연스러운지 (스테이지 2에서 예티·라이오너 등 소환과 지면 위 이동은 화면 확인). 공격 시간은 프레임 수로 추정한 값
 - 🟡 스테이지 3~5개와 시간표 작성 → 스테이지 5개, 직선 해금, 스테이지마다 다른 타일의 전용 맵(`battle`, `battle2`~`battle5`)  ⚠️ needs user test: 스테이지 3~5 맵의 모양(2·5번만 화면 확인), 각 스테이지 플레이
 - 🟡 유닛·스킬 이미지 표시: 상점, 덱 편성, 전투 슬롯  ⚠️ needs user test: 실제 화면에서 이미지와 글자 배치, 전투 중 쿨타임 표시가 이미지 위에 그려지는지 (세 화면 모두 스크린샷으로 아이콘 표시 확인됨). 알려진 문제: 상점·덱 화면을 처음 열 때 목록 생성에 3~4초 걸리고 그동안 빈 카드가 잠깐 보임

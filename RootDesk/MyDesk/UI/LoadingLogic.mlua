@@ -13,6 +13,12 @@ script LoadingLogic extends Logic
     end
 
     @ExecSpace("ClientOnly")
+    method void Cancel()
+        -- Drops the loading screen at once: the server refused the room move.
+        self.Remain = 0
+    end
+
+    @ExecSpace("ClientOnly")
     method boolean IsActive()
         -- Returns true while a requested room move is still pending.
         return self.Remain > 0

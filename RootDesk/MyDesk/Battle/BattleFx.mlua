@@ -9,6 +9,14 @@ script BattleFx extends Logic
     property number DefaultBarY = 0.8
     property number PixelUnit = 0.01
     property number ProjectileAimY = 0.35
+    -- Hit feedback shared by every unit: the sprite blinks white for a moment when the unit loses HP.
+    -- A sprite's Color only multiplies (it cannot turn a sprite white), so the blink swaps the sprite's material:
+    -- HitFlashMaterial (shader ColorEffect > ColorOverride, white) while blinking, UnitMaterial (shader Default) after.
+    -- Both are materials in the workspace, found by name. Without them a hit plays its sound only.
+    property number HitFlashSeconds = 0.08
+    property string HitFlashMaterial = "HitFlash"
+    property string UnitMaterial = "UnitDefault"
+    property number UnitSoundVolume = 0.5
 
     @ExecSpace("ClientOnly")
     method void RegisterUnit(BattleUnit unit)
@@ -139,6 +147,8 @@ script BattleFx extends Logic
         rec.lastHp = hp
         if prev ~= nil and hp < prev then self:PlayHit(rec, prev, hp) end
         if hp <= 0 then
+            local cfg = _BattleConfig:GetUnit(unit.UnitId)
+            if cfg ~= nil and cfg.dieSoundRuid ~= nil then _BattleSound:PlayRuid(cfg.dieSoundRuid, self.UnitSoundVolume) end
             self:RemoveBar(rec, "dead")
         else
             self:DrawBar(rec)
@@ -147,25 +157,77 @@ script BattleFx extends Logic
 
     @ExecSpace("ClientOnly")
     method void PlayHit(table rec, number prevHp, number hp)
-        -- Plays the hit effect at the unit and the hit sound. Only the first hit of each unit is logged.
-        local pos = rec.entity.TransformComponent.WorldPosition
-        local scale = _BattleConfig.HitEffectScale * _BattleConfig.UnitScale
-        local effectPos = Vector3(pos.x, pos.y + rec.offsetY * 0.5, 0)
-        local serial = _EffectService:PlayEffect(_BattleConfig.HitEffectRuid, rec.entity, effectPos, 0, Vector3(scale, scale, 1), false)
-        _BattleSound:Play("hit")
+        -- Hit feedback: the unit blinks white for a moment and its damage sound plays (the shared hit sound
+        -- when the unit has none). Only the first hit of each unit is logged.
+        local sprite = rec.entity.SpriteRendererComponent
+        local flashed = false
+        if isvalid(sprite) and self:FindFlashMaterials() then
+            sprite:ChangeMaterial(self._T.flashMaterialId)
+            rec.flashRemain = self.HitFlashSeconds
+            flashed = true
+        end
+        ---@type BattleUnit
+        local unit = rec.unit
+        local cfg = _BattleConfig:GetUnit(unit.UnitId)
+        local sound = "hit"
+        if cfg ~= nil and cfg.damageSoundRuid ~= nil then
+            sound = cfg.damageSoundRuid
+            _BattleSound:PlayRuid(cfg.damageSoundRuid, self.UnitSoundVolume)
+        else
+            _BattleSound:Play("hit")
+        end
         if rec.hitLogged == false then
             rec.hitLogged = true
-            log("[BattleFx] first hit " .. rec.name .. " hp " .. tostring(prevHp) .. "->" .. tostring(hp) .. " effect=" .. tostring(serial) .. " sound=hit")
+            log("[BattleFx] first hit " .. rec.name .. " hp " .. tostring(prevHp) .. "->" .. tostring(hp) .. " flash=" .. tostring(flashed) .. " sound=" .. sound)
         end
     end
 
     @ExecSpace("ClientOnly")
+    method boolean FindFlashMaterials()
+        -- Looks up the two blink materials by name once; returns true when both exist in the workspace.
+        if self._T.flashLookedUp ~= true then
+            self._T.flashLookedUp = true
+            local flashId = _EntryService:GetMaterialIdByName(self.HitFlashMaterial)
+            local unitId = _EntryService:GetMaterialIdByName(self.UnitMaterial)
+            local found = flashId ~= nil and flashId ~= "" and unitId ~= nil and unitId ~= ""
+            if found then
+                self._T.flashMaterialId = flashId
+                self._T.unitMaterialId = unitId
+            end
+            self._T.flashReady = found
+            log("[BattleFx] hit flash materials " .. self.HitFlashMaterial .. "=" .. tostring(flashId) .. " " .. self.UnitMaterial .. "=" .. tostring(unitId) .. " ready=" .. tostring(found))
+        end
+        return self._T.flashReady == true
+    end
+
+    @ExecSpace("ClientOnly")
+    method void EndFlash(table rec)
+        -- Returns a blinking unit's sprite to its normal material.
+        rec.flashRemain = nil
+        if not isvalid(rec.entity) then return end
+        local sprite = rec.entity.SpriteRendererComponent
+        if isvalid(sprite) then sprite:ChangeMaterial(self._T.unitMaterialId) end
+    end
+
+    @ExecSpace("ClientOnly")
     method void OnAttackFired(BattleUnit attacker, Entity target, number travelTime)
-        -- Spawns a client-local projectile that flies from the attacker to the target during the hit delay.
+        -- An attack started: plays the attacker's attack effect and attack sound, and for a unit with a
+        -- projectile spawns a client-local projectile that flies to the target during the hit delay.
         local cfg = _BattleConfig:GetUnit(attacker.UnitId)
-        if cfg == nil or cfg.projectileRuid == nil then return end
+        if cfg == nil then return end
         local source = attacker.Entity
-        if not isvalid(source) or not isvalid(target) then return end
+        if not isvalid(source) then return end
+        local fx = attacker._T.fx
+        if cfg.attackEffectRuid ~= nil then
+            -- Attached to the attacker, so the effect follows its size and facing.
+            local serial = _EffectService:PlayEffectAttached(cfg.attackEffectRuid, source, Vector3(0, 0, 0), 0, Vector3(1, 1, 1), false)
+            if fx ~= nil and fx.attackFxLogged ~= true then
+                fx.attackFxLogged = true
+                log("[BattleFx] attack effect " .. source.Name .. " ruid=" .. cfg.attackEffectRuid .. " serial=" .. tostring(serial))
+            end
+        end
+        if cfg.attackSoundRuid ~= nil then _BattleSound:PlayRuid(cfg.attackSoundRuid, self.UnitSoundVolume) end
+        if cfg.projectileRuid == nil or not isvalid(target) then return end
         local map = source.CurrentMap
         if not isvalid(map) then return end
 
@@ -215,6 +277,10 @@ script BattleFx extends Logic
                     self:RemoveBar(rec, "unit removed")
                     table.remove(recs, i)
                 else
+                    if rec.flashRemain ~= nil then
+                        rec.flashRemain = rec.flashRemain - delta
+                        if rec.flashRemain <= 0 then self:EndFlash(rec) end
+                    end
                     if rec.bar == nil then self:EnsureBar(rec) end
                     if rec.bar ~= nil then
                         local pos = rec.entity.TransformComponent.WorldPosition

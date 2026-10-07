@@ -1,0 +1,2 @@
+﻿CurrencyId,Name,Max,RegenSeconds,StartAmount,#Memo
+ticket,입장권,30,360,30,"캠페인 입장 재화. Max는 자동 충전 최대치(구매분은 넘겨 쌓임), RegenSeconds는 1 회복에 걸리는 초(0=자동 충전 없음), StartAmount는 신규 유저 시작량"

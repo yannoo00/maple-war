@@ -1,0 +1,4 @@
+﻿ProductId,CurrencyId,Amount,Label,#Memo
+5JGW1T7EY,ticket,10,입장권 10장,ProductId는 월드 상품 ID(비어 있으면 상점에 준비 중으로 표시). 가격은 월드 상품에 등록된 값: 50 / 130 / 400 Worldcoin
+1SBJQIC89,ticket,30,입장권 30장,
+XVSUGEYAW,ticket,100,입장권 100장,

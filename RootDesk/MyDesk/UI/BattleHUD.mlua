@@ -367,8 +367,29 @@ script BattleHUD extends Component
                 if isvalid(self.rewardText) then self.rewardText.Text = "획득 메소 +" .. tostring(reward) end
                 log("[BattleHUD] result reward shown: 획득 메소 +" .. tostring(reward))
             end
+            -- Restart is another entry: the button shows the stage's entry cost and is off when the player cannot pay it.
+            local stage = _BattleConfig:GetStage(director.StageId)
+            ---@type PlayerData
+            local data = commander.Entity:GetComponent("script.PlayerData")
+            if stage ~= nil and data ~= nil and isvalid(self.restartButton) then
+                local cost = math.floor(stage.entryCost)
+                local held = data:GetCurrencyAmount(_BattleConfig.EntryCurrencyId)
+                local ticket = _BattleConfig:GetCurrency(_BattleConfig.EntryCurrencyId)
+                local label = "다시 하기"
+                if cost > 0 and ticket ~= nil then
+                    label = "다시 하기\n" .. ticket.name .. " " .. tostring(cost)
+                    if held < cost then label = ticket.name .. " 부족\n" .. tostring(held) .. " / " .. tostring(cost) end
+                end
+                if label ~= view.restartLabel then
+                    view.restartLabel = label
+                    self.restartButton.TextGUIRendererComponent.Text = label
+                    self.restartButton.ButtonComponent.Enable = held >= cost
+                    log("[BattleHUD] restart button cost=" .. tostring(cost) .. " held=" .. tostring(held) .. " enabled=" .. tostring(held >= cost))
+                end
+            end
         else
             view.reward = nil
+            view.restartLabel = nil
         end
     end
 

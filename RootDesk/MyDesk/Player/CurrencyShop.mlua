@@ -1,0 +1,52 @@
+@Logic
+script CurrencyShop extends Logic
+
+    -- Server: delivers what a World Shop purchase (Worldcoin) bought. Products are the rows of
+    -- ShopProductTable; each gives an amount of one wallet currency to the buyer's PlayerData.
+    -- How long a delivery waits for the buyer's saved data to finish loading before it gives up
+    -- (the platform then offers the purchase again the next time the buyer enters the world).
+    property number LoadWaitSeconds = 5
+
+    @ExecSpace("ServerOnly")
+    method void OnBeginPlay()
+        -- Registers the delivery callback in every room, so a purchase is delivered wherever the buyer is.
+        _WorldShopService:SetProcessPurchaseCallback(self.ProcessPurchase)
+        log("[CurrencyShop] purchase callback registered")
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean ProcessPurchase(any purchaseInfo)
+        -- Delivery callback: returns true only when the product was given (or had already been given).
+        local productId = purchaseInfo.ProductId
+        local userId = purchaseInfo.UserId
+        local purchaseId = purchaseInfo.PurchaseId
+        local product = _BattleConfig:GetShopProduct(productId)
+        if product == nil then
+            log_error("[CurrencyShop] delivery failed: product " .. tostring(productId) .. " is not in ShopProductTable. purchase=" .. tostring(purchaseId))
+            return false
+        end
+        local user = _UserService:GetUserEntityByUserId(userId)
+        if not isvalid(user) then
+            log_error("[CurrencyShop] delivery failed: user " .. tostring(userId) .. " is not in this room. purchase=" .. tostring(purchaseId))
+            return false
+        end
+        ---@type PlayerData
+        local data = user:GetComponent("script.PlayerData")
+        if data == nil then return false end
+        -- A purchase offered again at entry can arrive before the saved data is loaded: wait a little for it.
+        local waited = 0
+        while data.Loaded == false and waited < self.LoadWaitSeconds do
+            wait(0.2)
+            waited = waited + 0.2
+            if not isvalid(user) then return false end
+        end
+        if data:GrantPurchase(purchaseId, product.currencyId, product.amount) == false then
+            log_error("[CurrencyShop] delivery failed: player data not ready. user=" .. tostring(userId) .. " purchase=" .. tostring(purchaseId))
+            return false
+        end
+        _LogStorageService:LogPurchaseInfo(purchaseInfo, product.currencyId .. " +" .. tostring(product.amount))
+        log("[CurrencyShop] delivered product=" .. productId .. " user=" .. userId .. " purchase=" .. tostring(purchaseId) .. " " .. product.currencyId .. " +" .. tostring(product.amount))
+        return true
+    end
+
+end

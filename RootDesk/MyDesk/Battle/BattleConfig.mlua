@@ -23,10 +23,14 @@ script BattleConfig extends Logic
     property number CostStart = 100
     property number CostPerSecond = 20
     property integer DefaultCostLevelCap = 3
+    -- Knockback shared by every monster unless its UnitTable row says otherwise: HP lost (percent of max) per
+    -- knockback, how far it is pushed (authored units, scaled by RangeScale) and how long the push lasts.
+    property number KnockbackHpPercent = 34
+    property number KnockbackDistance = 0.8
+    property number KnockbackSeconds = 0.35
     property integer DeckSize = 10
-    -- Presentation only (client): generic hit effect played where a unit loses HP.
-    property string HitEffectRuid = "5b8906410c264922affb37fd5b5280e2"
-    property number HitEffectScale = 0.7
+    -- Currency (CurrencyTable id) paid to enter a campaign stage; the amount is the stage's EntryCost.
+    property string EntryCurrencyId = "ticket"
 
     method number Num(string text, number fallback)
         -- Converts a dataset cell to a number; blank or invalid cells give the fallback.
@@ -58,9 +62,28 @@ script BattleConfig extends Logic
         for i = 1, count do
             local id = ds:GetCell(i, "UnitId")
             if id ~= nil and id ~= "" then
+                local kind = ds:GetCell(i, "Kind")
+                local projectileRuid = self:OptText(ds:GetCell(i, "ProjectileRuid"))
+                -- Attack type of a monster / build: melee, ranged, melee_area or ranged_area.
+                -- A blank cell falls back to ranged when the unit has a projectile, melee otherwise.
+                local attackType = self:OptText(ds:GetCell(i, "AttackType")) or ""
+                if attackType == "" and (kind == "monster" or kind == "build") then
+                    attackType = projectileRuid ~= nil and "ranged" or "melee"
+                end
                 units[id] = {
                     id = id,
-                    kind = ds:GetCell(i, "Kind"),
+                    kind = kind,
+                    attackType = attackType,
+                    areaAttack = self:IsAreaAttackType(attackType),
+                    -- Monsters only: attribute (earth / water / fire / wind / light / dark), the one effect the
+                    -- monster's attacks can apply (EffectTable id), and its knockback: every time it has lost another
+                    -- KnockbackHpPercent of its max HP it is pushed back while its hit clip plays.
+                    attribute = self:OptText(ds:GetCell(i, "Attribute")) or "",
+                    effectId = self:OptText(ds:GetCell(i, "Effect")) or "",
+                    hitRuid = self:OptText(ds:GetCell(i, "HitRuid")) or "",
+                    knockbackHpPercent = self:Num(ds:GetCell(i, "KnockbackHpPercent"), self.KnockbackHpPercent),
+                    knockbackDistance = self:Num(ds:GetCell(i, "KnockbackDistance"), self.KnockbackDistance),
+                    knockbackSeconds = self:Num(ds:GetCell(i, "KnockbackSeconds"), self.KnockbackSeconds),
                     name = ds:GetCell(i, "Name"),
                     rarity = self:OptText(ds:GetCell(i, "Rarity")) or "normal",
                     cost = self:Num(ds:GetCell(i, "Cost"), 0),
@@ -81,7 +104,13 @@ script BattleConfig extends Logic
                     attackPlayRate = self:Num(ds:GetCell(i, "AttackPlayRate"), 1),
                     attackPose = self:Num(ds:GetCell(i, "AttackPose"), 0),
                     attackHitDelay = self:Num(ds:GetCell(i, "AttackHitDelay"), 0),
-                    projectileRuid = self:OptText(ds:GetCell(i, "ProjectileRuid")),
+                    projectileRuid = projectileRuid,
+                    -- Presentation of an attack (client only): effect clip played on the attacker when it attacks,
+                    -- and the unit's own sounds for attacking, being damaged and dying. Blank = none / shared sound.
+                    attackEffectRuid = self:OptText(ds:GetCell(i, "AttackEffectRuid")),
+                    attackSoundRuid = self:OptText(ds:GetCell(i, "AttackSoundRuid")),
+                    damageSoundRuid = self:OptText(ds:GetCell(i, "DamageSoundRuid")),
+                    dieSoundRuid = self:OptText(ds:GetCell(i, "DieSoundRuid")),
                     projectileScale = self:OptNum(ds:GetCell(i, "ProjectileScale")),
                     barY = self:OptNum(ds:GetCell(i, "BarY")),
                     barWidth = self:OptNum(ds:GetCell(i, "BarWidth")),
@@ -101,6 +130,72 @@ script BattleConfig extends Logic
     method table GetUnit(string unitId)
         -- Returns one unit definition at level 1, or nil when the id is unknown.
         return self:GetUnits()[unitId]
+    end
+
+    method boolean IsAreaAttackType(string attackType)
+        -- Returns true for the attack types that damage every enemy in range instead of one target.
+        return attackType == "melee_area" or attackType == "ranged_area"
+    end
+
+    method string GetAttributeLabel(string attribute)
+        -- Returns the display name of a monster attribute ("" when the unit has none).
+        if attribute == "earth" then return "땅" end
+        if attribute == "water" then return "물" end
+        if attribute == "fire" then return "화염" end
+        if attribute == "wind" then return "바람" end
+        if attribute == "light" then return "빛" end
+        if attribute == "dark" then return "어둠" end
+        return ""
+    end
+
+    method table GetEffects()
+        -- Returns every effect definition keyed by effect id, loaded once from EffectTable:
+        -- { id, type, name, duration, power, chance = { attribute -> percent } }.
+        -- type is the behavior (nullify / curse / warp / blow); chance is looked up by the attribute of the unit that was hit.
+        local effects = self._T.effects
+        if effects ~= nil then return effects end
+        effects = {}
+        local ds = _DataService:GetTable("EffectTable")
+        local count = 0
+        if ds ~= nil then count = ds:GetRowCount() end
+        for i = 1, count do
+            local id = ds:GetCell(i, "EffectId")
+            if id ~= nil and id ~= "" then
+                effects[id] = {
+                    id = id,
+                    type = ds:GetCell(i, "Type") or "",
+                    name = ds:GetCell(i, "Name") or id,
+                    duration = self:Num(ds:GetCell(i, "Duration"), 0),
+                    power = self:Num(ds:GetCell(i, "Power"), 0),
+                    chance = {
+                        earth = self:Num(ds:GetCell(i, "ChanceEarth"), 0),
+                        water = self:Num(ds:GetCell(i, "ChanceWater"), 0),
+                        fire = self:Num(ds:GetCell(i, "ChanceFire"), 0),
+                        wind = self:Num(ds:GetCell(i, "ChanceWind"), 0),
+                        light = self:Num(ds:GetCell(i, "ChanceLight"), 0),
+                        dark = self:Num(ds:GetCell(i, "ChanceDark"), 0),
+                    },
+                }
+            end
+        end
+        self._T.effects = effects
+        log("[BattleConfig] EffectTable loaded rows=" .. tostring(count))
+        return effects
+    end
+
+    method table GetEffect(string effectId)
+        -- Returns one effect definition, or nil when the id is blank or unknown.
+        if effectId == nil or effectId == "" then return nil end
+        return self:GetEffects()[effectId]
+    end
+
+    method string GetAttackTypeLabel(string attackType)
+        -- Returns the display name of an attack type ("" for units that do not attack, such as skills).
+        if attackType == "melee" then return "근거리" end
+        if attackType == "ranged" then return "원거리" end
+        if attackType == "melee_area" then return "근거리 범위" end
+        if attackType == "ranged_area" then return "원거리 범위" end
+        return ""
     end
 
     method string GetIconRuid(string unitId)
@@ -215,6 +310,71 @@ script BattleConfig extends Logic
         return ids
     end
 
+    method table GetCurrencies()
+        -- Returns every currency definition keyed by currency id: { id, name, max, regenSeconds, startAmount },
+        -- loaded once from CurrencyTable. regenSeconds = seconds per +1 (0 = no automatic refill).
+        local currencies = self._T.currencies
+        if currencies ~= nil then return currencies end
+        currencies = {}
+        local ds = _DataService:GetTable("CurrencyTable")
+        local count = 0
+        if ds ~= nil then count = ds:GetRowCount() end
+        for i = 1, count do
+            local id = ds:GetCell(i, "CurrencyId")
+            if id ~= nil and id ~= "" then
+                currencies[id] = {
+                    id = id,
+                    name = ds:GetCell(i, "Name") or id,
+                    max = math.floor(self:Num(ds:GetCell(i, "Max"), 0)),
+                    regenSeconds = math.floor(self:Num(ds:GetCell(i, "RegenSeconds"), 0)),
+                    startAmount = math.floor(self:Num(ds:GetCell(i, "StartAmount"), 0)),
+                }
+            end
+        end
+        self._T.currencies = currencies
+        log("[BattleConfig] CurrencyTable loaded rows=" .. tostring(count))
+        return currencies
+    end
+
+    method table GetCurrency(string currencyId)
+        -- Returns one currency definition, or nil when the id is unknown.
+        return self:GetCurrencies()[currencyId]
+    end
+
+    method table GetShopProducts()
+        -- Returns the World Shop products in ShopProductTable row order: { productId, currencyId, amount, label }.
+        -- productId is blank until the product is registered in the world.
+        local products = self._T.products
+        if products ~= nil then return products end
+        products = {}
+        local ds = _DataService:GetTable("ShopProductTable")
+        local count = 0
+        if ds ~= nil then count = ds:GetRowCount() end
+        for i = 1, count do
+            local currencyId = ds:GetCell(i, "CurrencyId")
+            if currencyId ~= nil and currencyId ~= "" then
+                table.insert(products, {
+                    productId = ds:GetCell(i, "ProductId") or "",
+                    currencyId = currencyId,
+                    amount = math.floor(self:Num(ds:GetCell(i, "Amount"), 0)),
+                    label = ds:GetCell(i, "Label") or "",
+                })
+            end
+        end
+        self._T.products = products
+        log("[BattleConfig] ShopProductTable loaded rows=" .. tostring(count))
+        return products
+    end
+
+    method table GetShopProduct(string productId)
+        -- Returns the product row of a World Shop product id, or nil when the id is not in the table.
+        if productId == nil or productId == "" then return nil end
+        for _, product in ipairs(self:GetShopProducts()) do
+            if product.productId == productId then return product end
+        end
+        return nil
+    end
+
     method table GetStage(string stageId)
         -- Returns one stage definition from StageTable, or nil when the id is unknown.
         local stages = self._T.stages
@@ -237,6 +397,7 @@ script BattleConfig extends Logic
                         groundY = self:Num(ds:GetCell(i, "GroundY"), self.GroundY),
                         baseHp = self:Num(ds:GetCell(i, "BaseHp"), 1000),
                         rewardMeso = self:Num(ds:GetCell(i, "RewardMeso"), 0),
+                        entryCost = self:Num(ds:GetCell(i, "EntryCost"), 0),
                         unlockStage = ds:GetCell(i, "UnlockStage") or "",
                         loopPool = pool,
                         loopStartInterval = self:Num(ds:GetCell(i, "LoopStartInterval"), 6),

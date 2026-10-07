@@ -1,6 +1,6 @@
-﻿StageId,Name,MapName,GroundY,BaseHp,RewardMeso,UnlockStage,LoopPool,LoopStartInterval,LoopMinInterval,#Memo
-stage1,스테이지 1,battle,-1.36,1000,100,,slime;slime;slime;spirit;mushmom,6,3,기본 타일
-stage2,스테이지 2,battle2,-1.2,1200,150,stage1,cellion;lioner;grupin;slime;spirit,5.5,3,
-stage3,스테이지 3,battle3,-1.06,1400,200,stage2,lioner;grupin;spirit;darkyeti,5.5,2.8,
-stage4,스테이지 4,battle4,-1.32,1600,300,stage3,bulldog;tauromacis;taurospear;harp,5,2.6,
-stage5,스테이지 5,battle5,-1.24,2000,500,stage4,bulldog;harp;taurospear;lycan,5,2.4,60초에 주니어 발록 등장
+﻿StageId,Name,MapName,GroundY,BaseHp,RewardMeso,EntryCost,UnlockStage,LoopPool,LoopStartInterval,LoopMinInterval,#Memo
+stage1,스테이지 1,battle,-1.36,1000,100,5,,slime;slime;slime;spirit;mushmom,6,3,기본 타일
+stage2,스테이지 2,battle2,-1.2,1200,150,5,stage1,cellion;lioner;grupin;slime;spirit,5.5,3,
+stage3,스테이지 3,battle3,-1.06,1400,200,5,stage2,lioner;grupin;spirit;darkyeti,5.5,2.8,
+stage4,스테이지 4,battle4,-1.32,1600,300,5,stage3,bulldog;tauromacis;taurospear;harp,5,2.6,
+stage5,스테이지 5,battle5,-1.24,2000,500,5,stage4,bulldog;harp;taurospear;lycan,5,2.4,60초에 주니어 발록 등장
