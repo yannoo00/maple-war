@@ -27,7 +27,8 @@ const GROUPS = [
   { id: 'timing', label: '공격 타이밍 (화면 보고 맞추는 값)', kinds: ['monster', 'build'] },
   { id: 'clip', label: '애니메이션 RUID', kinds: ['monster', 'build'] },
   { id: 'fx', label: '공격 연출 · HP 바 (클라이언트 전용)', kinds: ['monster', 'build'] },
-  { id: 'monster', label: '속성 · 효과 · 넉백 (몬스터 전용)', kinds: ['monster'] },
+  { id: 'monster', label: '속성 · 넉백 (몬스터 전용)', kinds: ['monster'] },
+  { id: 'effect', label: '효과 (몬스터 · 설치물) — 빈칸 = 효과 표의 기본값', kinds: ['monster', 'build'] },
   { id: 'skill', label: '스킬', kinds: ['skill'] },
   { id: 'memo', label: '메모', kinds: KINDS },
 ];
@@ -93,8 +94,18 @@ const FIELDS = [
 
   { key: 'Attribute', group: 'monster', type: 'enum', enum: ENUMS.Attribute, label: '속성', kinds: ['monster'],
     help: '빈칸이면 효과를 받지 않음. 상성 없음, 효과 확률에만 쓰임' },
-  { key: 'Effect', group: 'monster', type: 'effect', label: '효과 (EffectTable id)', kinds: ['monster'],
-    help: '이 몬스터의 공격으로 피해를 받은 몬스터에게 확률로 걸림. 빈칸 = 없음' },
+  { key: 'Effect', group: 'effect', type: 'effect', label: '효과 (EffectTable id)', kinds: ['monster', 'build'],
+    help: '이 유닛의 공격으로 피해를 받은 몬스터에게 확률로 걸림. 빈칸 = 없음' },
+  { key: 'EffectDuration', group: 'effect', type: 'number', label: '효과 지속 시간(초) 덮어쓰기', kinds: ['monster', 'build'],
+    help: '빈칸 = 효과 표의 Duration' },
+  { key: 'EffectPower', group: 'effect', type: 'number', label: '효과 세기 덮어쓰기', kinds: ['monster', 'build'],
+    help: '빈칸 = 효과 표의 Power' },
+  { key: 'EffectChanceEarth', group: 'effect', type: 'number', label: '확률 · 땅(%) 덮어쓰기', kinds: ['monster', 'build'], help: '빈칸 = 효과 표의 기본 확률. 0 = 걸리지 않음' },
+  { key: 'EffectChanceWater', group: 'effect', type: 'number', label: '확률 · 물(%) 덮어쓰기', kinds: ['monster', 'build'] },
+  { key: 'EffectChanceFire', group: 'effect', type: 'number', label: '확률 · 화염(%) 덮어쓰기', kinds: ['monster', 'build'] },
+  { key: 'EffectChanceWind', group: 'effect', type: 'number', label: '확률 · 바람(%) 덮어쓰기', kinds: ['monster', 'build'] },
+  { key: 'EffectChanceLight', group: 'effect', type: 'number', label: '확률 · 빛(%) 덮어쓰기', kinds: ['monster', 'build'] },
+  { key: 'EffectChanceDark', group: 'effect', type: 'number', label: '확률 · 어둠(%) 덮어쓰기', kinds: ['monster', 'build'] },
   { key: 'KnockbackHpPercent', group: 'monster', type: 'number', label: '넉백 체력 구간(%)', kinds: ['monster'],
     help: '빈칸 = 공용 34. 0 = 넉백 없음' },
   { key: 'KnockbackDistance', group: 'monster', type: 'number', label: '넉백 거리', kinds: ['monster'], help: '빈칸 = 공용 0.8' },
@@ -114,11 +125,15 @@ const FIELD_BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f]));
 const UNIT_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 // ---------- EffectTable ----------
-// One row = one effect a monster's attack can apply. Type is the behavior key BattleUnit:ReceiveEffect branches on.
+// One row = one effect a monster's or build's attack can apply. Type is the behavior key BattleUnit:ReceiveEffect branches on.
+// Duration / Power / Chance* here are DEFAULTS: a unit overrides any of them with its own UnitTable EffectDuration /
+// EffectPower / EffectChance* cell (blank = use the default below).
 // A row whose Type is not implemented in code is allowed: it is a design note (the memo is the spec) until Claude
 // implements it. The editor shows which types the code actually handles (see unitdata.implementedEffectTypes).
 
 const ATTRIBUTE_CHANCE_KEYS = { earth: 'ChanceEarth', water: 'ChanceWater', fire: 'ChanceFire', wind: 'ChanceWind', light: 'ChanceLight', dark: 'ChanceDark' };
+// Same attributes in UnitTable: the unit's own override of each default chance.
+const UNIT_CHANCE_KEYS = { earth: 'EffectChanceEarth', water: 'EffectChanceWater', fire: 'EffectChanceFire', wind: 'EffectChanceWind', light: 'EffectChanceLight', dark: 'EffectChanceDark' };
 
 const EFFECT_FIELDS = [
   { key: 'EffectId', type: 'text', label: '효과 ID', required: true,
@@ -126,14 +141,14 @@ const EFFECT_FIELDS = [
   { key: 'Type', type: 'text', label: '동작 타입', required: true,
     help: '코드가 분기하는 키. 기존: nullify / curse / warp / blow. 새 타입을 적으면 "미구현"으로 표시되고, 메모의 설명을 보고 Claude가 구현함' },
   { key: 'Name', type: 'text', label: '표시 이름', required: true },
-  { key: 'Duration', type: 'number', label: '지속 시간(초)', required: true, help: 'nullify·curse: 효과 유지 / warp: 정지 시간 / blow: 밀리는 시간' },
-  { key: 'Power', type: 'number', label: '세기', default: '0', help: 'warp·blow: 거리(사거리와 같은 단위). 다른 타입은 의미를 메모에 적을 것' },
-  { key: 'ChanceEarth', type: 'number', label: '확률 · 땅(%)', default: '0' },
-  { key: 'ChanceWater', type: 'number', label: '확률 · 물(%)', default: '0' },
-  { key: 'ChanceFire', type: 'number', label: '확률 · 화염(%)', default: '0' },
-  { key: 'ChanceWind', type: 'number', label: '확률 · 바람(%)', default: '0' },
-  { key: 'ChanceLight', type: 'number', label: '확률 · 빛(%)', default: '0' },
-  { key: 'ChanceDark', type: 'number', label: '확률 · 어둠(%)', default: '0' },
+  { key: 'Duration', type: 'number', label: '지속 시간(초) · 기본값', required: true, help: '유닛이 EffectDuration으로 덮어쓸 수 있음. nullify·curse: 효과 유지 / warp: 정지 시간 / blow: 밀리는 시간' },
+  { key: 'Power', type: 'number', label: '세기 · 기본값', default: '0', help: '유닛이 EffectPower로 덮어쓸 수 있음. warp·blow: 거리(사거리와 같은 단위). 다른 타입은 의미를 메모에 적을 것' },
+  { key: 'ChanceEarth', type: 'number', label: '확률 · 땅(%) 기본값', default: '0' },
+  { key: 'ChanceWater', type: 'number', label: '확률 · 물(%) 기본값', default: '0' },
+  { key: 'ChanceFire', type: 'number', label: '확률 · 화염(%) 기본값', default: '0' },
+  { key: 'ChanceWind', type: 'number', label: '확률 · 바람(%) 기본값', default: '0' },
+  { key: 'ChanceLight', type: 'number', label: '확률 · 빛(%) 기본값', default: '0' },
+  { key: 'ChanceDark', type: 'number', label: '확률 · 어둠(%) 기본값', default: '0' },
   { key: '#Memo', type: 'memo', label: '효과 설명 (구현 스펙)',
     help: '코드는 읽지 않음. 미구현 타입이면 이 설명이 Claude에게 넘길 구현 스펙이 됨: 누구에게, 얼마 동안, 무엇이 일어나는지' },
 ];
@@ -188,6 +203,7 @@ module.exports = {
   isEditableKind,
   fieldsForKind,
   ATTRIBUTE_CHANCE_KEYS,
+  UNIT_CHANCE_KEYS,
   EFFECT_FIELDS,
   EFFECT_FIELD_BY_KEY,
   EFFECT_ID_PATTERN,
