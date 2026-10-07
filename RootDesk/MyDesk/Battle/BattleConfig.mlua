@@ -81,11 +81,24 @@ script BattleConfig extends Logic
                     kind = kind,
                     attackType = attackType,
                     areaAttack = self:IsAreaAttackType(attackType),
-                    -- Monsters only: attribute (earth / water / fire / wind / light / dark), the one effect the
-                    -- monster's attacks can apply (EffectTable id), and its knockback: every time it has lost another
-                    -- KnockbackHpPercent of its max HP it is pushed back while its hit clip plays.
+                    -- Monsters only: attribute (earth / water / fire / wind / light / dark) and its knockback: every time
+                    -- it has lost another KnockbackHpPercent of its max HP it is pushed back while its hit clip plays.
+                    -- Monsters and builds: the one effect their attacks can apply (EffectTable id) and its overrides.
                     attribute = self:OptText(ds:GetCell(i, "Attribute")) or "",
                     effectId = self:OptText(ds:GetCell(i, "Effect")) or "",
+                    -- This unit's own override of the effect's defaults (blank cell = nil = use the EffectTable value).
+                    effectOverride = {
+                        duration = self:OptNum(ds:GetCell(i, "EffectDuration")),
+                        power = self:OptNum(ds:GetCell(i, "EffectPower")),
+                        chance = {
+                            earth = self:OptNum(ds:GetCell(i, "EffectChanceEarth")),
+                            water = self:OptNum(ds:GetCell(i, "EffectChanceWater")),
+                            fire = self:OptNum(ds:GetCell(i, "EffectChanceFire")),
+                            wind = self:OptNum(ds:GetCell(i, "EffectChanceWind")),
+                            light = self:OptNum(ds:GetCell(i, "EffectChanceLight")),
+                            dark = self:OptNum(ds:GetCell(i, "EffectChanceDark")),
+                        },
+                    },
                     hitRuid = self:OptText(ds:GetCell(i, "HitRuid")) or "",
                     knockbackHpPercent = self:Num(ds:GetCell(i, "KnockbackHpPercent"), self.KnockbackHpPercent),
                     knockbackDistance = self:Num(ds:GetCell(i, "KnockbackDistance"), self.KnockbackDistance),
@@ -247,7 +260,8 @@ script BattleConfig extends Logic
 
     method table GetEffects()
         -- Returns every effect definition keyed by effect id, loaded once from EffectTable:
-        -- { id, type, name, duration, power, chance = { attribute -> percent } }.
+        -- { id, type, name, duration, power, chance = { attribute -> percent } }. These are the DEFAULTS; a unit's
+        -- UnitTable Effect* cells override them per unit (see BattleUnit:TryApplyEffect).
         -- type is the behavior (nullify / curse / warp / blow); chance is looked up by the attribute of the unit that was hit.
         local effects = self._T.effects
         if effects ~= nil then return effects end

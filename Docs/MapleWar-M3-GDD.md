@@ -63,7 +63,8 @@
 - 속성: 몬스터마다 6속성 중 하나(`UnitTable.Attribute` = `earth` / `water` / `fire` / `wind` / `light` / `dark`). 설치물·스킬·기지는 빈칸.
 - 효과: 몬스터마다 '효과'를 가진다(`UnitTable.Effect`, 없으면 빈칸). 그 몬스터의 공격으로 **피해를 받은 유닛마다** 확률 판정을 해서 걸리면 효과가 적용된다. 범위 공격이면 맞은 유닛 각각 판정한다. 확률은 **효과 × 맞은 유닛의 속성** 확률표(`EffectChanceTable`)에서 읽는다(AI의 해석 — 아래 미정 사항 1).
 - 넉백: 몬스터의 HP가 `KnockbackHpPercent`(몬스터마다 다름) 이하로 떨어지는 순간, 뒤로 조금 밀리면서 피격 모션(`HitRuid`)을 재생하고 그동안 행동을 멈춘다.
-- 효과와 넉백은 몬스터끼리만 해당한다. 설치물·스킬은 효과를 걸지도 받지도 않는 것으로 두고, 사용자가 전달할 설치물·스킬 기획에서 다시 정한다.
+- 넉백은 몬스터끼리만 해당한다. 효과는 **몬스터와 설치물이 걸 수 있고**(2026-10-07 사용자 결정), 받는 쪽은 속성이 있는 몬스터뿐이다. 스킬은 효과를 걸지도 받지도 않는다.
+- **효과 표는 기본값, 유닛이 덮어쓴다**(2026-10-07 사용자 결정): `EffectTable`의 지속 시간·세기·속성별 확률은 기본값이고, 효과를 쓰는 유닛이 `UnitTable`의 `EffectDuration` / `EffectPower` / `EffectChance{Earth,Water,Fire,Wind,Light,Dark}` 칸에 값을 적으면 그 유닛에게만 그 값을 쓴다. 빈칸 = 효과 표의 값. 확률 칸에 0을 적으면 그 속성에는 걸리지 않는다.
 - 사용자 결정(2026-10-07):
   1. 확률표의 축은 **효과 × 맞은 유닛의 속성**. 효과 표(`EffectTable`) 한 줄이 효과 하나이고, 그 줄에 지속 시간·세기와 속성 6개의 확률(%)이 있다.
   2. 몬스터는 효과를 **하나만** 가진다. 지속 시간은 효과마다 다르다. 사용자가 든 예: 공격 무효(대상 적의 피해를 일정 시간 받지 않음), 저주(대상 적의 효과를 일정 시간 무효화), 워프(적을 워프시킴), 날려버린다(적을 멀리 날림) — 예시이며 목록은 늘어난다.
@@ -149,7 +150,8 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 | `StageTable` (추가) | `EntryCost` |
 | `UnitTable` (추가) | `AttackType` (`melee` / `ranged` / `melee_area` / `ranged_area`, 스킬·기지는 빈칸), `AttackEffectRuid`, `AttackSoundRuid`, `DamageSoundRuid`, `DieSoundRuid` |
 | `UnitTable` (추가) | `Attribute`(earth / water / fire / wind / light / dark), `Effect`(EffectTable의 id), `HitRuid`, `KnockbackHpPercent`·`KnockbackDistance`·`KnockbackSeconds`(빈칸 = 공용 기본값) |
-| `EffectTable` | `EffectId, Type, Name, Duration, Power, ChanceEarth, ChanceWater, ChanceFire, ChanceWind, ChanceLight, ChanceDark, #Memo` |
+| `EffectTable` (기본값) | `EffectId, Type, Name, Duration, Power, ChanceEarth, ChanceWater, ChanceFire, ChanceWind, ChanceLight, ChanceDark, #Memo` |
+| `UnitTable` (추가) | `EffectDuration`, `EffectPower`, `EffectChanceEarth`~`EffectChanceDark` (효과 표 기본값의 유닛별 덮어쓰기, 빈칸 = 기본값. 몬스터·설치물) |
 
 **몬스터 한 종을 추가할 때 필요한 정보**
 | 묶음 | 항목 | 비고 |
@@ -159,7 +161,7 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 | 전투 수치 | 최대 HP, 공격력, 사거리, 공격 간격(초), 이동 속도, 크기 배율 | 레벨 배율은 공용 표 |
 | 공격 타입 | 근거리 / 원거리 / 근거리 범위 / 원거리 범위 | |
 | 속성 (예정) | 땅 / 물 / 화염 / 바람 / 빛 / 어둠 중 하나 | |
-| 효과 (예정) | 가진 효과(없으면 없음) | 확률은 공용 확률표 |
+| 효과 (예정) | 가진 효과(없으면 없음) | 확률·시간·세기는 효과 표 기본값, 유닛이 덮어쓴 값이 있으면 그 값 |
 | 넉백 (예정) | 넉백이 일어나는 체력 % | |
 | 리소스 팩 | `stand`, `move`, `attack1`, `die1` (필수) / `attack1/info/ball`(원거리의 투사체) / `attack1/info/effect`(공격 이펙트) / `hit1`(피격 모션, 넉백용) / `audio/Attack1`·`Damage`·`Die` | 팩 목록 JSON 그대로 전달하면 된다 |
 | 화면을 보고 맞추는 값 | 공격 클립 재생 속도, 공격 자세 유지 시간, 타격 시점(초), 투사체 크기, HP 바 높이·너비 | 팩에 없는 값. AI가 추정값을 넣고 사용자가 화면으로 확인 |
@@ -187,3 +189,4 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 | 2026-10-07 | Remove | 몬스터·설치물 머리 위 HP 바 제거(`BattleFx.ShowUnitBars = false`). 기지 타워의 바는 유지. 피격 점멸·효과음·효과 아이콘은 바 없이도 동작 | 사용자 요청 | 로그·화면 확인: 바는 기지 2개에만 생기고, 바 없는 슬라임도 `first hit … sound=hit`. 되돌리려면 속성 하나만 true로 |
 | 2026-10-07 | Modify | 넉백을 `MovementComponent` 밀기에서 물리 충격(`RigidbodyComponent:SetForce`, 뒤쪽 힘 + 위로 약간)으로 교체. 공용 기본값 0.45초, 날려버린다 0.8초 | 사용자 보고 — 넉백이 순간이동처럼 보임(2배 속도로 밀고 목표 지점에 위치를 고정하던 방식 때문) | 엔진이 감속시켜 0.3~0.4초에 걸쳐 밀리고 살짝 뜬다. 로그 확인: 구간 넉백 0.52 목표 → 0.24 / 0.42 / 0.49 / 0.52(0.1초 간격), 날려버린다 1.30 목표 → 1.67(큰 힘은 거리가 비례보다 길어짐, 잠정 허용). 힘 상수 `KnockbackForcePerUnit` 12.5는 측정으로 맞춘 값 |
 | 2026-10-07 | Modify | 미정 사항에 대한 사용자 답을 반영해 속성·효과·넉백을 구현(🟡). 확률표는 따로 두지 않고 효과 표 한 줄에 속성별 확률을 둔다. "유닛별 속성·효과 배정과 화면 표시" 항목을 새로 추가(⬜) | 사용자 답: 축 = 효과 × 맞은 유닛 속성, 효과는 하나, 넉백은 구간마다, 상성 없음 | 효과 4종의 동작은 AI의 잠정 해석. 표의 확률·시간·거리는 전부 잠정값. 유닛의 속성·효과 칸이 비어 있어 실제 전투에서는 넉백만 일어난다(모든 몬스터 34% 구간) |
+| 2026-10-07 | Modify | 효과 표의 지속 시간·세기·속성별 확률을 '기본값'으로 바꾸고, `UnitTable`에 `EffectDuration` / `EffectPower` / `EffectChance*` 8열을 추가해 유닛이 덮어쓰게 함. 설치물도 효과를 걸 수 있게 함(받는 쪽은 속성 있는 몬스터만). 편집기에 "효과" 그룹 추가 | 사용자 요청 | 변경: `BattleConfig.GetUnits`(`effectOverride`), `BattleUnit.Setup`·`TryApplyEffect`, `schema.cjs`·`unitdata.cjs`. 기존 데이터는 덮어쓰기 칸이 전부 빈칸이라 동작이 그대로다. ⚠️ needs user test: Maker refresh 후 설치물에 효과를 넣고 플레이해 로그 `[BattleUnit] effect ...`로 걸리는지, 덮어쓴 확률·지속 시간이 적용되는지 확인 |
