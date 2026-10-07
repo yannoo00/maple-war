@@ -27,6 +27,13 @@ script LobbyUI extends Component
     property Entity ticketButton = "7e088d7b-0575-4603-9c7f-e9f1381bc4f8"
     property Entity ticketPanel = "31e9cdb0-9466-4e48-9262-5b606dc46cf8"
     property Entity ticketRow = "3d367bb5-26bd-4492-8d98-1a00702da4ad"
+    property Entity monsterButton = "1662aec3-7b39-4866-8a1b-68a7791d6dfc"
+    property Entity monsterPanel = "b3c5d4b9-102e-4315-a241-181122aa2ba1"
+    property Entity chestPanel = "26e604e2-dda9-4404-b4e3-36287366a07e"
+    property TextGUIRendererComponent chestTitle = "d726864a-87fd-423a-b124-7316f419553e"
+    property Entity chestCard = "553fac4c-3591-4dc0-be3f-b6acfdca11aa"
+    property Entity chestCloseButton = "93ce1bff-33e8-4df7-9c05-61aff42232ec"
+    property Entity monsterTile = "05439b32-df4a-4a03-8a8f-fb3908c5ce15"
     @HideFromInspector property string Screen = "main"
     @HideFromInspector property string SelectedStage = ""
     property table clickHandlers = {}
@@ -42,7 +49,7 @@ script LobbyUI extends Component
         self.Screen = "main"
         self.SelectedStage = ""
         if isvalid(self.root) then self.root.Enable = false end
-        for _, template in ipairs({ self.stageCard, self.deckSlot, self.ownedCard, self.shopRow, self.ticketRow }) do
+        for _, template in ipairs({ self.stageCard, self.deckSlot, self.ownedCard, self.shopRow, self.ticketRow, self.monsterTile, self.chestCard }) do
             if isvalid(template) then template.Enable = false end
         end
         self:Bind(self.battleButton, function() self:OnMenuClicked("stage") end)
@@ -52,6 +59,9 @@ script LobbyUI extends Component
         self:Bind(self.enterButton, function() self:OnEnterClicked() end)
         self:Bind(self.capButton, function() self:OnCapClicked() end)
         self:Bind(self.ticketButton, function() self:OnMenuClicked("ticket") end)
+        self:Bind(self.monsterButton, function() self:OnMenuClicked("monster") end)
+        self:Bind(self.chestCloseButton, function() self:OnChestCloseClicked() end)
+        if isvalid(self.chestPanel) then self.chestPanel.Enable = false end
         log("[LobbyUI] initialized handlers=" .. tostring(#self.clickHandlers))
     end
 
@@ -84,13 +94,13 @@ script LobbyUI extends Component
 
     @ExecSpace("ClientOnly")
     method table GetOwnableUnits()
-        -- Returns the unit definitions a player can own (monster / build / skill, starter or for sale) in table order.
+        -- Returns every card unit definition (monster / build / skill) in table order; all of them come from chests.
         local list = self._T.ownable
         if list ~= nil then return list end
         list = {}
         for _, unit in pairs(_BattleConfig:GetUnits()) do
             local playable = unit.kind == "monster" or unit.kind == "build" or unit.kind == "skill"
-            if playable and (unit.starter or unit.price > 0) then table.insert(list, unit) end
+            if playable then table.insert(list, unit) end
         end
         table.sort(list, function(a, b) return a.order < b.order end)
         self._T.ownable = list
@@ -129,7 +139,7 @@ script LobbyUI extends Component
         ---@type PlayerData
         local data = player:GetComponent("script.PlayerData")
         if data == nil then return end
-        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.StagesCsv .. "|" .. tostring(data.CostLevelCap) .. "|" .. data.WalletCsv
+        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.StagesCsv .. "|" .. tostring(data.CostLevelCap) .. "|" .. data.WalletCsv .. "|" .. data.CardsCsv
         if signature ~= view.signature then
             view.signature = signature
             log("[LobbyUI] data changed loaded=" .. tostring(data.Loaded) .. " meso=" .. tostring(data.Meso) .. " units=" .. data.UnitsCsv .. " deck=" .. data.DeckCsv .. " stages=" .. data.StagesCsv .. " wallet=" .. data.WalletCsv)
@@ -169,6 +179,8 @@ script LobbyUI extends Component
         if isvalid(self.deckPanel) then self.deckPanel.Enable = screen == "deck" end
         if isvalid(self.shopPanel) then self.shopPanel.Enable = screen == "shop" end
         if isvalid(self.ticketPanel) then self.ticketPanel.Enable = screen == "ticket" end
+        if isvalid(self.monsterPanel) then self.monsterPanel.Enable = screen == "monster" end
+        if isvalid(self.chestPanel) then self.chestPanel.Enable = false end
         if isvalid(self.backButton) then self.backButton.Enable = screen ~= "main" end
         log("[LobbyUI] screen=" .. screen)
         self:Render()
@@ -196,6 +208,8 @@ script LobbyUI extends Component
             self:RenderShop(data)
         elseif self.Screen == "ticket" then
             self:RenderTicketShop()
+        elseif self.Screen == "monster" then
+            self:RenderMonsters(data)
         end
     end
 
@@ -468,11 +482,8 @@ script LobbyUI extends Component
 
     @ExecSpace("ClientOnly")
     method void RenderShop(PlayerData data)
-        -- Draws one row per ownable unit: owned units offer a level-up, the others a purchase.
-        local units = self:GetOwnableUnits()
-        local levels = data:GetUnitLevels()
-        local levelTable = _BattleConfig:GetLevels()
-        local maxLevel = _BattleConfig:GetMaxLevel()
+        -- Draws one row per chest (ChestTable): name, odds, cards per chest and a buy button priced in meso.
+        local ids = _BattleConfig:GetChestIds()
         -- In-battle cost level cap: one button that unlocks the next level with meso.
         if isvalid(self.capButton) then
             local nextLevel = _BattleConfig:GetCostLevels()[data.CostLevelCap + 1]
@@ -486,54 +497,50 @@ script LobbyUI extends Component
             end
             self.capButton.TextGUIRendererComponent.Text = capLabel
             self:SetButtonEnabled(self.capButton, capEnabled)
-            log("[LobbyUI] cost cap button: " .. capLabel .. " enabled=" .. tostring(capEnabled))
         end
-        local rows = self:SyncPool("shop", self.shopRow, #units, "Action", function(item) self:OnShopActionClicked(item.key) end)
+        local rows = self:SyncPool("shop", self.shopRow, #ids, "Action", function(item) self:OnShopActionClicked(item.key) end)
         local summary = {}
-        local icons = 0
-        local iconSamples = {}
-        for i, unit in ipairs(units) do
+        for i, id in ipairs(ids) do
+            local chest = _BattleConfig:GetChest(id)
             local item = rows[i]
-            item.key = unit.id
-            local iconRuid = self:SetChildIcon(item.entity, unit.id)
-            _BattleConfig:PaintRarityFrame(item.entity, unit.id)
-            if iconRuid ~= "" then icons = icons + 1 end
-            if i <= 2 or unit.kind == "skill" then table.insert(iconSamples, unit.id .. "=" .. iconRuid) end
-            local level = levels[unit.id]
-            local label = ""
+            item.key = id
+            self:SetChildIcon(item.entity, "")
+            -- The row's frame takes the chest's own rarity color (chest ids match rarity ids).
+            local frame = item.entity:GetChildByName("Rarity")
+            if isvalid(frame) then
+                frame.Enable = true
+                for _, edge in ipairs(frame.Children) do
+                    if edge.SpriteGUIRendererComponent ~= nil then edge.SpriteGUIRendererComponent.Color = _BattleConfig:GetRarityColor(self:RarityUnitSample(id)) end
+                end
+            end
+            local odds = {}
+            for _, rarity in ipairs(_BattleConfig:GetRarities()) do
+                local pct = chest.chance[rarity] or 0
+                if pct > 0 then table.insert(odds, _BattleConfig:GetRarityLabel(rarity) .. " " .. tostring(math.floor(pct)) .. "%") end
+            end
+            local guarantee = ""
+            if chest.guarantee ~= "" then guarantee = " · " .. _BattleConfig:GetRarityLabel(chest.guarantee) .. " 이상 1장 보장" end
+            self:SetChildText(item.entity, "Name", chest.name)
+            self:SetChildText(item.entity, "Kind", table.concat(odds, " / ") .. guarantee)
+            self:SetChildText(item.entity, "Level", "카드 " .. tostring(chest.cards) .. "장")
+            local label = "판매 안 함"
             local enabled = false
-            self:SetChildText(item.entity, "Name", unit.name)
-            -- Kind line: unit kind, attack type (monsters and builds only) and summon cost.
-            local kindText = self:KindLabel(unit.kind)
-            local attackLabel = _BattleConfig:GetAttackTypeLabel(unit.attackType)
-            if attackLabel ~= "" then kindText = kindText .. " · " .. attackLabel end
-            local attributeLabel = _BattleConfig:GetAttributeLabel(unit.attribute)
-            if attributeLabel ~= "" then kindText = kindText .. " · " .. attributeLabel end
-            self:SetChildText(item.entity, "Kind", kindText .. " · 코스트 " .. tostring(math.floor(unit.cost)))
-            if level ~= nil then
-                self:SetChildText(item.entity, "Level", "Lv " .. tostring(level))
-                if level >= maxLevel then
-                    label = "최대 레벨"
-                else
-                    local cost = math.floor(levelTable[level].upgradeCost)
-                    label = "레벨업 " .. tostring(cost) .. " 메소"
-                    enabled = data.Meso >= cost
-                end
-            else
-                self:SetChildText(item.entity, "Level", "미보유")
-                if unit.price > 0 then
-                    label = "구매 " .. tostring(math.floor(unit.price)) .. " 메소"
-                    enabled = data.Meso >= unit.price
-                else
-                    label = "구매 불가"
-                end
+            if chest.priceMeso > 0 then
+                label = "열기 " .. tostring(chest.priceMeso) .. " 메소"
+                enabled = data.Meso >= chest.priceMeso
             end
             item.button.TextGUIRendererComponent.Text = label
             self:SetButtonEnabled(item.button, enabled)
-            table.insert(summary, unit.id .. "=" .. (level ~= nil and ("Lv" .. tostring(level)) or "none") .. (enabled and "+" or "-"))
+            table.insert(summary, id .. "=" .. tostring(chest.priceMeso) .. (enabled and "+" or "-"))
         end
-        log("[LobbyUI] shop icons " .. tostring(icons) .. "/" .. tostring(#units) .. " " .. table.concat(iconSamples, " "))
-        log("[LobbyUI] shop rendered rows=" .. tostring(#units) .. " meso=" .. tostring(data.Meso) .. " [" .. table.concat(summary, " ") .. "]")
+        log("[LobbyUI] shop rendered chests=" .. tostring(#ids) .. " meso=" .. tostring(data.Meso) .. " [" .. table.concat(summary, " ") .. "]")
+    end
+
+    @ExecSpace("ClientOnly")
+    method string RarityUnitSample(string rarity)
+        -- Returns any unit id of a rarity so the shared rarity frame painter can color a chest row ("" if none).
+        local ids = _BattleConfig:GetUnitsByRarity(rarity)
+        return ids[1] or ""
     end
 
     @ExecSpace("ClientOnly")
@@ -548,19 +555,160 @@ script LobbyUI extends Component
     end
 
     @ExecSpace("ClientOnly")
-    method void OnShopActionClicked(string unitId)
-        -- Sends a level-up request for an owned unit, or a purchase request for one that is not owned.
+    method void OnShopActionClicked(string chestId)
+        -- Sends a chest purchase; the server opens it and sends the cards back for the result screen.
+        ---@type PlayerData
+        local data = self:GetData()
+        if data == nil or chestId == "" then return end
+        _BattleSound:Play("click")
+        log("[LobbyUI] chest purchase requested " .. chestId .. " meso=" .. tostring(data.Meso))
+        data:RequestBuyChest(chestId)
+    end
+
+    -- ===== Chest result =====
+
+    @ExecSpace("ClientOnly")
+    method void ShowChestResult(string chestId, string resultCsv)
+        -- Shows the cards a chest gave: one card per unit with its count, rarity frame and a NEW mark for units
+        -- that were not owned before this result arrived.
+        if not isvalid(self.chestPanel) then return end
+        local chest = _BattleConfig:GetChest(chestId)
+        local entries = {}
+        local total = 0
+        for id, count in string.gmatch(resultCsv, "([^,:]+):(%d+)") do
+            table.insert(entries, { id = id, count = tonumber(count) })
+            total = total + tonumber(count)
+        end
+        local ownedBefore = self._T.ownedBefore or {}
+        ---@type PlayerData
+        local data = self:GetData()
+        local counts = {}
+        if data ~= nil then counts = data:GetCardCounts() end
+        local cards = self:SyncPool("chest", self.chestCard, #entries, "", function(item) end)
+        for i, entry in ipairs(entries) do
+            local item = cards[i]
+            local unit = _BattleConfig:GetUnit(entry.id)
+            item.key = entry.id
+            self:SetChildIcon(item.entity, entry.id)
+            _BattleConfig:PaintRarityFrame(item.entity, entry.id)
+            self:SetChildText(item.entity, "Name", unit and unit.name or entry.id)
+            self:SetChildText(item.entity, "CountBadge", "x" .. tostring(entry.count))
+            local note = _BattleConfig:GetRarityLabel(unit and unit.rarity or "normal")
+            -- NEW when the unit was not owned the last time this screen drew, or when every card it has came
+            -- from this chest (starters are always owned, so they are never NEW).
+            local isStarter = unit ~= nil and unit.starter
+            local allFromChest = (counts[entry.id] or 0) == entry.count
+            if isStarter == false and (ownedBefore[entry.id] == nil or allFromChest) then note = "NEW! " .. note end
+            self:SetChildText(item.entity, "Note", note)
+        end
+        if isvalid(self.chestTitle) then
+            self.chestTitle.Text = (chest and chest.name or chestId) .. " — 카드 " .. tostring(total) .. "장"
+        end
+        -- The result covers the screen behind it, so that screen's panel is hidden until the result is closed.
+        for _, panel in ipairs({ self.mainPanel, self.stagePanel, self.deckPanel, self.shopPanel, self.ticketPanel, self.monsterPanel }) do
+            if isvalid(panel) then panel.Enable = false end
+        end
+        self.chestPanel.Enable = true
+        log("[LobbyUI] chest result " .. chestId .. " cards=" .. tostring(total) .. " units=" .. tostring(#entries))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnChestCloseClicked()
+        -- Closes the chest result and redraws the screen behind it.
+        _BattleSound:Play("click")
+        if isvalid(self.chestPanel) then self.chestPanel.Enable = false end
+        self:ShowScreen(self.Screen)
+    end
+
+    -- ===== Monster screen (card tiles) =====
+    -- ===== Monster screen (card tiles) =====
+
+    @ExecSpace("ClientOnly")
+    method void RenderMonsters(PlayerData data)
+        -- One tile per owned unit: portrait, summon cost badge, level band, rarity frame and the card progress
+        -- towards the next level. A tile whose cards and meso are enough shows a green bar and levels up on click.
+        local levels = data:GetUnitLevels()
+        local cards = data:GetCardCounts()
+        local levelTable = _BattleConfig:GetLevels()
+        local maxLevel = _BattleConfig:GetMaxLevel()
+        local owned = self:GetOwnableUnits()
+        -- Remember what is owned now, so a chest result arriving later can mark newly unlocked units.
+        self._T.ownedBefore = levels
+        local tiles = self:SyncPool("monster", self.monsterTile, #owned, "", function(item) self:OnMonsterTileClicked(item.key) end)
+        local summary = {}
+        for i, unit in ipairs(owned) do
+            local item = tiles[i]
+            item.key = unit.id
+            local level = levels[unit.id]
+            local have = cards[unit.id] or 0
+            self:SetChildIcon(item.entity, unit.id)
+            _BattleConfig:PaintRarityFrame(item.entity, unit.id)
+            self:SetChildText(item.entity, "CostBadge", tostring(math.floor(unit.cost)))
+            -- Not owned yet: shaded, no level, and the tile does nothing.
+            self:SetChildEnable(item.entity, "Dim", level == nil)
+            if level == nil then
+                self:SetChildText(item.entity, "Level", "미보유")
+                local progress = item.entity:GetChildByName("Progress")
+                if isvalid(progress) then
+                    self:SetChildText(progress, "Label", "상자에서 획득")
+                    progress.TextGUIRendererComponent.Text = ""
+                    local fill = progress:GetChildByName("Fill")
+                    if isvalid(fill) then fill.SpriteGUIRendererComponent.FillAmount = 0 end
+                end
+                item.locked = true
+                table.insert(summary, unit.id .. "=none")
+                continue
+            end
+            self:SetChildText(item.entity, "Level", "레벨 " .. tostring(level))
+            local progress = item.entity:GetChildByName("Progress")
+            local fill = nil
+            if isvalid(progress) then fill = progress:GetChildByName("Fill") end
+            local ready = false
+            local text = "최대"
+            local ratio = 1
+            if level < maxLevel then
+                local need = levelTable[level].cardsNeeded
+                local cost = math.floor(levelTable[level].upgradeCost)
+                text = tostring(have) .. "/" .. tostring(need)
+                if need > 0 then ratio = math.min(1, have / need) end
+                ready = have >= need and data.Meso >= cost
+            end
+            -- The count sits on a label above the fill bar; the bar panel's own text stays empty.
+            if isvalid(progress) then
+                self:SetChildText(progress, "Label", text)
+                progress.TextGUIRendererComponent.Text = ""
+            end
+            if isvalid(fill) then
+                fill.SpriteGUIRendererComponent.FillAmount = ratio
+                if ready then
+                    fill.SpriteGUIRendererComponent.Color = Color(0.36, 0.84, 0.4, 1)
+                else
+                    fill.SpriteGUIRendererComponent.Color = Color(0.27, 0.6, 1, 1)
+                end
+            end
+            item.locked = ready == false
+            table.insert(summary, unit.id .. "=L" .. tostring(level) .. ":" .. text .. (ready and "+" or ""))
+        end
+        log("[LobbyUI] monsters rendered tiles=" .. tostring(#owned) .. " [" .. table.concat(summary, " ") .. "]")
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnMonsterTileClicked(string unitId)
+        -- Levels the unit up when its cards and meso are enough (the server checks again).
         ---@type PlayerData
         local data = self:GetData()
         if data == nil or unitId == "" then return end
-        _BattleSound:Play("click")
-        if data:GetUnitLevels()[unitId] ~= nil then
-            log("[LobbyUI] level-up requested " .. unitId .. " meso=" .. tostring(data.Meso))
-            data:RequestLevelUp(unitId)
-        else
-            log("[LobbyUI] purchase requested " .. unitId .. " meso=" .. tostring(data.Meso))
-            data:RequestBuyUnit(unitId)
+        local level = data:GetUnitLevels()[unitId]
+        if level == nil or level >= _BattleConfig:GetMaxLevel() then return end
+        local entry = _BattleConfig:GetLevels()[level]
+        local have = data:GetCardCounts()[unitId] or 0
+        if have < entry.cardsNeeded or data.Meso < entry.upgradeCost then
+            log("[LobbyUI] " .. unitId .. " cannot level up yet cards=" .. tostring(have) .. "/" .. tostring(entry.cardsNeeded) .. " meso=" .. tostring(data.Meso))
+            return
         end
+        _BattleSound:Play("click")
+        log("[LobbyUI] level-up requested " .. unitId .. " cards=" .. tostring(have) .. " meso=" .. tostring(data.Meso))
+        data:RequestLevelUp(unitId)
     end
 
     -- ===== Ticket shop (World Shop products paid with Worldcoin) =====
@@ -629,7 +777,7 @@ script LobbyUI extends Component
 
     @ExecSpace("ClientOnly")
     method void OnMenuClicked(string screen)
-        -- Menu button: opens the stage select, deck, shop or ticket shop screen.
+        -- Menu button: opens the stage select, deck, shop, ticket shop or monster screen.
         _BattleSound:Play("click")
         self:ShowScreen(screen)
         -- The price lookup waits for the World Shop, so it runs on its own after the screen is already up.

@@ -21,11 +21,15 @@ script BattleHUD extends Component
     property TextGUIRendererComponent resultTitle = "9a5c134a-9e8a-48db-8a8c-2b9b91a04a42"
     property Entity restartButton = "5f7e38cf-9da6-47a9-ab56-153cefc9653f"
     property TextGUIRendererComponent rewardText = "17d0fb37-ff25-42b2-8be3-a2140dd7511c"
+    property TextGUIRendererComponent cardsText = "b78ce39a-906e-46f4-8ab3-5e486d318f9f"
     property Entity lobbyButton = "177bfba2-0e4e-4206-97f5-2d4e28890fea"
     property Entity leaveButton = "d2dd96f0-9b59-4e54-a4a6-264ae4c6a6dd"
     property Entity costUpButton = "47981bee-9856-4688-bb7d-1f67bf65d72e"
     property any costUpHandler = nil
     property number HpBarWidth = 400
+    -- Highlight when a card comes off cooldown: the card swells by ReadyPulseScale and settles over ReadyPulseSeconds.
+    property number ReadyPulseSeconds = 0.3
+    property number ReadyPulseScale = 0.18
     property any restartHandler = nil
     property any lobbyHandler = nil
     property any leaveHandler = nil
@@ -51,7 +55,10 @@ script BattleHUD extends Component
                 local dimEntity = entity:GetChildByName("Dim")
                 local cooldownEntity = entity:GetChildByName("Cooldown")
                 local iconEntity = entity:GetChildByName("Icon")
+                -- Cooldown shade: a filled sprite over the card that drains downward; the old number text stays off.
+                local coolEntity = entity:GetChildByName("Cool")
                 if isvalid(iconEntity) then iconEntity.Enable = false end
+                if isvalid(coolEntity) then coolEntity.Enable = false end
                 local slotIndex = i
                 local clickHandler = entity:ConnectEvent(ButtonClickEvent, function() self:OnSlotClicked(slotIndex) end)
                 table.insert(self.slotHandlers, { entity = entity, eventHandler = clickHandler })
@@ -62,9 +69,9 @@ script BattleHUD extends Component
                 cooldownEntity.Enable = false
                 table.insert(slots, {
                     entity = entity, nameText = nameEntity.TextGUIRendererComponent, costText = costEntity.TextGUIRendererComponent,
-                    cfg = cfg, dim = dimEntity, cooldown = cooldownEntity, icon = iconEntity,
+                    cfg = cfg, dim = dimEntity, cooldown = cooldownEntity, icon = iconEntity, cool = coolEntity,
                     cooldownText = cooldownEntity.TextGUIRendererComponent,
-                    dimmed = (cfg == nil), shown = 0,
+                    dimmed = (cfg == nil), shown = 0, coolRemain = 0, readyPulse = 0,
                 })
             end
         end
@@ -124,7 +131,11 @@ script BattleHUD extends Component
             slot.dimmed = (cfg == nil)
             slot.dim.Enable = slot.dimmed
             slot.shown = 0
+            slot.coolRemain = 0
+            slot.readyPulse = 0
             slot.cooldown.Enable = false
+            if isvalid(slot.cool) then slot.cool.Enable = false end
+            slot.entity.UITransformComponent.UIScale = Vector3(1, 1, 1)
         end
         log("[BattleHUD] deck applied cards=" .. tostring(cards) .. " icons=" .. tostring(icons) .. " [" .. table.concat(iconPairs, " ") .. "]")
     end
@@ -309,16 +320,33 @@ script BattleHUD extends Component
 
         for i, slot in ipairs(slots) do
             if slot.cfg ~= nil then
-                local shown = math.ceil(commander:GetCooldownRemain(i))
-                if shown ~= slot.shown then
-                    if slot.shown == 0 then
-                        log("[BattleHUD] slot " .. tostring(i) .. " cooldown started " .. tostring(shown) .. "s")
-                    elseif shown == 0 then
-                        log("[BattleHUD] slot " .. tostring(i) .. " cooldown ended")
+                local remain = commander:GetCooldownRemain(i)
+                local shown = math.ceil(remain)
+                -- Cooldown shade: full right after the card is played, draining downward until it is ready again.
+                if isvalid(slot.cool) then
+                    if remain > 0 then
+                        if slot.coolRemain <= 0 then
+                            slot.cool.Enable = true
+                            log("[BattleHUD] slot " .. tostring(i) .. " cooldown started " .. string.format("%.1f", remain) .. "s (shade)")
+                        end
+                        local total = math.max(0.01, slot.cfg.cooldown)
+                        slot.cool.SpriteGUIRendererComponent.FillAmount = math.max(0, math.min(1, remain / total))
+                    elseif slot.coolRemain > 0 then
+                        -- Just became ready: hide the shade and pulse the card once.
+                        slot.cool.Enable = false
+                        slot.readyPulse = self.ReadyPulseSeconds
+                        log("[BattleHUD] slot " .. tostring(i) .. " cooldown ended, ready pulse")
                     end
-                    slot.shown = shown
-                    slot.cooldown.Enable = shown > 0
-                    if shown > 0 then slot.cooldownText.Text = tostring(shown) end
+                end
+                slot.coolRemain = remain
+                slot.shown = shown
+                if slot.readyPulse > 0 then
+                    slot.readyPulse = slot.readyPulse - delta
+                    local k = math.max(0, slot.readyPulse / self.ReadyPulseSeconds)
+                    -- Scale swells quickly and settles back: 1 -> 1 + ReadyPulseScale -> 1.
+                    local s = 1 + self.ReadyPulseScale * math.sin(k * math.pi)
+                    if slot.readyPulse <= 0 then s = 1 end
+                    slot.entity.UITransformComponent.UIScale = Vector3(s, s, 1)
                 end
                 local dimmed = shown > 0 or cost < slot.cfg.cost or state ~= "PLAYING"
                 if dimmed ~= slot.dimmed then
@@ -367,6 +395,23 @@ script BattleHUD extends Component
                 if isvalid(self.rewardText) then self.rewardText.Text = "획득 메소 +" .. tostring(reward) end
                 log("[BattleHUD] result reward shown: 획득 메소 +" .. tostring(reward))
             end
+            -- Reward chest line: the chest's name and the cards it gave (synced by the director).
+            local cardsCsv = director.RewardCardsCsv
+            if cardsCsv ~= view.cardsCsv then
+                view.cardsCsv = cardsCsv
+                local text = ""
+                if cardsCsv ~= "" then
+                    local chest = _BattleConfig:GetChest(director.RewardChest)
+                    local parts = {}
+                    for id, count in string.gmatch(cardsCsv, "([^,:]+):(%d+)") do
+                        local unit = _BattleConfig:GetUnit(id)
+                        table.insert(parts, (unit and unit.name or id) .. " x" .. count)
+                    end
+                    text = (chest and chest.name or "상자") .. ": " .. table.concat(parts, ", ")
+                end
+                if isvalid(self.cardsText) then self.cardsText.Text = text end
+                log("[BattleHUD] result chest shown: " .. text)
+            end
             -- Restart is another entry: the button shows the stage's entry cost and is off when the player cannot pay it.
             local stage = _BattleConfig:GetStage(director.StageId)
             ---@type PlayerData
@@ -390,6 +435,7 @@ script BattleHUD extends Component
         else
             view.reward = nil
             view.restartLabel = nil
+            view.cardsCsv = nil
         end
     end
 

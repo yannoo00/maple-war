@@ -1,7 +1,7 @@
 {
   "Id": "",
   "GameId": "",
-  "EntryKey": "userdataset://b71fdac7-99e8-49e6-a6d8-259fcbeafb51",
+  "EntryKey": "userdataset://88748b1a-a77d-49f4-9f04-73edbc5311f1",
   "ContentType": "x-mod/userdataset",
   "Content": "",
   "Usage": 0,
@@ -13,8 +13,8 @@
   "ContentProto": {
     "Use": "Json",
     "Json": {
-      "name": "UnitTable",
-      "id": "b71fdac7-99e8-49e6-a6d8-259fcbeafb51",
+      "name": "ChestTable",
+      "id": "88748b1a-a77d-49f4-9f04-73edbc5311f1",
       "serveronly": false,
       "syncDataSetWebUrl": "",
       "dynamicloading": 0

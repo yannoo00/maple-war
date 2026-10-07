@@ -27,7 +27,13 @@ script BattleConfig extends Logic
     -- knockback, how far it is pushed (authored units, scaled by RangeScale) and how long the push lasts.
     property number KnockbackHpPercent = 34
     property number KnockbackDistance = 0.8
-    property number KnockbackSeconds = 0.35
+    property number KnockbackSeconds = 0.45
+    -- A knockback is a physics impulse (RigidbodyComponent:SetForce): horizontal force per world unit of distance,
+    -- plus a small upward lift so the unit hops back. Calibrated by measurement; see As-built.
+    property number KnockbackForcePerUnit = 12.5
+    property number KnockbackLift = 2
+    -- Shortest time an effect icon stays above a unit's head (client), so a short push is still readable.
+    property number StatusIconMinSeconds = 1.0
     property integer DeckSize = 10
     -- Currency (CurrencyTable id) paid to enter a campaign stage; the amount is the stage's EntryCost.
     property string EntryCurrencyId = "ticket"
@@ -135,6 +141,97 @@ script BattleConfig extends Logic
     method boolean IsAreaAttackType(string attackType)
         -- Returns true for the attack types that damage every enemy in range instead of one target.
         return attackType == "melee_area" or attackType == "ranged_area"
+    end
+
+    method table GetRarities()
+        -- Returns the rarity ids from lowest to highest.
+        return { "normal", "rare", "epic", "unique", "legendary" }
+    end
+
+    method integer GetRarityRank(string rarity)
+        -- Returns 1 (normal) .. 5 (legendary); unknown values count as normal.
+        for i, id in ipairs(self:GetRarities()) do
+            if id == rarity then return i end
+        end
+        return 1
+    end
+
+    method string GetRarityLabel(string rarity)
+        -- Returns the display name of a rarity.
+        if rarity == "rare" then return "레어" end
+        if rarity == "epic" then return "에픽" end
+        if rarity == "unique" then return "유니크" end
+        if rarity == "legendary" then return "레전더리" end
+        return "노말"
+    end
+
+    method table GetUnitsByRarity(string rarity)
+        -- Returns the ids of every card unit (monster / build / skill) of a rarity, in table order.
+        local byRarity = self._T.unitsByRarity
+        if byRarity == nil then
+            byRarity = {}
+            local list = {}
+            for _, unit in pairs(self:GetUnits()) do
+                if unit.kind == "monster" or unit.kind == "build" or unit.kind == "skill" then table.insert(list, unit) end
+            end
+            table.sort(list, function(a, b) return a.order < b.order end)
+            for _, unit in ipairs(list) do
+                if byRarity[unit.rarity] == nil then byRarity[unit.rarity] = {} end
+                table.insert(byRarity[unit.rarity], unit.id)
+            end
+            self._T.unitsByRarity = byRarity
+        end
+        return byRarity[rarity] or {}
+    end
+
+    method table GetChests()
+        -- Returns every chest keyed by id, loaded once from ChestTable:
+        -- { id, name, cards, chance = { rarity -> percent }, guarantee, priceMeso, order }.
+        local chests = self._T.chests
+        if chests ~= nil then return chests end
+        chests = {}
+        local ds = _DataService:GetTable("ChestTable")
+        local count = 0
+        if ds ~= nil then count = ds:GetRowCount() end
+        for i = 1, count do
+            local id = ds:GetCell(i, "ChestId")
+            if id ~= nil and id ~= "" then
+                chests[id] = {
+                    id = id,
+                    order = i,
+                    name = ds:GetCell(i, "Name") or id,
+                    cards = math.floor(self:Num(ds:GetCell(i, "Cards"), 1)),
+                    chance = {
+                        normal = self:Num(ds:GetCell(i, "ChanceNormal"), 0),
+                        rare = self:Num(ds:GetCell(i, "ChanceRare"), 0),
+                        epic = self:Num(ds:GetCell(i, "ChanceEpic"), 0),
+                        unique = self:Num(ds:GetCell(i, "ChanceUnique"), 0),
+                        legendary = self:Num(ds:GetCell(i, "ChanceLegendary"), 0),
+                    },
+                    guarantee = self:OptText(ds:GetCell(i, "Guarantee")) or "",
+                    priceMeso = math.floor(self:Num(ds:GetCell(i, "PriceMeso"), 0)),
+                }
+            end
+        end
+        self._T.chests = chests
+        log("[BattleConfig] ChestTable loaded rows=" .. tostring(count))
+        return chests
+    end
+
+    method table GetChest(string chestId)
+        -- Returns one chest definition, or nil.
+        if chestId == nil or chestId == "" then return nil end
+        return self:GetChests()[chestId]
+    end
+
+    method table GetChestIds()
+        -- Returns the chest ids in table order.
+        local list = {}
+        for _, chest in pairs(self:GetChests()) do table.insert(list, chest) end
+        table.sort(list, function(a, b) return a.order < b.order end)
+        local ids = {}
+        for _, chest in ipairs(list) do table.insert(ids, chest.id) end
+        return ids
     end
 
     method string GetAttributeLabel(string attribute)
@@ -247,6 +344,8 @@ script BattleConfig extends Logic
             levels[level] = {
                 statRate = self:Num(ds:GetCell(i, "StatRate"), 1),
                 upgradeCost = self:Num(ds:GetCell(i, "UpgradeCost"), 0),
+                -- Cards of the unit that must be collected to go from this level to the next (0 = top level).
+                cardsNeeded = math.floor(self:Num(ds:GetCell(i, "CardsNeeded"), 0)),
             }
         end
         self._T.levels = levels
@@ -397,6 +496,8 @@ script BattleConfig extends Logic
                         groundY = self:Num(ds:GetCell(i, "GroundY"), self.GroundY),
                         baseHp = self:Num(ds:GetCell(i, "BaseHp"), 1000),
                         rewardMeso = self:Num(ds:GetCell(i, "RewardMeso"), 0),
+                        -- Chest (ChestTable id) opened for the player on a win; blank = none.
+                        rewardChest = self:OptText(ds:GetCell(i, "RewardChest")) or "",
                         entryCost = self:Num(ds:GetCell(i, "EntryCost"), 0),
                         unlockStage = ds:GetCell(i, "UnlockStage") or "",
                         loopPool = pool,

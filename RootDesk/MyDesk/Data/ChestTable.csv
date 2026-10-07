@@ -1,0 +1,6 @@
+﻿ChestId,Name,Cards,ChanceNormal,ChanceRare,ChanceEpic,ChanceUnique,ChanceLegendary,Guarantee,PriceMeso,#Memo
+normal,노말 상자,5,70,25,5,0,0,,300,"뽑기 상자. Cards = 상자당 카드 수. Chance* = 카드 한 장의 등급 확률(%). Guarantee = 이 등급 이상이 최소 1장 보장(빈칸 = 없음). PriceMeso = 상점 가격(0 = 판매 안 함). 수치는 전부 잠정값"
+rare,레어 상자,6,45,40,13,2,0,rare,800,
+epic,에픽 상자,8,20,40,30,9,1,epic,2000,
+unique,유니크 상자,10,5,25,40,25,5,unique,5000,
+legendary,레전더리 상자,12,0,10,35,35,20,legendary,12000,

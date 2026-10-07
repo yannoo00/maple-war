@@ -6,9 +6,11 @@ script FieldFx extends Logic
     -- build or skill card waits for a position (ghost of the build, shaded no-build area, skill range box).
     property string SpriteModelId = "battleprojectile"
     property string RectModelId = "battlehpbar"
-    property string PortalRuid = "bd627432fff34eeab9bb23460875bf24"
+    property string PortalRuid = "aba58d2139ca4736bab39f6b4c39aa37"
     property number PortalScale = 0.4
-    property number PortalY = 0.71
+    -- Height of the portal entity above the ground. The clip's pivot sits ~5% above its bottom edge, so a small
+    -- lift puts the bottom edge on the ground (pivot fraction × clip height 2.16 × PortalScale).
+    property number PortalY = 0.04
     property number PixelUnit = 0.01
     property number ShadeHeight = 4.0
     property number SkillBoxHeight = 1.2

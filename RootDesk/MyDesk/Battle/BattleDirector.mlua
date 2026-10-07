@@ -7,6 +7,9 @@ script BattleDirector extends Component
     @Sync property string State = "WAITING"
     @Sync property integer WinnerTeam = 0
     @Sync property integer RewardMeso = 0
+    -- Reward chest of the finished battle and the cards it gave ("unitId:count,..."), for the result screen.
+    @Sync property string RewardChest = ""
+    @Sync property string RewardCardsCsv = ""
     @Sync property number AllyBaseX = 0
     @Sync property number EnemyBaseX = 0
     @Sync property number GroundY = -1.36
@@ -136,6 +139,8 @@ script BattleDirector extends Component
         self.Elapsed = 0
         self.WinnerTeam = 0
         self.RewardMeso = 0
+        self.RewardChest = ""
+        self.RewardCardsCsv = ""
         self.StageId = stageId
         self.PlayerUserId = userId
 
@@ -374,10 +379,15 @@ script BattleDirector extends Component
         if side == nil or data == nil then return end
         local won = self.WinnerTeam == side.Team
         local reward = 0
+        local chestId = ""
         local stage = _BattleConfig:GetStage(self.StageId)
-        if won and stage ~= nil then reward = math.floor(stage.rewardMeso) end
+        if won and stage ~= nil then
+            reward = math.floor(stage.rewardMeso)
+            chestId = stage.rewardChest
+        end
         self.RewardMeso = reward
-        data:GrantBattleResult(self.StageId, reward, won)
+        self.RewardChest = chestId
+        self.RewardCardsCsv = data:GrantBattleResult(self.StageId, reward, chestId, won)
     end
 
     @ExecSpace("ServerOnly")
@@ -396,3 +406,4 @@ script BattleDirector extends Component
     end
 
 end
+-- build cache bump

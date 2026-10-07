@@ -11,6 +11,8 @@ script PlayerData extends Component
     @TargetUserSync property string UnitsCsv = ""
     @TargetUserSync property string DeckCsv = ""
     @TargetUserSync property string StagesCsv = ""
+    -- Collected unit cards as "id:count,...". Cards are won in battle and spent to level a unit up.
+    @TargetUserSync property string CardsCsv = ""
     -- Highest in-battle cost level this player may reach (raised with meso in the lobby).
     @TargetUserSync property integer CostLevelCap = 3
     -- Wallet as "currencyId:amount:nextAt,...". nextAt is the _UtilLogic.ServerElapsedSeconds at which the
@@ -32,6 +34,13 @@ script PlayerData extends Component
         local levels = {}
         for id, level in string.gmatch(self.UnitsCsv, "([^,:]+):(%d+)") do levels[id] = tonumber(level) end
         return levels
+    end
+
+    method table GetCardCounts()
+        -- Returns collected cards as a table: unit id -> count.
+        local counts = {}
+        for id, count in string.gmatch(self.CardsCsv, "([^,:]+):(%d+)") do counts[id] = tonumber(count) end
+        return counts
     end
 
     method table GetDeckIds()
@@ -79,6 +88,7 @@ script PlayerData extends Component
             self.UnitsCsv = data.units or ""
             self.DeckCsv = data.deck or ""
             self.StagesCsv = data.stages or ""
+            self.CardsCsv = data.cards or ""
             self.CostLevelCap = math.max(_BattleConfig.DefaultCostLevelCap, math.floor(data.costCap or 0))
             self:LoadPurchases(data.purchases)
             -- An account saved before a currency existed receives that currency's start amount once.
@@ -118,6 +128,7 @@ script PlayerData extends Component
         self.UnitsCsv = table.concat(units, ",")
         self.DeckCsv = table.concat(deck, ",")
         self.StagesCsv = ""
+        self.CardsCsv = ""
         self.CostLevelCap = _BattleConfig.DefaultCostLevelCap
     end
 
@@ -175,7 +186,7 @@ script PlayerData extends Component
     method string BuildPayload()
         -- Serializes everything that is stored for this player.
         return _HttpService:JSONEncode({
-            meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, stages = self.StagesCsv, costCap = self.CostLevelCap,
+            meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, stages = self.StagesCsv, cards = self.CardsCsv, costCap = self.CostLevelCap,
             wallet = self:ExportWallet(), purchases = table.concat(self._T.purchases or {}, ","),
         })
     end
@@ -400,10 +411,109 @@ script PlayerData extends Component
     -- ===== Mutations (server) =====
 
     @ExecSpace("ServerOnly")
-    method void GrantBattleResult(string stageId, integer meso, boolean cleared)
-        -- Battle end: adds the reward, records a clear, and saves right away.
-        if self.Loaded == false then return end
+    method string OpenChest(string chestId)
+        -- Opens a chest: every card rolls a rarity by the chest's odds (one card raised to the chest's
+        -- guaranteed rarity), then a random unit of that rarity. A unit not owned yet is unlocked at level 1
+        -- and the card is kept as well. Returns the cards as "unitId:count,..." ("" when the chest is unknown).
+        -- No save; the caller saves.
+        local chest = _BattleConfig:GetChest(chestId)
+        if chest == nil or self.Loaded == false then return "" end
+        local rarities = _BattleConfig:GetRarities()
+        local got = {}
+        local unlocked = {}
+        for n = 1, chest.cards do
+            local roll = _UtilLogic:RandomDouble() * 100
+            local rarity = rarities[1]
+            local acc = 0
+            for _, id in ipairs(rarities) do
+                acc = acc + (chest.chance[id] or 0)
+                if roll < acc then
+                    rarity = id
+                    break
+                end
+            end
+            if n == 1 and chest.guarantee ~= "" and _BattleConfig:GetRarityRank(rarity) < _BattleConfig:GetRarityRank(chest.guarantee) then
+                rarity = chest.guarantee
+            end
+            -- A rarity with no units falls back to the next lower one.
+            local rank = _BattleConfig:GetRarityRank(rarity)
+            local pool = _BattleConfig:GetUnitsByRarity(rarities[rank])
+            while #pool == 0 and rank > 1 do
+                rank = rank - 1
+                pool = _BattleConfig:GetUnitsByRarity(rarities[rank])
+            end
+            if #pool > 0 then
+                local unitId = pool[_UtilLogic:RandomIntegerRange(1, #pool)]
+                if self:GetUnitLevels()[unitId] == nil then
+                    if self.UnitsCsv == "" then
+                        self.UnitsCsv = unitId .. ":1"
+                    else
+                        self.UnitsCsv = self.UnitsCsv .. "," .. unitId .. ":1"
+                    end
+                    table.insert(unlocked, unitId)
+                end
+                self:AddCards(unitId, 1)
+                got[unitId] = (got[unitId] or 0) + 1
+            end
+        end
+        local ids = {}
+        for id, _ in pairs(got) do table.insert(ids, id) end
+        table.sort(ids)
+        local parts = {}
+        for _, id in ipairs(ids) do table.insert(parts, id .. ":" .. tostring(got[id])) end
+        local result = table.concat(parts, ",")
+        self:MarkDirty()
+        log("[PlayerData] chest " .. chestId .. " opened: " .. result .. " unlocked=" .. table.concat(unlocked, ","))
+        return result
+    end
+
+    @ExecSpace("ServerOnly")
+    method string BuyChest(string chestId)
+        -- Buys and opens a chest with meso. Returns the cards csv, or "" when refused (logged).
+        if self.Loaded == false then return "" end
+        local chest = _BattleConfig:GetChest(chestId)
+        if chest == nil or chest.priceMeso <= 0 then
+            log("[PlayerData] chest " .. chestId .. " is not for sale")
+            return ""
+        end
+        if self.Meso < chest.priceMeso then
+            log("[PlayerData] chest " .. chestId .. " refused: not enough meso " .. tostring(self.Meso) .. "/" .. tostring(chest.priceMeso))
+            return ""
+        end
+        self.Meso = self.Meso - chest.priceMeso
+        local result = self:OpenChest(chestId)
+        self:Save(false)
+        return result
+    end
+
+    @ExecSpace("Server")
+    method void RequestBuyChest(string chestId)
+        -- Client request: buy a chest; the cards are sent back for the result screen.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        local result = self:BuyChest(chestId)
+        if result ~= "" then self:OnChestOpened(chestId, result, senderUserId) end
+    end
+
+    @ExecSpace("Client")
+    method void OnChestOpened(string chestId, string resultCsv)
+        -- Client: a chest was opened for this player; the lobby shows its cards.
+        local controller = _EntityService:GetEntityByPath("/ui/LobbyUI/Controller")
+        if isvalid(controller) then
+            ---@type LobbyUI
+            local lobby = controller:GetComponent("script.LobbyUI")
+            if lobby ~= nil then lobby:ShowChestResult(chestId, resultCsv) end
+        end
+        log("[PlayerData] chest result shown " .. chestId .. ": " .. resultCsv)
+    end
+
+    @ExecSpace("ServerOnly")
+    method string GrantBattleResult(string stageId, integer meso, string chestId, boolean cleared)
+        -- Battle end: adds the meso reward, opens the stage's reward chest, records a clear, and saves right away.
+        -- Returns the chest cards as csv ("" when there was no chest).
+        if self.Loaded == false then return "" end
         if meso > 0 then self.Meso = self.Meso + meso end
+        local cards = ""
+        if chestId ~= "" then cards = self:OpenChest(chestId) end
         if cleared and self:IsStageCleared(stageId) == false then
             if self.StagesCsv == "" then
                 self.StagesCsv = stageId
@@ -414,7 +524,8 @@ script PlayerData extends Component
         self:MarkDirty()
         -- Async here: this runs inside the battle's update chain. Leaving the room flushes anything still pending.
         self:Save(false)
-        log("[PlayerData] battle result stage=" .. stageId .. " meso+" .. tostring(meso) .. " cleared=" .. tostring(cleared) .. " total=" .. tostring(self.Meso))
+        log("[PlayerData] battle result stage=" .. stageId .. " meso+" .. tostring(meso) .. " chest=" .. chestId .. " cleared=" .. tostring(cleared) .. " total=" .. tostring(self.Meso))
+        return cards
     end
 
     @ExecSpace("ServerOnly")
@@ -438,16 +549,35 @@ script PlayerData extends Component
     end
 
     @ExecSpace("ServerOnly")
+    method void AddCards(string unitId, integer amount)
+        -- Adds collected cards of a unit (no save; the caller saves).
+        local counts = self:GetCardCounts()
+        counts[unitId] = (counts[unitId] or 0) + amount
+        local ids = {}
+        for id, _ in pairs(counts) do table.insert(ids, id) end
+        table.sort(ids)
+        local parts = {}
+        for _, id in ipairs(ids) do table.insert(parts, id .. ":" .. tostring(counts[id])) end
+        self.CardsCsv = table.concat(parts, ",")
+    end
+
+    @ExecSpace("ServerOnly")
     method string LevelUpUnit(string unitId)
-        -- Raises an owned unit by one level with meso. Returns "" on success or the reason it was refused.
+        -- Raises an owned unit by one level by spending the level's cards (UnitLevelTable CardsNeeded) and meso.
+        -- Returns "" on success or the reason it was refused.
         if self.Loaded == false then return "not loaded" end
         local levels = self:GetUnitLevels()
         local level = levels[unitId]
         if level == nil then return "not owned" end
         if level >= _BattleConfig:GetMaxLevel() then return "max level" end
-        local cost = math.floor(_BattleConfig:GetLevels()[level].upgradeCost)
+        local entry = _BattleConfig:GetLevels()[level]
+        local cost = math.floor(entry.upgradeCost)
+        local need = entry.cardsNeeded
+        local have = self:GetCardCounts()[unitId] or 0
+        if have < need then return "not enough cards (" .. tostring(have) .. "/" .. tostring(need) .. ")" end
         if self.Meso < cost then return "not enough meso" end
         self.Meso = self.Meso - cost
+        if need > 0 then self:AddCards(unitId, -need) end
         levels[unitId] = level + 1
         -- Rebuild the csv in its existing order.
         local parts = {}
@@ -535,3 +665,4 @@ script PlayerData extends Component
     end
 
 end
+-- build cache bump

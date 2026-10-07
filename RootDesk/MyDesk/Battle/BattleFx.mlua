@@ -9,6 +9,8 @@ script BattleFx extends Logic
     property number DefaultBarY = 0.8
     property number PixelUnit = 0.01
     property number ProjectileAimY = 0.35
+    -- false = no HP bar above monsters and builds (the base towers always keep theirs).
+    property boolean ShowUnitBars = false
     -- Hit feedback shared by every unit: the sprite blinks white for a moment when the unit loses HP.
     -- A sprite's Color only multiplies (it cannot turn a sprite white), so the blink swaps the sprite's material:
     -- HitFlashMaterial (shader ColorEffect > ColorOverride, white) while blinking, UnitMaterial (shader Default) after.
@@ -17,6 +19,10 @@ script BattleFx extends Logic
     property string HitFlashMaterial = "HitFlash"
     property string UnitMaterial = "UnitDefault"
     property number UnitSoundVolume = 0.5
+    -- Effect icons above a unit's head: small pixel glyphs (one per effect type) drawn with the HP bar model.
+    property number IconSize = 0.22
+    property number IconGap = 0.04
+    property number IconPixels = 8
 
     @ExecSpace("ClientOnly")
     method void RegisterUnit(BattleUnit unit)
@@ -55,6 +61,14 @@ script BattleFx extends Logic
         if cfg == nil then return end
         local map = rec.entity.CurrentMap
         if not isvalid(map) then return end
+        -- Monsters and builds carry no bar (user decision 2026-10-07); only the base towers keep one.
+        -- The unit is still tracked for hit feedback and effect icons.
+        if cfg.kind ~= "base" and self.ShowUnitBars == false then
+            rec.offsetY = (cfg.barY or self.DefaultBarY) * _BattleConfig.UnitScale
+            rec.lastHp = unit.Hp
+            rec.ready = true
+            return
+        end
 
         local seq = (self._T.seq or 0) + 1
         self._T.seq = seq
@@ -84,6 +98,7 @@ script BattleFx extends Logic
         rec.py = pos.y
         rec.filled = nil
         rec.lastHp = unit.Hp
+        rec.ready = true
         self:DrawBar(rec)
         log("[BattleFx] hp bar created " .. rec.name .. " team=" .. tostring(unit.Team) .. " hp=" .. tostring(unit.Hp) .. "/" .. tostring(unit.MaxHp))
     end
@@ -128,6 +143,7 @@ script BattleFx extends Logic
     @ExecSpace("ClientOnly")
     method void RemoveBar(table rec, string reason)
         -- Destroys a unit's HP bar entity.
+        self:RemoveIcons(rec)
         local bar = rec.bar
         if bar == nil then return end
         rec.bar = nil
@@ -138,10 +154,132 @@ script BattleFx extends Logic
     end
 
     @ExecSpace("ClientOnly")
+    method table GetIconGlyph(string kind)
+        -- Returns the 8x8 glyph of an effect type: { color, rows } where "#" is a lit pixel. nil for unknown types.
+        local glyphs = self._T.glyphs
+        if glyphs == nil then
+            glyphs = {
+                -- nullify: red cross
+                nullify = { color = Color(1, 0.3, 0.3, 1), rows = {
+                    "#......#", ".#....#.", "..#..#..", "...##...", "...##...", "..#..#..", ".#....#.", "#......#" } },
+                -- curse: purple diamond with a hollow center
+                curse = { color = Color(0.75, 0.4, 1, 1), rows = {
+                    "...##...", "..####..", ".##..##.", "##....##", "##....##", ".##..##.", "..####..", "...##..." } },
+                -- warp: cyan ring
+                warp = { color = Color(0.4, 0.9, 1, 1), rows = {
+                    "..####..", ".#....#.", "#......#", "#......#", "#......#", "#......#", ".#....#.", "..####.." } },
+                -- blow: orange arrow pointing back (left; the glyph is mirrored for the other team)
+                blow = { color = Color(1, 0.65, 0.2, 1), rows = {
+                    "...#....", "..##....", ".#######", "########", "########", ".#######", "..##....", "...#...." } },
+            }
+            self._T.glyphs = glyphs
+        end
+        return glyphs[kind]
+    end
+
+    @ExecSpace("ClientOnly")
+    method void UpdateIcons(table rec)
+        -- Keeps the effect icons above a unit in step with its synced StatusCsv: creates icons for new effects,
+        -- removes expired ones (by the synced end time) and moves them with the unit.
+        ---@type BattleUnit
+        local unit = rec.unit
+        local csv = unit.StatusCsv
+        local icons = rec.icons
+        if icons == nil then
+            icons = {}
+            rec.icons = icons
+        end
+        local now = _UtilLogic.ServerElapsedSeconds
+        if csv ~= rec.statusCsv then
+            rec.statusCsv = csv
+            local wanted = {}
+            for kind, endAt in string.gmatch(csv, "([^,:]+):([^,]+)") do wanted[kind] = tonumber(endAt) or 0 end
+            for kind, icon in pairs(icons) do
+                if wanted[kind] == nil then self:RemoveIcon(rec, kind) end
+            end
+            for kind, endAt in pairs(wanted) do
+                if icons[kind] == nil then self:CreateIcon(rec, kind, endAt) else icons[kind].endAt = endAt end
+            end
+        end
+        local index = 0
+        local count = 0
+        for _, _ in pairs(icons) do count = count + 1 end
+        if count == 0 then return end
+        local pos = rec.entity.TransformComponent.WorldPosition
+        local step = self.IconSize + self.IconGap
+        local startX = pos.x - (count - 1) * step * 0.5
+        local y = pos.y + (rec.offsetY or self.DefaultBarY * _BattleConfig.UnitScale) + self.BarHeight + self.IconSize * 0.5 + 0.03
+        for kind, icon in pairs(icons) do
+            if icon.endAt <= now then
+                self:RemoveIcon(rec, kind)
+            elseif isvalid(icon.entity) then
+                icon.entity.TransformComponent.WorldPosition = Vector3(startX + index * step, y, 0)
+                index = index + 1
+            end
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void CreateIcon(table rec, string kind, number endAt)
+        -- Spawns the client-local pixel icon of one effect above the unit.
+        local glyph = self:GetIconGlyph(kind)
+        local map = rec.entity.CurrentMap
+        if glyph == nil or not isvalid(map) then return end
+        local seq = (self._T.seq or 0) + 1
+        self._T.seq = seq
+        local pos = rec.entity.TransformComponent.WorldPosition
+        local icon = _SpawnService:SpawnByModelId(self.HpBarModelId, "Icon_" .. tostring(seq), Vector3(pos.x, pos.y + 1, 0), map)
+        local pixel = nil
+        if isvalid(icon) then pixel = icon.PixelRendererComponent end
+        if not isvalid(pixel) then
+            log_error("[BattleFx] effect icon spawn failed for " .. rec.name .. " kind=" .. kind)
+            return
+        end
+        local n = self.IconPixels
+        pixel:ResetWithColor(n, n, Color(0, 0, 0, 0.75))
+        pixel.SortingLayer = "MapLayer0"
+        pixel.OrderInLayer = 11
+        -- Allies face right, so their "back" is to the left; enemies are mirrored.
+        local mirror = rec.unit.Team ~= 1
+        local pixels = {}
+        for y = 1, n do
+            local row = glyph.rows[y] or ""
+            for x = 1, n do
+                local sx = x
+                if mirror then sx = n + 1 - x end
+                local lit = string.sub(row, sx, sx) == "#"
+                pixels[(y - 1) * n + x] = lit and glyph.color or Color(0, 0, 0, 0.75)
+            end
+        end
+        pixel:SetPixels(pixels)
+        local scale = self.IconSize / (n * self.PixelUnit)
+        icon.TransformComponent.Scale = Vector3(scale, scale, 1)
+        rec.icons[kind] = { entity = icon, endAt = endAt }
+        log("[BattleFx] effect icon " .. kind .. " on " .. rec.name .. " until " .. string.format("%.1f", endAt))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void RemoveIcon(table rec, string kind)
+        -- Destroys one effect icon of a unit.
+        local icon = rec.icons[kind]
+        if icon == nil then return end
+        rec.icons[kind] = nil
+        if isvalid(icon.entity) then icon.entity:Destroy() end
+        log("[BattleFx] effect icon " .. kind .. " removed from " .. rec.name)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void RemoveIcons(table rec)
+        -- Destroys every effect icon of a unit.
+        if rec.icons == nil then return end
+        for kind, _ in pairs(rec.icons) do self:RemoveIcon(rec, kind) end
+    end
+
+    @ExecSpace("ClientOnly")
     method void OnUnitHpSync(BattleUnit unit)
         -- Reacts to a synced Hp / MaxHp change: hit feedback when Hp dropped, bar repaint, bar removal on death.
         local rec = unit._T.fx
-        if rec == nil or rec.bar == nil then return end
+        if rec == nil or rec.ready ~= true then return end
         local hp = unit.Hp
         local prev = rec.lastHp
         rec.lastHp = hp
@@ -281,7 +419,8 @@ script BattleFx extends Logic
                         rec.flashRemain = rec.flashRemain - delta
                         if rec.flashRemain <= 0 then self:EndFlash(rec) end
                     end
-                    if rec.bar == nil then self:EnsureBar(rec) end
+                    if rec.ready ~= true then self:EnsureBar(rec) end
+                    self:UpdateIcons(rec)
                     if rec.bar ~= nil then
                         local pos = rec.entity.TransformComponent.WorldPosition
                         if pos.x ~= rec.px or pos.y ~= rec.py then

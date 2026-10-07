@@ -5,6 +5,8 @@ script BattleUnit extends Component
     @Sync property number MaxHp = 100
     @Sync property number Hp = 100
     @Sync property string UnitId = ""
+    -- Effects currently shown on this unit, for the client icons: "type:endAt,..." (endAt in ServerElapsedSeconds).
+    @Sync property string StatusCsv = ""
     property string Kind = "monster"
     property number AttackPower = 10
     -- melee / ranged hit one target; melee_area / ranged_area hit every enemy in range (UnitTable AttackType).
@@ -89,6 +91,8 @@ script BattleUnit extends Component
         self.CurseRemain = 0
         self.NullifyRemain = 0
         self.NullifyTarget = nil
+        self._T.statuses = {}
+        self.StatusCsv = ""
         self.WalkSpeed = cfg.speed * _BattleConfig.SpeedScale
         self.GoalX = goalX
         self.Director = director
@@ -175,6 +179,7 @@ script BattleUnit extends Component
             if self.PoseTimer <= 0 and self.Mode ~= "MOVE" then self:SetSprite(self.StandRUID, 1) end
         end
 
+        if self.StatusCsv ~= "" then self:RefreshStatus(false) end
         if self.CurseRemain > 0 then self.CurseRemain = self.CurseRemain - delta end
         if self.NullifyRemain > 0 then
             self.NullifyRemain = self.NullifyRemain - delta
@@ -188,17 +193,11 @@ script BattleUnit extends Component
             local back = -self:GetDirection()
             -- Never pushed behind its own base tower.
             local room = (x - director:GetBaseX(self.Team)) * -back
-            -- The body speeds up and slows down on its own, so the push is cut off by distance travelled, not by time.
-            local travelled = (x - self.KnockStartX) * back
-            if self.KnockSpeed > 0 and travelled < self.KnockTarget and room > 0.3 then
-                self.Entity.MovementComponent:MoveToDirection(Vector2(back, 0), delta)
-            else
-                self:StopMoving()
-                -- A fast push keeps sliding after the stop: hold the unit at the point the push was meant to reach.
-                if self.KnockSpeed > 0 and travelled > self.KnockTarget + 0.02 then
-                    local pos = self.Entity.TransformComponent.WorldPosition
-                    self.Entity.MovementComponent:SetWorldPosition(Vector2(self.KnockStartX + back * self.KnockTarget, pos.y))
-                end
+            -- The push itself is a physics impulse given in StartKnockback; here the unit only waits it out.
+            -- A unit shoved against its own base tower is stopped there.
+            if room <= 0.3 then
+                local body = self.Entity.RigidbodyComponent
+                if isvalid(body) then body:SetForce(Vector2(0, 0)) end
             end
             if self.KnockRemain <= 0 then self:EndKnockback() end
             return
@@ -283,6 +282,9 @@ script BattleUnit extends Component
         -- blow    = pushed back by power over the duration.
         log("[BattleUnit] effect " .. effect.id .. " (" .. effect.type .. ") " .. source.Entity.Name .. " -> " .. self.Entity.Name .. " attribute=" .. self.Attribute .. " duration=" .. tostring(effect.duration) .. " power=" .. tostring(effect.power))
         local distance = effect.power * _BattleConfig.RangeScale
+        -- The icon stays at least IconMinSeconds so very short effects (a push) are still readable.
+        self._T.statuses[effect.type] = _UtilLogic.ServerElapsedSeconds + math.max(effect.duration, _BattleConfig.StatusIconMinSeconds)
+        self:RefreshStatus(true)
         if effect.type == "nullify" then
             self.NullifyTarget = source
             self.NullifyRemain = effect.duration
@@ -304,6 +306,26 @@ script BattleUnit extends Component
     end
 
     @ExecSpace("ServerOnly")
+    method void RefreshStatus(boolean changed)
+        -- Drops expired effect entries and rewrites StatusCsv when the set changed.
+        local statuses = self._T.statuses
+        if statuses == nil then return end
+        local now = _UtilLogic.ServerElapsedSeconds
+        local parts = {}
+        for kind, endAt in pairs(statuses) do
+            if endAt <= now then
+                statuses[kind] = nil
+                changed = true
+            else
+                table.insert(parts, kind .. ":" .. string.format("%.2f", endAt))
+            end
+        end
+        if changed == false then return end
+        table.sort(parts)
+        self.StatusCsv = table.concat(parts, ",")
+    end
+
+    @ExecSpace("ServerOnly")
     method void StartKnockback(number distance, number seconds, boolean useHitClip)
         -- Pushes this monster back by distance over seconds (distance 0 = held in place). While it lasts the
         -- unit neither attacks nor advances, and with useHitClip its hit clip plays.
@@ -314,12 +336,14 @@ script BattleUnit extends Component
         self.KnockRemain = seconds
         self.KnockStartX = self.Entity.TransformComponent.WorldPosition.x
         self.KnockTarget = distance
-        -- Faster than distance / seconds because the body needs time to reach its speed; the distance check stops it.
-        self.KnockSpeed = distance / seconds * 2
-        local movement = self.Entity.MovementComponent
-        if isvalid(movement) then
-            movement:Stop()
-            if self.KnockSpeed > 0 then movement.InputSpeed = self.KnockSpeed end
+        self.KnockSpeed = 0
+        self:StopMoving()
+        -- The push is a physics impulse: a force backwards (sized from the distance) with a small lift, which the
+        -- engine then damps on its own, so the unit hops back and slows down like a real shove.
+        local body = self.Entity.RigidbodyComponent
+        if isvalid(body) and distance > 0 then
+            local back = -self:GetDirection()
+            body:SetForce(Vector2(back * distance * _BattleConfig.KnockbackForcePerUnit, _BattleConfig.KnockbackLift))
         end
         if useHitClip and self.HitRUID ~= "" then
             self:SetSprite(self.HitRUID, 1)
@@ -340,6 +364,8 @@ script BattleUnit extends Component
             movement:Stop()
             if self.WalkSpeed > 0 then movement.InputSpeed = self.WalkSpeed end
         end
+        local body = self.Entity.RigidbodyComponent
+        if isvalid(body) then body:SetForce(Vector2(0, 0)) end
         log("[BattleUnit] " .. self.Entity.Name .. " knockback ended x=" .. string.format("%.2f", self.Entity.TransformComponent.WorldPosition.x))
     end
 
@@ -367,6 +393,8 @@ script BattleUnit extends Component
         -- Monsters and builds play the death clip and are destroyed; a base ends the battle instead.
         self.IsDead = true
         self.PendingTarget = nil
+        self._T.statuses = {}
+        self.StatusCsv = ""
         self:StopMoving()
         local director = self.Director
         log("[BattleUnit] " .. self.Entity.Name .. " died")
