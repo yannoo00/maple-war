@@ -62,7 +62,7 @@ node tools/unit-editor/cli.cjs stage remove <id> [--force]  # --force: 이 스�
 
 ## 효과(EffectTable) 추가·구현
 
-효과 한 줄 = `EffectTable.csv` 한 행. `Type`이 코드가 분기하는 키이고, 구현된 타입은 `BattleUnit:ReceiveEffect`의 `effect.type == "..."` 분기에서 자동으로 읽는다.
+효과 한 줄 = `EffectTable.csv` 한 행. 그 행의 `Duration` / `Power` / `Chance*`는 **기본값**이고, 몬스터·설치물이 `UnitTable`의 `EffectDuration` / `EffectPower` / `EffectChance*` 칸으로 덮어쓴다(빈칸 = 기본값). 유닛에 효과를 줄 때는 유닛 JSON에 `Effect`와 필요한 덮어쓰기 칸만 넣는다. `Type`이 코드가 분기하는 키이고, 구현된 타입은 `BattleUnit:ReceiveEffect`의 `effect.type == "..."` 분기에서 자동으로 읽는다.
 
 ```
 node tools/unit-editor/cli.cjs effect types                 # 코드가 구현한 타입 목록

@@ -24,7 +24,7 @@ script BattleUnit extends Component
     property string AttackRUID = ""
     property string DieRUID = ""
     property string HitRUID = ""
-    -- Monsters only (UnitTable): attribute, the effect this unit's attacks can apply, and knockback settings.
+    -- UnitTable: attribute and knockback settings (monsters only); the effect this unit's attacks can apply (monsters and builds).
     property string Attribute = ""
     property string EffectId = ""
     -- HP lost per knockback (0 = never knocked back), push distance in world units and push time.
@@ -79,12 +79,18 @@ script BattleUnit extends Component
         self.KnockStep = 0
         if cfg.kind == "monster" then
             self.Attribute = cfg.attribute or ""
-            self.EffectId = cfg.effectId or ""
             if cfg.knockbackHpPercent ~= nil and cfg.knockbackHpPercent > 0 then
                 self.KnockStep = cfg.maxHp * cfg.knockbackHpPercent / 100
             end
             self.KnockDistance = (cfg.knockbackDistance or 0) * _BattleConfig.RangeScale
             self.KnockSeconds = cfg.knockbackSeconds or 0
+        end
+        -- Monsters and builds may carry an effect; the unit's own Duration / Power / Chance cells override the defaults.
+        if cfg.kind == "monster" or cfg.kind == "build" then
+            self.EffectId = cfg.effectId or ""
+            self._T.effectOverride = cfg.effectOverride
+        else
+            self._T.effectOverride = nil
         end
         self.KnockCount = 0
         self.KnockRemain = 0
@@ -262,15 +268,25 @@ script BattleUnit extends Component
 
     @ExecSpace("ServerOnly")
     method void TryApplyEffect(any target)
-        -- A monster's attack may apply its one effect to a monster it damaged. The chance comes from the
-        -- effect's row in EffectTable, by the attribute of the unit that was hit. A cursed unit applies nothing.
-        if self.Kind ~= "monster" or self.EffectId == "" or self.CurseRemain > 0 then return end
+        -- A monster's or build's attack may apply its one effect to a monster it damaged. The chance is this unit's own
+        -- override for the target's attribute, else the effect's default in EffectTable. A cursed unit applies nothing.
+        if (self.Kind ~= "monster" and self.Kind ~= "build") or self.EffectId == "" or self.CurseRemain > 0 then return end
         if target.Kind ~= "monster" or target.IsDead or target.Attribute == "" then return end
         local effect = _BattleConfig:GetEffect(self.EffectId)
         if effect == nil then return end
-        local chance = effect.chance[target.Attribute] or 0
+        local override = self._T.effectOverride or { chance = {} }
+        local chance = override.chance[target.Attribute]
+        if chance == nil then chance = effect.chance[target.Attribute] or 0 end
         if chance <= 0 or _UtilLogic:RandomDouble() * 100 >= chance then return end
-        target:ReceiveEffect(effect, self)
+        -- Duration and power: this unit's override, else the effect's default.
+        local applied = {
+            id = effect.id,
+            type = effect.type,
+            name = effect.name,
+            duration = override.duration or effect.duration,
+            power = override.power or effect.power,
+        }
+        target:ReceiveEffect(applied, self)
     end
 
     @ExecSpace("ServerOnly")

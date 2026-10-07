@@ -190,6 +190,15 @@ function validateUnit(unit, data, opts = {}) {
   }
 
   if (kind === 'monster' || kind === 'build') {
+    // Effect overrides: a blank cell uses the EffectTable default; a filled one replaces it for this unit only.
+    const overrideKeys = ['EffectDuration', 'EffectPower', ...Object.values(schema.UNIT_CHANCE_KEYS)].filter((k) => data.units.header.includes(k));
+    for (const k of overrideKeys) {
+      const v = unit[k] == null ? '' : String(unit[k]);
+      if (!isNumeric(v)) continue;
+      if (k.startsWith('EffectChance') && (Number(v) < 0 || Number(v) > 100)) errors.push(`${k}는 0~100 사이여야 합니다 (현재 "${v}")`);
+      if ((k === 'EffectDuration' || k === 'EffectPower') && Number(v) < 0) errors.push(`${k}는 0 이상이어야 합니다 (현재 "${v}")`);
+    }
+    if (!unit.Effect && overrideKeys.some((k) => unit[k] != null && String(unit[k]) !== '')) warnings.push('Effect가 비어 있어 효과 덮어쓰기 칸은 쓰이지 않습니다');
     const type = unit.AttackType || (unit.ProjectileRuid ? 'ranged' : 'melee');
     if (type.startsWith('ranged') && !unit.ProjectileRuid) warnings.push('원거리인데 ProjectileRuid가 없어 투사체 없이 피해만 들어갑니다');
     if (type.startsWith('melee') && unit.ProjectileRuid) warnings.push('근거리인데 ProjectileRuid가 있어 공격 때 투사체가 날아갑니다');
