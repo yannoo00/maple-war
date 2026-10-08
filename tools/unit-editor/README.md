@@ -1,6 +1,10 @@
 # unit-editor — 유닛 데이터 입력 툴
 
-`RootDesk/MyDesk/Data/UnitTable.csv`(+ `StageWaveTable.csv`, `StageTable.csv`의 LoopPool)에 몬스터 / 설치물 / 스킬을 넣고 고치는 툴. Node만 있으면 되고 설치할 패키지는 없다.
+`RootDesk/MyDesk/Data/UnitTable.csv`(+ `StageWaveTable.csv`, `StageTable.csv`의 LoopPool)에 몬스터 / 설치물 / 스킬을 넣고 고치는 툴. 서버와 CLI는 Node만 있으면 되고, 브라우저 화면(React)은 한 번 빌드해야 한다.
+
+```
+cd tools/unit-editor/web && npm install && npm run build   # 처음 한 번, 화면 코드를 고친 뒤에도
+```
 
 사람과 Claude가 **같은 검증·저장 코드**를 쓴다.
 
@@ -14,7 +18,10 @@
 
 - `schema.cjs` — 열 정의, 종류별 필수/허용 칸, enum, 기본값, 도움말. **규칙을 바꾸려면 여기만 고친다.**
 - `unitdata.cjs` — CSV 읽기/쓰기(UTF-8 BOM + CRLF 유지), 검증, 추가/수정/삭제, 시간표·반복 풀 반영, 아군/적 파생 상태.
-- `cli.cjs`, `server.cjs`, `index.html` — 두 입구.
+- `cli.cjs`, `server.cjs` — 두 입구. 서버는 `dist/`(빌드 결과)와 JSON API를 서빙한다.
+- `web/` — 브라우저 화면(React + Vite). 화면 개발은 `node server.cjs --no-open`을 켜 두고 `web/`에서 `npm run dev`.
+  - `src/modes.js` — 유닛/스테이지/효과가 다른 점(초안 만들기, 저장 문구, 삭제 확인)만 모아 둔 설정. 세 편집기가 같은 저장·검사·삭제 흐름을 쓴다.
+  - `src/App.jsx` — 상태와 저장/검사/삭제 흐름. `src/Sidebar.jsx` 목록, `src/Field.jsx` 스키마 기반 입력칸, `src/forms/*` 모드별 폼.
 
 ## 스테이지 편집
 

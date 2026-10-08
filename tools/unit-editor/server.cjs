@@ -10,10 +10,11 @@ const { exec } = require('node:child_process');
 const data = require('./unitdata.cjs');
 
 const PORT = Number(process.argv[2]) || 3456;
-const HTML = path.join(__dirname, 'index.html');
+const DIST = path.join(__dirname, 'dist');   // `npm run build` (web/) 결과
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
 
 function send(res, code, body, type = 'application/json; charset=utf-8') {
-  const payload = typeof body === 'string' ? body : JSON.stringify(body);
+  const payload = typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body);
   res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });
   res.end(payload);
 }
@@ -27,16 +28,21 @@ function readBody(req) {
   });
 }
 
+function serveStatic(res, pathname) {
+  const file = path.join(DIST, pathname === '/' ? 'index.html' : pathname);
+  if (!file.startsWith(DIST + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+    return send(res, 404, '화면이 빌드되지 않았습니다: cd tools/unit-editor/web && npm install && npm run build', 'text/plain; charset=utf-8');
+  }
+  return send(res, 200, fs.readFileSync(file), TYPES[path.extname(file)] || 'application/octet-stream');
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
-    if (req.method === 'GET' && url.pathname === '/') {
-      return send(res, 200, fs.readFileSync(HTML, 'utf8'), 'text/html; charset=utf-8');
-    }
     if (req.method === 'GET' && url.pathname === '/api/state') {
       return send(res, 200, data.stateForEditor());
     }
-    if (req.method === 'POST' && url.pathname === '/api/validate') {
+    if (req.method === 'POST' && (url.pathname === '/api/validate' || url.pathname === '/api/unit/validate')) {
       const body = await readBody(req);
       return send(res, 200, data.previewValidate(body.unit || {}, { mode: body.mode || 'upsert' }));
     }
@@ -82,6 +88,7 @@ const server = http.createServer(async (req, res) => {
       const ruid = url.pathname.slice('/api/resource/'.length).toLowerCase();
       return send(res, 200, await data.lookupResource(ruid));
     }
+    if (req.method === 'GET' && !url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
     return send(res, 404, { error: 'not found' });
   } catch (e) {
     return send(res, 500, { error: e.message });

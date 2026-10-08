@@ -92,7 +92,7 @@ node tools/unit-editor/cli.cjs effect remove <id> [--force] # --force: 쓰는 �
 | 열 삭제 (예: `Price` 없어짐) | 스키마의 그 줄을 지운다. 지우지 않아도 CSV에 없는 열은 화면·검증에서 자동으로 빠진다 |
 | enum 값 변경 (등급·속성·공격 타입) | `ENUMS` / `ENUM_LABELS` |
 | "아군/적" 같은 파생 규칙이 바뀜 (예: 구매 → 뽑기) | `unitdata.cjs`의 `unitStatus` (게임 코드의 규칙을 그대로 옮긴다) |
-| 새 표가 생김 (예: `GachaTable`) | `schema.cjs`에 필드 목록 + `unitdata.cjs`에 list/validate/save/remove + `cli.cjs`/`server.cjs`에 명령·엔드포인트 + `index.html`에 모드 하나. 효과 모드가 가장 단순한 본보기 |
+| 새 표가 생김 (예: `GachaTable`) | `schema.cjs`에 필드 목록 + `unitdata.cjs`에 list/validate/save/remove + `cli.cjs`/`server.cjs`에 명령·엔드포인트 + `web/src/modes.js`에 모드 설정 + `web/src/forms/`에 폼 하나 + `Sidebar.jsx` 행. 효과 모드가 가장 단순한 본보기 |
 
 바꾼 뒤에는 복사본으로 라운드트립을 확인한다: CSV를 임시 폴더에 복사하고 `UNIT_EDITOR_DATA_DIR`로 지정한 뒤 기존 행을 `show` → `upsert` 했을 때 파일이 바이트 단위로 같아야 한다.
 
