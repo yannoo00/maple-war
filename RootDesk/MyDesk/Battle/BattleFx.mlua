@@ -8,6 +8,12 @@ script BattleFx extends Logic
     property number DefaultBarWidth = 0.8
     property number DefaultBarY = 0.8
     property number PixelUnit = 0.01
+    -- "current/max" HP number above each base tower's bar (client-local text entity).
+    -- World text sizes in world units (not UI pixels): 16 filled the whole screen, so start near 1.5 and tune by eye.
+    property number HpTextFontSize = 1.5
+    property number HpTextWidth = 2
+    property number HpTextHeight = 0.4
+    property number HpTextGap = 0.02
     property number ProjectileAimY = 0.35
     -- false = no HP bar above monsters and builds (the base towers always keep theirs).
     property boolean ShowUnitBars = false
@@ -101,8 +107,63 @@ script BattleFx extends Logic
         rec.filled = nil
         rec.lastHp = unit.Hp
         rec.ready = true
+        self:CreateHpText(rec, map, pos)
         self:DrawBar(rec)
         log("[BattleFx] hp bar created " .. rec.name .. " team=" .. tostring(unit.Team) .. " hp=" .. tostring(unit.Hp) .. "/" .. tostring(unit.MaxHp))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void CreateHpText(table rec, Entity map, Vector3 pos)
+        -- Spawns the client-local "current/max" HP number that sits just above the unit's bar.
+        local seq = (self._T.seq or 0) + 1
+        self._T.seq = seq
+        local label = _SpawnService:SpawnByModelId(self.HpBarModelId, "HpText_" .. tostring(seq), self:HpTextPosition(rec, pos), map)
+        if not isvalid(label) then
+            log_error("[BattleFx] hp text spawn failed for " .. rec.name)
+            return
+        end
+        -- The spawned model only serves as a bare client entity; its own pixel bar is made fully transparent.
+        local pixel = label.PixelRendererComponent
+        if isvalid(pixel) then pixel:ResetWithColor(1, 1, Color(0, 0, 0, 0)) end
+        label.TransformComponent.Scale = Vector3(1, 1, 1)
+        ---@type TextRendererComponent
+        local text = label:AddComponent("TextRendererComponent")
+        if not isvalid(text) then
+            label:Destroy()
+            log_error("[BattleFx] hp text component failed for " .. rec.name)
+            return
+        end
+        text.FontSize = self.HpTextFontSize
+        text.FontColor = Color(1, 1, 1, 1)
+        text.OutlineColor = Color(0, 0, 0, 1)
+        text.OutlineWidth = 0.2
+        text.RectSize = Vector2(self.HpTextWidth, self.HpTextHeight)
+        text.SortingLayer = "MapLayer0"
+        text.OrderInLayer = 12
+        rec.hpLabel = label
+        rec.hpText = text
+        rec.hpShown = nil
+    end
+
+    @ExecSpace("ClientOnly")
+    method Vector3 HpTextPosition(table rec, Vector3 pos)
+        -- World position of the HP number: centered above the bar of the unit standing at pos.
+        local y = pos.y + (rec.offsetY or 0) + self.BarHeight * 0.5 + self.HpTextGap + self.HpTextHeight * 0.5
+        return Vector3(pos.x, y, 0)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void UpdateHpText(table rec)
+        -- Rewrites the HP number when the unit's synced Hp / MaxHp changed.
+        local text = rec.hpText
+        if text == nil or not isvalid(text) then return end
+        ---@type BattleUnit
+        local unit = rec.unit
+        local shown = tostring(math.floor(math.max(0, unit.Hp))) .. "/" .. tostring(math.floor(unit.MaxHp))
+        if shown == rec.hpShown then return end
+        rec.hpShown = shown
+        text.Text = shown
+        log("[VRF] [BattleFx] hp text " .. rec.name .. " " .. shown)
     end
 
     @ExecSpace("ClientOnly")
@@ -110,6 +171,7 @@ script BattleFx extends Logic
         -- Repaints the bar pixels from the unit's synced Hp / MaxHp; allies are green, enemies red.
         local pixel = rec.pixel
         if pixel == nil then return end
+        self:UpdateHpText(rec)
         ---@type BattleUnit
         local unit = rec.unit
         local ratio = 0
@@ -148,6 +210,11 @@ script BattleFx extends Logic
         self:RemoveIcons(rec)
         local bar = rec.bar
         if bar == nil then return end
+        if rec.hpLabel ~= nil then
+            if isvalid(rec.hpLabel) then rec.hpLabel:Destroy() end
+            rec.hpLabel = nil
+            rec.hpText = nil
+        end
         rec.bar = nil
         rec.pixel = nil
         rec.filled = nil
@@ -171,6 +238,9 @@ script BattleFx extends Logic
                 warp = { color = Color(0.4, 0.9, 1, 1), rows = {
                     "..####..", ".#....#.", "#......#", "#......#", "#......#", "#......#", ".#....#.", "..####.." } },
                 -- blow: orange arrow pointing back (left; the glyph is mirrored for the other team)
+                -- poison: green drop
+                poison = { color = Color(0.45, 0.95, 0.3, 1), rows = {
+                    "...#....", "...#....", "..###...", "..###...", ".#####..", ".#####..", "..###...", "........" } },
                 blow = { color = Color(1, 0.65, 0.2, 1), rows = {
                     "...#....", "..##....", ".#######", "########", "########", ".#######", "..##....", "...#...." } },
             }
@@ -457,6 +527,7 @@ script BattleFx extends Logic
                             rec.px = pos.x
                             rec.py = pos.y
                             rec.bar.TransformComponent.WorldPosition = Vector3(pos.x, pos.y + rec.offsetY, 0)
+                            if isvalid(rec.hpLabel) then rec.hpLabel.TransformComponent.WorldPosition = self:HpTextPosition(rec, pos) end
                         end
                     end
                 end

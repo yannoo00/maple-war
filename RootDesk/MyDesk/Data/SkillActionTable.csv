@@ -1,0 +1,9 @@
+﻿SkillId,Action,Team,Kinds,Attribute,ExcludeAttribute,MaxTargets,Power,EffectId,Delay,Repeat,Interval,#Memo
+meteor,damage,enemy,,,,,,,,,,"스킬의 동작 줄(스킬 하나에 여러 줄). Action = damage(피해) / heal(회복) / effect(EffectId 효과 걸기). Team = enemy / ally / all. Kinds = 대상 종류(monster;build;base, 빈칸 = monster;build). Attribute = 이 속성만, ExcludeAttribute = 이 속성 제외. MaxTargets = 최대 대상 수(무작위, 빈칸 = 전부). Power = 피해·회복량(빈칸 = 스킬의 SkillDamage, 레벨 배율 적용). Delay = SkillHitDelay 뒤 추가 지연(초). Repeat = 실행 횟수(빈칸 = 1), Interval = 반복 간격(초). 반복마다 범위 안 대상을 다시 찾음"
+lightning,damage,enemy,,,,3,,,,,,
+blizzard,damage,enemy,,,,,,,,,,
+poisoncloud,effect,all,monster,,,,,poison,,5,1,
+heal,heal,ally,monster;build,,,,20,,,10,1,
+earthquake,damage,all,monster,,earth,,,,,3,0.5,
+dispel,heal,all,monster,light,,,60,,,,,
+dispel,damage,all,monster,dark,,,,,,,,

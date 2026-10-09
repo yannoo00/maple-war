@@ -1,0 +1,87 @@
+@Logic
+script BattleSkills extends Logic
+
+    -- Server-side executor of skill cards. A skill (UnitTable kind = skill) is a list of action rows in
+    -- SkillActionTable; each row says on whom (team / kinds / attribute filter / max targets within the skill's radius),
+    -- what (damage / heal / effect) and when (SkillHitDelay + Delay, Repeat times every Interval seconds). Every
+    -- repetition looks for its targets again, so a unit that walks into a lingering cloud is hit too.
+    -- Damage goes through the one damage pipeline (_BattleEffects:DealHit, kind "skill"): no attribute bonus, but the
+    -- targets' own traits (tough ...) apply. A skill with no rows keeps the old behavior: SkillDamage to every enemy
+    -- monster / build in range.
+
+    @ExecSpace("ServerOnly")
+    method void Cast(any director, integer team, table cfg, number centerX)
+        -- Schedules every action of a skill played by team at centerX. cfg is the skill at the card's level.
+        local actions = _BattleConfig:GetSkillActions(cfg.id)
+        if #actions == 0 then
+            actions = { { action = "damage", team = "enemy", kinds = { monster = true, build = true }, attribute = "", excludeAttribute = "", maxTargets = 0, effectId = "", delay = 0, repeats = 1, interval = 1 } }
+        end
+        local radius = cfg.radius * _BattleConfig.RangeScale
+        local rate = _BattleConfig:GetStatRate(cfg.level or 1)
+        log("[VRF] BattleSkills cast " .. tostring(cfg.id) .. " team=" .. tostring(team) .. " x=" .. string.format("%.1f", centerX) .. " actions=" .. tostring(#actions) .. " level=" .. tostring(cfg.level or 1))
+        for _, action in ipairs(actions) do
+            local amount = cfg.damage
+            if action.power ~= nil then amount = action.power * rate end
+            for n = 1, action.repeats do
+                local at = cfg.hitDelay + action.delay + (n - 1) * action.interval
+                local step = n
+                if at <= 0 then
+                    self:RunAction(director, team, cfg, action, centerX, radius, amount, step)
+                else
+                    _TimerService:SetTimerOnce(function()
+                        if isvalid(director.Entity) and director.State == "PLAYING" then
+                            self:RunAction(director, team, cfg, action, centerX, radius, amount, step)
+                        end
+                    end, at)
+                end
+            end
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method table FindTargets(any director, integer team, table action, number centerX, number radius)
+        -- Returns the living units the action reaches: within radius of centerX, of the action's team (seen from the
+        -- caster), of an allowed kind and passing the attribute filters; at most maxTargets of them, picked at random.
+        local found = {}
+        for _, unit in ipairs(director._T.units or {}) do
+            if unit.IsDead == false and unit.Ready and isvalid(unit.Entity) and action.kinds[unit.Kind] == true then
+                local teamOk = action.team == "all" or (action.team == "enemy" and unit.Team ~= team) or (action.team == "ally" and unit.Team == team)
+                local attrOk = (action.attribute == "" or unit.Attribute == action.attribute) and (action.excludeAttribute == "" or unit.Attribute ~= action.excludeAttribute)
+                if teamOk and attrOk and math.abs(unit.Entity.TransformComponent.WorldPosition.x - centerX) <= radius then
+                    table.insert(found, unit)
+                end
+            end
+        end
+        if action.maxTargets > 0 then
+            while #found > action.maxTargets do
+                table.remove(found, _UtilLogic:RandomIntegerRange(1, #found))
+            end
+        end
+        return found
+    end
+
+    @ExecSpace("ServerOnly")
+    method void RunAction(any director, integer team, table cfg, table action, number centerX, number radius, number amount, integer step)
+        -- Runs one repetition of one action on the targets found right now.
+        local targets = self:FindTargets(director, team, action, centerX, radius)
+        local effect = nil
+        if action.action == "effect" then
+            effect = _BattleConfig:GetEffect(action.effectId)
+            if effect == nil then
+                log_warning("[BattleSkills] skill " .. tostring(cfg.id) .. " names an unknown effect " .. action.effectId)
+                return
+            end
+        end
+        for _, unit in ipairs(targets) do
+            if action.action == "damage" then
+                _BattleEffects:DealHit(nil, unit, amount, "skill")
+            elseif action.action == "heal" then
+                unit:Heal(amount)
+            elseif effect ~= nil then
+                unit:ReceiveEffect({ id = effect.id, type = effect.type, name = effect.name, duration = effect.duration, power = effect.power, param = effect.param }, nil)
+            end
+        end
+        log("[BattleSkills] " .. tostring(cfg.id) .. " " .. action.action .. " #" .. tostring(step) .. " x=" .. string.format("%.1f", centerX) .. " targets=" .. tostring(#targets) .. " amount=" .. string.format("%.1f", amount))
+    end
+
+end

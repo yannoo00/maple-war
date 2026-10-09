@@ -1,0 +1,258 @@
+@Logic
+script BattleEffects extends Logic
+
+    -- Server-side home of every battle effect and of the one damage pipeline.
+    --
+    -- An effect type (EffectTable.Type) is one entry of the registry built in GetDefs. Adding an effect = adding one
+    -- entry there; BattleUnit never branches on effect types. A unit keeps what is on it in unit._T.effects, keyed by
+    -- type: { type, id, power, chance, remain (nil = for life), source, sourceLife, acc }. Applying a type that is
+    -- already on the unit replaces the entry (the time is refreshed, nothing stacks).
+    --
+    -- Groups:
+    --   status  = on a unit for a while (curse, nullify, poison); may tick; shows an icon above the unit.
+    --   trait   = a unit's own permanent property, given by its 'always' rules (titan, tough, might, siege, swamp).
+    --   instant = runs once when applied (blow, warp); nothing is kept.
+    -- A summon tower is a build with the spawn trait: every Duration seconds it spawns its Param unit at its own spot.
+    --
+    -- Registry entry fields (all optional except group):
+    --   blocks(entry, target)   -> true: the owner's hit on target does nothing            (attacker side)
+    --   outgoing(entry, kind)   -> multiplier on damage the owner deals                     (attacker side)
+    --   incoming(entry, kind)   -> multiplier on damage the owner receives                  (defender side)
+    --   immune = "<kind>"       -> the owner takes no damage of that kind and cannot receive effects tagged with it
+    --   tag = "<kind>"          -> what immune is matched against when this effect is applied
+    --   flag = "<name>"         -> a yes/no property other code asks for with HasFlag (no_knockback, siege)
+    --   onApply(unit, entry)    -> runs when applied
+    --   onTick(unit, entry, dt) -> runs every frame while on the unit
+    --
+    -- Damage kinds: "attack" (a unit's own attack; the only kind that gets the attribute bonus), "skill", "poison".
+    -- Monsters receive effects from others; builds and bases never do (they only take damage). A monster or build can
+    -- carry its own traits.
+
+    @ExecSpace("ServerOnly")
+    method table GetDefs()
+        -- Returns the effect registry (type -> definition), built once.
+        local defs = self._T.defs
+        if defs ~= nil then return defs end
+        defs = {}
+
+        -- nullify: the owner's attacks do nothing to the unit that put this on it.
+        defs["nullify"] = { group = "status", blocks = function(entry, target)
+            return entry.source == target and target.Life == entry.sourceLife
+        end }
+
+        -- curse: the owner's damage is reduced by power percent.
+        defs["curse"] = { group = "status", outgoing = function(entry, kind)
+            return 1 - math.min(100, math.max(0, entry.power)) / 100
+        end }
+
+        -- warp: moved back by power at once and held in place for the duration.
+        defs["warp"] = { group = "instant", onApply = function(unit, entry)
+            local pos = unit.Entity.TransformComponent.WorldPosition
+            local dir = unit:GetDirection()
+            local baseX = unit.Director:GetBaseX(unit.Team)
+            local newX = pos.x - dir * entry.power * _BattleConfig.RangeScale
+            if (newX - baseX) * dir < 0.3 then newX = baseX + dir * 0.3 end
+            unit.Entity.MovementComponent:SetWorldPosition(Vector2(newX, pos.y))
+            unit:StartKnockback(0, entry.duration, false)
+        end }
+
+        -- blow: pushed back by power over the duration (a unit with no_knockback ignores it, see StartKnockback).
+        defs["blow"] = { group = "instant", onApply = function(unit, entry)
+            unit:StartKnockback(entry.power * _BattleConfig.RangeScale, math.max(0.1, entry.duration), true)
+        end }
+
+        -- might (괴력): each attack has chance percent to deal power percent more damage.
+        defs["might"] = { group = "trait", outgoing = function(entry, kind)
+            if kind ~= "attack" then return 1 end
+            if _UtilLogic:RandomDouble() * 100 >= entry.chance then return 1 end
+            return 1 + math.max(0, entry.power) / 100
+        end }
+
+        -- titan (타이탄): never knocked back.
+        defs["titan"] = { group = "trait", flag = "no_knockback" }
+
+        -- tough (맷집): every damage received is reduced by power percent.
+        defs["tough"] = { group = "trait", incoming = function(entry, kind)
+            return 1 - math.min(100, math.max(0, entry.power)) / 100
+        end }
+
+        -- siege (공성): ignores monsters and attacks builds and the base only.
+        defs["siege"] = { group = "trait", flag = "siege" }
+
+        -- poison (독): power damage every second for the duration.
+        defs["poison"] = { group = "status", tag = "poison", onTick = function(unit, entry, delta)
+            entry.acc = entry.acc + delta
+            if entry.acc < 1 then return end
+            entry.acc = entry.acc - 1
+            self:DealHit(nil, unit, entry.power, "poison")
+        end }
+
+        -- swamp (늪지대): takes no poison damage and cannot be poisoned.
+        defs["swamp"] = { group = "trait", immune = "poison" }
+
+        -- spawn (소환): every duration seconds the owner spawns one param unit (a UnitTable id) at its own position,
+        -- on its team and at its own card level. Used by summon towers (builds).
+        defs["spawn"] = { group = "trait", onTick = function(unit, entry, delta)
+            if entry.param == "" or entry.duration <= 0 then return end
+            entry.acc = entry.acc + delta
+            if entry.acc < entry.duration then return end
+            entry.acc = entry.acc - entry.duration
+            local director = unit.Director
+            if director == nil or director.State ~= "PLAYING" then return end
+            local level = unit._T.level or 1
+            local cfg = _BattleConfig:GetUnitAtLevel(entry.param, level)
+            if cfg == nil or cfg.kind ~= "monster" then
+                log_warning("[BattleEffects] spawn trait of " .. unit.UnitId .. " names " .. entry.param .. ", which is not a monster")
+                return
+            end
+            director:SpawnUnit(unit.Team, entry.param, unit.Entity.TransformComponent.WorldPosition.x, cfg)
+            log("[VRF] BattleEffects " .. unit.Entity.Name .. " spawned " .. entry.param .. " level=" .. tostring(level))
+        end }
+
+        self._T.defs = defs
+        return defs
+    end
+
+    @ExecSpace("ServerOnly")
+    method void Clear(any unit)
+        -- Removes every effect from a unit (a new life, death, going back to the pool).
+        unit._T.effects = {}
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean Apply(any unit, table effect, any source)
+        -- Puts an effect on a unit. effect = { id, type, duration, power, chance, permanent }; source is the unit that
+        -- caused it (the unit itself for its own traits, nil for a skill). Returns true when it was applied.
+        local def = self:GetDefs()[effect.type]
+        if def == nil then
+            log_warning("[BattleEffects] unknown effect type " .. tostring(effect.type) .. " in EffectTable row " .. tostring(effect.id))
+            return false
+        end
+        if unit.IsDead or unit.Ready == false then return false end
+        -- Builds and bases are never the target of someone else's effect; a base carries no traits either.
+        if unit ~= source and unit.Kind ~= "monster" then return false end
+        if unit.Kind == "base" then return false end
+        if def.tag ~= nil and self:IsImmune(unit, def.tag) then
+            log("[BattleEffects] " .. unit.Entity.Name .. " is immune to " .. effect.type)
+            return false
+        end
+        local effects = unit._T.effects
+        if effects == nil then
+            effects = {}
+            unit._T.effects = effects
+        end
+        local permanent = effect.permanent == true or def.group == "trait"
+        local entry = {
+            type = effect.type, id = effect.id,
+            power = effect.power or 0, chance = effect.chance or 100, duration = effect.duration or 0, param = effect.param or "",
+            source = source, sourceLife = 0, acc = 0,
+        }
+        if source ~= nil then entry.sourceLife = source.Life end
+        if permanent == false then entry.remain = entry.duration end
+        if def.group ~= "instant" then effects[effect.type] = entry end
+        local sourceName = "skill"
+        if source ~= nil then sourceName = source.Entity.Name end
+        log("[BattleEffects] effect " .. tostring(effect.id) .. " (" .. effect.type .. ") " .. sourceName .. " -> " .. unit.Entity.Name .. " duration=" .. tostring(entry.duration) .. " power=" .. tostring(entry.power) .. " chance=" .. tostring(entry.chance) .. " permanent=" .. tostring(permanent))
+        -- Icon above the unit: statuses and instants (a short push stays readable for StatusIconMinSeconds); traits show none.
+        if def.group ~= "trait" then
+            local shown = math.max(entry.duration, _BattleConfig.StatusIconMinSeconds)
+            if permanent then shown = 10000000 end
+            unit:ShowStatus(effect.type, shown)
+        end
+        if def.onApply ~= nil then def.onApply(unit, entry) end
+        return true
+    end
+
+    @ExecSpace("ServerOnly")
+    method void Tick(any unit, number delta)
+        -- Advances a unit's effects: runs their ticks and removes the ones whose time is over.
+        local effects = unit._T.effects
+        if effects == nil then return end
+        local defs = self:GetDefs()
+        for kind, entry in pairs(effects) do
+            local def = defs[kind]
+            if def ~= nil and def.onTick ~= nil then
+                def.onTick(unit, entry, delta)
+                -- A tick may have killed the unit (its effects were cleared with it).
+                if unit.IsDead then return end
+            end
+            if entry.remain ~= nil then
+                entry.remain = entry.remain - delta
+                if entry.remain <= 0 then
+                    effects[kind] = nil
+                    log("[BattleEffects] effect " .. kind .. " ended on " .. unit.Entity.Name)
+                end
+            end
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean HasFlag(any unit, string flag)
+        -- Returns true when one of the unit's effects carries the flag (no_knockback, siege).
+        local effects = unit._T.effects
+        if effects == nil then return false end
+        local defs = self:GetDefs()
+        for kind, _ in pairs(effects) do
+            local def = defs[kind]
+            if def ~= nil and def.flag == flag then return true end
+        end
+        return false
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean IsImmune(any unit, string kind)
+        -- Returns true when one of the unit's effects makes it immune to that damage kind / effect tag.
+        local effects = unit._T.effects
+        if effects == nil then return false end
+        local defs = self:GetDefs()
+        for name, _ in pairs(effects) do
+            local def = defs[name]
+            if def ~= nil and def.immune == kind then return true end
+        end
+        return false
+    end
+
+    @ExecSpace("ServerOnly")
+    method number DealHit(any attacker, any target, number amount, string kind)
+        -- The one damage pipeline. attacker may be nil (a skill, poison). Order: the attacker's effects (a blocked hit
+        -- ends here, then its multipliers), the attribute bonus (attacks only), the target's effects (immunity, then
+        -- its multipliers), then the target loses HP. Returns the damage dealt, or -1 when the hit did nothing.
+        if target.IsDead or target.Ready == false then return -1 end
+        local defs = self:GetDefs()
+        local damage = amount
+        if attacker ~= nil then
+            local own = attacker._T.effects
+            if own ~= nil then
+                for name, entry in pairs(own) do
+                    local def = defs[name]
+                    if def ~= nil then
+                        if def.blocks ~= nil and def.blocks(entry, target) then
+                            log("[BattleEffects] " .. attacker.Entity.Name .. " hit on " .. target.Entity.Name .. " blocked by " .. name)
+                            return -1
+                        end
+                        if def.outgoing ~= nil then damage = damage * def.outgoing(entry, kind) end
+                    end
+                end
+            end
+            if kind == "attack" then damage = damage * _BattleConfig:GetAttributeRate(attacker.Attribute, target.Attribute) end
+        end
+        local theirs = target._T.effects
+        if theirs ~= nil then
+            for name, entry in pairs(theirs) do
+                local def = defs[name]
+                if def ~= nil then
+                    if def.immune == kind then return -1 end
+                    if def.incoming ~= nil then damage = damage * def.incoming(entry, kind) end
+                end
+            end
+        end
+        -- The first hit of each attacker life whose damage was changed is logged, as evidence that the pipeline ran.
+        if attacker ~= nil and damage ~= amount and attacker._T.hitChangeLogged ~= attacker.Life then
+            attacker._T.hitChangeLogged = attacker.Life
+            log("[VRF] BattleEffects hit " .. attacker.Entity.Name .. "(" .. tostring(attacker.Attribute) .. ") -> " .. target.Entity.Name .. "(" .. tostring(target.Attribute) .. ") kind=" .. kind .. " base=" .. string.format("%.1f", amount) .. " final=" .. string.format("%.1f", damage))
+        end
+        target:TakeDamage(damage)
+        return damage
+    end
+
+end

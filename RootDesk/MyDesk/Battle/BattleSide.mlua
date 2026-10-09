@@ -16,6 +16,15 @@ script BattleSide extends Component
     -- In-battle cost level: starts at 1 every battle, raised by paying cost, up to the player's unlocked cap.
     @Sync property integer CostLevel = 1
     @Sync property integer CostLevelCap = 1
+    -- Mana it costs now to raise the in-battle level (the level's price minus the base's upgrade discount); 0 = no next level.
+    @Sync property number UpgradeCost = 0
+    -- The base this side plays (UnitTable id, Kind = base) and its skill: skill unit id ("" = none), type (active / passive),
+    -- cooldown seconds and the _UtilLogic.ServerElapsedSeconds at which it can be used next.
+    @Sync property string BaseId = ""
+    @Sync property string BaseSkillId = ""
+    @Sync property string BaseSkillType = ""
+    @Sync property number BaseSkillCooldown = 0
+    @Sync property number BaseSkillReadyAt = 0
     property boolean FreePlay = false
 
     method table GetDeckIds()
@@ -52,19 +61,25 @@ script BattleSide extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method void Reset(integer team, table deckIds, table unitLevels, string controllerUserId, boolean freePlay, integer costLevelCap)
+    method void Reset(integer team, table deckIds, table unitLevels, string controllerUserId, boolean freePlay, integer costLevelCap, table baseCfg)
         -- Prepares the side for a new battle. unitLevels maps unit id -> level for the deck's units;
-        -- costLevelCap is the highest in-battle cost level this side may reach.
+        -- costLevelCap is the highest in-battle cost level this side may reach. baseCfg is the side's base
+        -- (BattleConfig:GetBaseAtLevel): its starting mana, mana max / income multipliers, upgrade discount and skill.
         self.Team = team
         self.ControllerUserId = controllerUserId
         self.FreePlay = freePlay
         self.DeckCsv = table.concat(deckIds, ",")
-        self.Cost = _BattleConfig.CostStart
+        self.Cost = baseCfg.manaStart or _BattleConfig.CostStart
         local costLevels = _BattleConfig:GetCostLevels()
         self.CostLevel = 1
         self.CostLevelCap = math.max(1, math.min(#costLevels, costLevelCap))
-        self.CostMax = costLevels[1].costMax
-        self._T.regenRate = costLevels[1].regenRate
+        self._T.maxRate = baseCfg.manaMaxRate or 1
+        self._T.regenMul = baseCfg.manaRegenRate or 1
+        self._T.discount = baseCfg.manaDiscount or 0
+        self.CostMax = costLevels[1].costMax * self._T.maxRate
+        self._T.regenRate = costLevels[1].regenRate * self._T.regenMul
+        self.UpgradeCost = math.floor(costLevels[1].upgradeCost * (1 - self._T.discount))
+        self:InitBaseSkill(baseCfg)
         self._T.levels = unitLevels
         -- Shuffle the deck into the card queue, then deal the front cards into the hand.
         local queue = {}
@@ -84,6 +99,42 @@ script BattleSide extends Component
         self._T.queue = queue
         self:PublishHand(hand)
         log("[BattleSide] reset team=" .. tostring(team) .. " controller=" .. (controllerUserId ~= "" and controllerUserId or "AI") .. " deck=" .. self.DeckCsv .. " hand=" .. self.HandCsv .. " queue=" .. table.concat(queue, ","))
+    end
+
+    @ExecSpace("ServerOnly")
+    method void InitBaseSkill(table baseCfg)
+        -- Loads the base's skill. A skill id that is not a skill unit is ignored. The cooldown starts at the beginning
+        -- of the battle, so the skill can first be used one full cooldown in.
+        self.BaseId = baseCfg.id
+        local skill = nil
+        if baseCfg.baseSkill ~= nil and baseCfg.baseSkill ~= "" then skill = _BattleConfig:GetUnit(baseCfg.baseSkill) end
+        if skill == nil or skill.kind ~= "skill" then
+            if baseCfg.baseSkill ~= nil and baseCfg.baseSkill ~= "" then
+                log_warning("[BattleSide] base " .. baseCfg.id .. " skill " .. baseCfg.baseSkill .. " is not a skill unit, ignored")
+            end
+            self.BaseSkillId = ""
+            self.BaseSkillType = ""
+            self.BaseSkillCooldown = 0
+            self.BaseSkillReadyAt = 0
+            return
+        end
+        self.BaseSkillId = skill.id
+        self.BaseSkillType = baseCfg.baseSkillType
+        self.BaseSkillCooldown = baseCfg.baseSkillCooldown
+        self.BaseSkillReadyAt = _UtilLogic.ServerElapsedSeconds + baseCfg.baseSkillCooldown
+        log("[VRF] BattleSide team=" .. tostring(self.Team) .. " base=" .. baseCfg.id .. " skill=" .. skill.id .. " type=" .. baseCfg.baseSkillType .. " cooldown=" .. tostring(baseCfg.baseSkillCooldown))
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean IsBaseSkillReady()
+        -- True when the base has a skill and its cooldown is over.
+        return self.BaseSkillId ~= "" and _UtilLogic.ServerElapsedSeconds >= self.BaseSkillReadyAt
+    end
+
+    @ExecSpace("ServerOnly")
+    method void StartBaseSkillCooldown()
+        -- Starts the base skill's cooldown after it was used.
+        self.BaseSkillReadyAt = _UtilLogic.ServerElapsedSeconds + self.BaseSkillCooldown
     end
 
     @ExecSpace("ServerOnly")
@@ -109,11 +160,14 @@ script BattleSide extends Component
         local nextLevel = costLevels[self.CostLevel + 1]
         if current == nil or nextLevel == nil then return "max level" end
         if self.CostLevel >= self.CostLevelCap then return "cap " .. tostring(self.CostLevelCap) end
-        if self.Cost < current.upgradeCost then return "cost " .. string.format("%.0f", self.Cost) .. "/" .. tostring(current.upgradeCost) end
-        self.Cost = self.Cost - current.upgradeCost
+        local price = math.floor(current.upgradeCost * (1 - (self._T.discount or 0)))
+        if self.Cost < price then return "cost " .. string.format("%.0f", self.Cost) .. "/" .. tostring(price) end
+        self.Cost = self.Cost - price
         self.CostLevel = self.CostLevel + 1
-        self.CostMax = nextLevel.costMax
-        self._T.regenRate = nextLevel.regenRate
+        self.CostMax = nextLevel.costMax * (self._T.maxRate or 1)
+        self._T.regenRate = nextLevel.regenRate * (self._T.regenMul or 1)
+        local following = costLevels[self.CostLevel]
+        self.UpgradeCost = following ~= nil and math.floor(following.upgradeCost * (1 - (self._T.discount or 0))) or 0
         return ""
     end
 

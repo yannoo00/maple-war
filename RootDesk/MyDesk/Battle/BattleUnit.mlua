@@ -37,13 +37,7 @@ script BattleUnit extends Component
     @HideFromInspector property number KnockStartX = 0
     @HideFromInspector property number KnockTarget = 0
     @HideFromInspector property number WalkSpeed = 0
-    -- Effects received: cursed = while CurseRemain runs this unit's attack damage is multiplied by CurseRate
-    -- (1 - the curse's Power percent); nullify = its attacks do nothing to NullifyTarget.
-    @HideFromInspector property number CurseRemain = 0
-    @HideFromInspector property number CurseRate = 1
-    @HideFromInspector property number NullifyRemain = 0
-    @HideFromInspector property any NullifyTarget = nil
-    @HideFromInspector property integer NullifyLife = 0
+    -- The effects on this unit live in _T.effects and are run by _BattleEffects (registry, ticking, damage pipeline).
 
     @HideFromInspector property boolean Ready = false
     @HideFromInspector property boolean IsDead = false
@@ -92,10 +86,7 @@ script BattleUnit extends Component
         end
         self.KnockCount = 0
         self.KnockRemain = 0
-        self.CurseRemain = 0
-        self.CurseRate = 1
-        self.NullifyRemain = 0
-        self.NullifyTarget = nil
+        _BattleEffects:Clear(self)
         self._T.statuses = {}
         self.StatusCsv = ""
         self.WalkSpeed = cfg.speed * _BattleConfig.SpeedScale
@@ -103,6 +94,8 @@ script BattleUnit extends Component
         self.Director = director
         self.HasProjectile = cfg.projectileRuid ~= nil
         self.HasHitEffect = cfg.hitEffectRuid ~= nil
+        -- Card level of this life (a summon trait spawns its units at the same level).
+        self._T.level = cfg.level or 1
         self.IsDead = false
         self.PendingTarget = nil
         self.Mode = ""
@@ -179,11 +172,9 @@ script BattleUnit extends Component
         if director == nil then return end
 
         if self.StatusCsv ~= "" then self:RefreshStatus(false) end
-        if self.CurseRemain > 0 then self.CurseRemain = self.CurseRemain - delta end
-        if self.NullifyRemain > 0 then
-            self.NullifyRemain = self.NullifyRemain - delta
-            if self.NullifyRemain <= 0 then self.NullifyTarget = nil end
-        end
+        _BattleEffects:Tick(self, delta)
+        -- A poison tick may have killed the unit.
+        if self.IsDead then return end
 
         local x = self.Entity.TransformComponent.WorldPosition.x
         if self.KnockRemain > 0 then
@@ -214,7 +205,7 @@ script BattleUnit extends Component
         if self.AttackPower <= 0 then return end
 
         local dir = self:GetDirection()
-        local target = director:FindTarget(self.Team, x, self.AttackRange)
+        local target = self:FindAttackTarget(x)
         if target ~= nil then
             self:SetMode("ATTACK")
             self.AttackTimer = self.AttackTimer - delta
@@ -241,9 +232,16 @@ script BattleUnit extends Component
         -- The attack lands. A single-target attack damages the target it was aimed at when the attack started;
         -- an area attack damages every enemy that is within attack range of this unit at this moment.
         if self.IsAreaAttack then
+            local siege = _BattleEffects:HasFlag(self, "siege")
             local targets = self.Director:FindTargetsInRange(self.Team, x, self.AttackRange)
-            for _, target in ipairs(targets) do self:DealDamage(target) end
-            log("[BattleUnit] " .. self.Entity.Name .. " area hit (" .. self.AttackType .. ") targets=" .. tostring(#targets) .. " damage=" .. tostring(self:GetAttackDamage()))
+            local hits = 0
+            for _, target in ipairs(targets) do
+                if siege == false or target.Kind ~= "monster" then
+                    self:DealDamage(target)
+                    hits = hits + 1
+                end
+            end
+            log("[BattleUnit] " .. self.Entity.Name .. " area hit (" .. self.AttackType .. ") targets=" .. tostring(hits) .. " damage=" .. tostring(self.AttackPower))
             return
         end
         -- The aimed unit must still be in the life it was aimed at (its entity may have been reused since).
@@ -251,20 +249,30 @@ script BattleUnit extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method number GetAttackDamage()
-        -- Returns this unit's current attack damage: AttackPower, reduced by CurseRate while it is cursed.
-        if self.CurseRemain > 0 then return self.AttackPower * self.CurseRate end
-        return self.AttackPower
+    method any FindAttackTarget(number x)
+        -- Returns what this unit attacks from x: the nearest enemy in range, or for a siege unit the nearest enemy
+        -- build / base in range (it walks past monsters).
+        local director = self.Director
+        if _BattleEffects:HasFlag(self, "siege") == false then return director:FindTarget(self.Team, x, self.AttackRange) end
+        local best = nil
+        local bestDist = self.AttackRange
+        for _, unit in ipairs(director:FindTargetsInRange(self.Team, x, self.AttackRange)) do
+            if unit.Kind ~= "monster" then
+                local dist = math.abs(unit.Entity.TransformComponent.WorldPosition.x - x)
+                if dist <= bestDist then
+                    best = unit
+                    bestDist = dist
+                end
+            end
+        end
+        return best
     end
 
     @ExecSpace("ServerOnly")
     method void DealDamage(any target)
-        -- Damages one unit with this unit's attack, then rolls this unit's on_hit effect rules on it.
-        if self.NullifyRemain > 0 and self.NullifyTarget == target and target.Life == self.NullifyLife then
-            log("[BattleUnit] " .. self.Entity.Name .. " attack on " .. target.Entity.Name .. " nullified")
-            return
-        end
-        target:TakeDamage(self:GetAttackDamage())
+        -- Damages one unit with this unit's attack through the damage pipeline (_BattleEffects:DealHit: this unit's
+        -- effects, the attribute bonus, the target's effects), then rolls this unit's on_hit effect rules on it.
+        if _BattleEffects:DealHit(self, target, self.AttackPower, "attack") < 0 then return end
         -- Clients play this unit's hit effect on the unit that was just damaged (only units that have one announce it).
         if self.HasHitEffect and isvalid(target.Entity) then self:NotifyHit(target.Entity) end
         self:TryApplyEffect(target)
@@ -302,6 +310,8 @@ script BattleUnit extends Component
             name = effect.name,
             duration = rule.duration or effect.duration,
             power = rule.power or effect.power,
+            chance = rule.chance,
+            param = effect.param,
             permanent = rule.trigger == "always",
         }, self)
     end
@@ -319,43 +329,17 @@ script BattleUnit extends Component
 
     @ExecSpace("ServerOnly")
     method void ReceiveEffect(table effect, any source)
-        -- Applies an effect to this unit by its type:
-        -- nullify = this unit's attacks do nothing to the source for the duration,
-        -- curse   = this unit's attack damage is reduced by power percent for the duration,
-        -- warp    = moved back by power at once and held for the duration,
-        -- blow    = pushed back by power over the duration.
-        log("[BattleUnit] effect " .. effect.id .. " (" .. effect.type .. ") " .. source.Entity.Name .. " -> " .. self.Entity.Name .. " attribute=" .. self.Attribute .. " duration=" .. tostring(effect.duration) .. " power=" .. tostring(effect.power))
-        local distance = effect.power * _BattleConfig.RangeScale
-        -- The icon stays at least IconMinSeconds so very short effects (a push) are still readable.
-        -- An always rule (effect.permanent) lasts as long as the unit lives.
-        local seconds = effect.duration
-        local shown = math.max(seconds, _BattleConfig.StatusIconMinSeconds)
-        if effect.permanent == true then
-            seconds = 10000000
-            shown = seconds
-        end
-        self._T.statuses[effect.type] = _UtilLogic.ServerElapsedSeconds + shown
+        -- Puts an effect on this unit: { id, type, duration, power, chance, permanent }. What each type does is
+        -- defined in _BattleEffects (GetDefs); source is the unit that caused it, or nil for a skill.
+        _BattleEffects:Apply(self, effect, source)
+    end
+
+    @ExecSpace("ServerOnly")
+    method void ShowStatus(string kind, number seconds)
+        -- Shows an effect's icon above this unit for seconds (clients read StatusCsv).
+        if self._T.statuses == nil then self._T.statuses = {} end
+        self._T.statuses[kind] = _UtilLogic.ServerElapsedSeconds + seconds
         self:RefreshStatus(true)
-        if effect.type == "nullify" then
-            self.NullifyTarget = source
-            self.NullifyLife = source.Life
-            self.NullifyRemain = seconds
-        elseif effect.type == "curse" then
-            self.CurseRemain = seconds
-            self.CurseRate = 1 - math.min(100, math.max(0, effect.power)) / 100
-        elseif effect.type == "warp" then
-            local pos = self.Entity.TransformComponent.WorldPosition
-            local dir = self:GetDirection()
-            local baseX = self.Director:GetBaseX(self.Team)
-            local newX = pos.x - dir * distance
-            if (newX - baseX) * dir < 0.3 then newX = baseX + dir * 0.3 end
-            self.Entity.MovementComponent:SetWorldPosition(Vector2(newX, pos.y))
-            self:StartKnockback(0, effect.duration, false)
-        elseif effect.type == "blow" then
-            self:StartKnockback(distance, math.max(0.1, effect.duration), true)
-        else
-            log_warning("[BattleUnit] unknown effect type " .. effect.type .. " in EffectTable row " .. effect.id)
-        end
     end
 
     @ExecSpace("ServerOnly")
@@ -383,6 +367,8 @@ script BattleUnit extends Component
         -- Pushes this monster back by distance over seconds (distance 0 = held in place). While it lasts the
         -- unit neither attacks nor advances, and with useHitClip its hit clip plays.
         if self.Kind ~= "monster" or self.IsDead or seconds <= 0 then return end
+        -- A unit that cannot be knocked back (titan) ignores every push; being held in place (distance 0) still works.
+        if distance > 0 and _BattleEffects:HasFlag(self, "no_knockback") then return end
         self.PendingTarget = nil
         self.Mode = "KNOCKBACK"
         self.KnockRemain = seconds
@@ -442,10 +428,18 @@ script BattleUnit extends Component
     end
 
     @ExecSpace("ServerOnly")
+    method void Heal(number amount)
+        -- Restores HP (a heal skill), up to MaxHp. Dead units are not healed.
+        if self.IsDead or self.Ready == false or amount <= 0 then return end
+        self.Hp = math.min(self.MaxHp, self.Hp + amount)
+    end
+
+    @ExecSpace("ServerOnly")
     method void Die()
         -- Monsters and builds play the death clip and are destroyed; a base ends the battle instead.
         self.IsDead = true
         self.PendingTarget = nil
+        _BattleEffects:Clear(self)
         self._T.statuses = {}
         self.StatusCsv = ""
         self:StopMoving()
@@ -488,10 +482,7 @@ script BattleUnit extends Component
         -- Going back to the pool: stop every behavior so nothing runs while it is parked.
         self.Ready = false
         self.PendingTarget = nil
-        self.NullifyTarget = nil
-        self.NullifyRemain = 0
-        self.CurseRemain = 0
-        self.CurseRate = 1
+        _BattleEffects:Clear(self)
         self._T.effectRules = nil
         self.KnockRemain = 0
         self._T.statuses = {}

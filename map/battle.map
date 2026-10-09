@@ -7551,6 +7551,138 @@
           ],
           "@version": 1
         }
+      },
+      {
+        "id": "c77028b9-bf0b-4db4-a0b4-3f129a65bd72",
+        "path": "/maps/battle/AllyPortal",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "AllyPortal",
+          "path": "/maps/battle/AllyPortal",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 5,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -13.4,
+                "y": -1.308,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 0.4,
+                "y": 0.4,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 1,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer0"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "mapobject",
+            "sub_entity_id": null,
+            "root_entity_id": "c77028b9-bf0b-4db4-a0b4-3f129a65bd72",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "5e56a916-0ccb-4a57-beff-dbd3f80a7756",
+        "path": "/maps/battle/EnemyPortal",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "EnemyPortal",
+          "path": "/maps/battle/EnemyPortal",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 6,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -2.6,
+                "y": -1.308,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 0.4,
+                "y": 0.4,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 1,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer0"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "mapobject",
+            "sub_entity_id": null,
+            "root_entity_id": "5e56a916-0ccb-4a57-beff-dbd3f80a7756",
+            "replaced_model_id": null
+          }
+        }
       }
     ]
   }

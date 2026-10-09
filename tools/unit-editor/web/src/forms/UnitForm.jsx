@@ -1,16 +1,10 @@
 import Field, { ExtraFields } from '../Field.jsx';
-import { Badge } from '../ui.jsx';
 import SkillPreview from './SkillPreview.jsx';
 import AttackEffectPreview from './AttackEffectPreview.jsx';
 
-export function UnitBadges({ draft, enemyStages }) {
-  const starter = Number(draft.Starter || 0) > 0;
-  return (
-    <>
-      <Badge type="ally">{starter ? '스타터 지급' : '상자에서 획득'}</Badge>
-      {enemyStages.length > 0 && <Badge type="enemy">적: {enemyStages.join(', ')}</Badge>}
-    </>
-  );
+// 유닛 편집 상단 줄에는 이름 외에 배지를 두지 않는다(획득 방법·등장 스테이지는 목록과 스테이지 편집에서 본다).
+export function UnitBadges() {
+  return null;
 }
 
 // 몬스터·설치물의 효과 규칙: 언제(시점) · 누구에게(대상) · 몇 %로. 효과 자체(무엇을 하는지)는 효과 표에서 정한다.
@@ -29,7 +23,7 @@ function EffectRules({ draft, set, data }) {
       <legend>효과 규칙 — 언제 · 누구에게 · 몇 %로 (한 유닛에 여러 개)</legend>
       <div className="muted">
         효과 표는 효과가 "무엇을 하는지"만 정하고, 걸리는 조건은 여기서 정합니다. <b>공격 시</b> = 이 유닛의 공격이 적에게 피해를 줄 때 확률(%)로 맞은 적에게.
-        <b> 항상</b> = 생성될 때 자신에게(특성, 사는 동안 지속). 지속·세기는 비우면 효과 표의 값을 씁니다.
+        <b> 항상</b> = 생성될 때 자신에게(특성, 사는 동안 지속; 확률 칸은 괴력처럼 확률로 발동하는 특성의 발동 확률, 보통 100). 지속·세기는 비우면 효과 표의 값을 씁니다.
       </div>
       <table className="waves" style={{ maxWidth: 820, marginTop: 8 }}>
         <thead><tr><th>효과</th><th style={{ width: 130 }}>시점</th><th style={{ width: 70 }}>대상</th><th style={{ width: 80 }}>확률(%)</th><th style={{ width: 80 }}>지속(초)</th><th style={{ width: 70 }}>세기</th><th style={{ width: 60 }} /></tr></thead>
@@ -52,7 +46,7 @@ function EffectRules({ draft, set, data }) {
                   </select>
                 </td>
                 <td>{r.target === 'self' ? '자신' : '맞은 적'}</td>
-                <td><input type="text" inputMode="decimal" value={always ? '100' : r.chance} disabled={always} onChange={(e) => update(i, { chance: e.target.value })} /></td>
+                <td><input type="text" inputMode="decimal" value={always && r.chance === '' ? '100' : r.chance} onChange={(e) => update(i, { chance: e.target.value })} /></td>
                 <td><input type="text" inputMode="decimal" value={always ? '' : r.duration} disabled={always} placeholder={effect ? effect.Duration : ''} onChange={(e) => update(i, { duration: e.target.value })} /></td>
                 <td><input type="text" inputMode="decimal" value={r.power} placeholder={effect ? effect.Power : ''} onChange={(e) => update(i, { power: e.target.value })} /></td>
                 <td><button onClick={() => set('effects', rules.filter((_, j) => j !== i))}>삭제</button></td>
@@ -66,14 +60,14 @@ function EffectRules({ draft, set, data }) {
   );
 }
 
-// 한 번에 여러 마리(군단)를 소환하는 몬스터: 몇 초에 걸쳐 나오는지와 코스트 비교를 한 줄로 보여 준다.
+// 한 번에 여러 마리(군단)를 소환하는 몬스터: 몇 초에 걸쳐 나오는지와 마나 비교를 한 줄로 보여 준다.
 function SpawnHint({ draft, battle }) {
   const count = Number(draft.SpawnCount);
   if (!(count > 1)) return null;
   const total = (count - 1) * battle.multiSpawnInterval;
   return (
     <div className="muted" style={{ marginTop: 10 }}>
-      {count}마리가 {total.toFixed(2)}초에 걸쳐 나옵니다(간격 {battle.multiSpawnInterval}초 고정). 카드 코스트 {draft.Cost || '?'} 한 번에 {count}마리가 모두 나옵니다. 마리당 능력치는 이 행의 값이니 코스트와 함께 균형을 맞추세요.
+      {count}마리가 {total.toFixed(2)}초에 걸쳐 나옵니다(간격 {battle.multiSpawnInterval}초 고정). 카드 마나 {draft.Cost || '?'} 한 번에 {count}마리가 모두 나옵니다. 마리당 능력치는 이 행의 값이니 코스트와 함께 균형을 맞추세요.
     </div>
   );
 }

@@ -1,16 +1,13 @@
 @Logic
 script FieldFx extends Logic
 
-    -- Client-only battlefield visuals that are not tied to one unit:
-    -- spawn portals at each side's spawn point, and the targeting preview shown while a
+    -- Client-only battlefield visuals that are not tied to one unit: the targeting preview shown while a
     -- build or skill card waits for a position (ghost of the build, shaded no-build area, skill range box).
+    -- The spawn portals are map entities (AllyPortal / EnemyPortal), placed and edited in each battle map.
     property string SpriteModelId = "battleprojectile"
     property string RectModelId = "battlehpbar"
-    property string PortalRuid = "aba58d2139ca4736bab39f6b4c39aa37"
-    property number PortalScale = 0.4
-    -- Height of the portal entity above the ground. The clip's pivot sits ~5% above its bottom edge, so a small
-    -- lift puts the bottom edge on the ground (pivot fraction × clip height 2.16 × PortalScale).
-    property number PortalY = 0.04
+    -- Clip of the portals placed in the maps; preloaded with the battle clips, and the build ghost's first sprite.
+    property string PortalRuid = "a21d539161dd42c8b13dc60e3680357a"
     property number PixelUnit = 0.01
     property number ShadeHeight = 4.0
     property number SkillBoxHeight = 1.2
@@ -136,7 +133,7 @@ script FieldFx extends Logic
 
     @ExecSpace("ClientOnly")
     method void OnUpdate(number delta)
-        -- Keeps the portals in place and drives the targeting preview from the Commander's pending slot.
+        -- Preloads the battle clips and drives the targeting preview from the Commander's pending slot.
         local player = _UserService.LocalPlayer
         if not isvalid(player) then return end
         local map = player.CurrentMap
@@ -150,11 +147,9 @@ script FieldFx extends Logic
 
         -- (Re)create the visuals when the battle map changes (a room move rebuilds the client).
         local fx = self._T.fx
-        if fx == nil or fx.map ~= map or not isvalid(fx.portalAlly) then
+        if fx == nil or fx.map ~= map or not isvalid(fx.ghost) then
             fx = { map = map, previewShown = false, ghostRuid = "" }
             self._T.fx = fx
-            fx.portalAlly = self:SpawnSprite(map, "PortalAlly", self.PortalRuid, 1)
-            fx.portalEnemy = self:SpawnSprite(map, "PortalEnemy", self.PortalRuid, 1)
             fx.ghost = self:SpawnSprite(map, "BuildGhost", self.PortalRuid, 9)
             fx.shadeLeft = self:SpawnRect(map, "ShadeLeft", Color(0, 0, 0, 0.4), 8)
             fx.shadeRight = self:SpawnRect(map, "ShadeRight", Color(0, 0, 0, 0.4), 8)
@@ -166,27 +161,11 @@ script FieldFx extends Logic
             if isvalid(fx.shadeLeft) then fx.shadeLeft:SetVisible(false) end
             if isvalid(fx.shadeRight) then fx.shadeRight:SetVisible(false) end
             if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
-            fx.portalX1 = nil
             log("[FieldFx] visuals created")
         end
 
+        -- The portals are map entities (AllyPortal / EnemyPortal); the director publishes their x as the spawn points.
         local groundY = director.GroundY
-        local offset = _BattleConfig.SpawnOffsetX
-        local allySpawnX = director.AllyBaseX + offset
-        local enemySpawnX = director.EnemyBaseX - offset
-        if fx.portalX1 ~= allySpawnX or fx.portalX2 ~= enemySpawnX or fx.portalGround ~= groundY then
-            fx.portalGround = groundY
-            fx.portalX1 = allySpawnX
-            fx.portalX2 = enemySpawnX
-            local size = self.PortalScale
-            for _, item in ipairs({ { fx.portalAlly, allySpawnX }, { fx.portalEnemy, enemySpawnX } }) do
-                if isvalid(item[1]) then
-                    item[1].TransformComponent.WorldPosition = Vector3(item[2], groundY + self.PortalY, 0)
-                    item[1].TransformComponent.Scale = Vector3(size, size, 1)
-                end
-            end
-            log("[FieldFx] portals at x=" .. string.format("%.2f", allySpawnX) .. " / " .. string.format("%.2f", enemySpawnX))
-        end
 
         -- Preload once per battle every clip this battle can show: my deck (units, projectiles, skill effects)
         -- and the stage's enemy units. The server keeps the battle WAITING until this client reports ready,
@@ -236,6 +215,8 @@ script FieldFx extends Logic
             return
         end
         local unitId = side:GetHandIds()[slot]
+        -- The base skill is aimed like a skill card; its id is on the side, not in the hand.
+        if slot == commander.BaseSkillSlot then unitId = side.BaseSkillId end
         local cfg = nil
         if unitId ~= nil and unitId ~= "" then cfg = _BattleConfig:GetUnit(unitId) end
         if cfg == nil then
@@ -255,9 +236,8 @@ script FieldFx extends Logic
             -- Same rule as the server (BattleDirector.PlayUnit): own half, between the spawn point and the middle.
             local dir = 1
             if side.Team ~= 1 then dir = -1 end
-            local baseX = director.AllyBaseX
-            if side.Team ~= 1 then baseX = director.EnemyBaseX end
-            local spawnX = baseX + dir * offset
+            local spawnX = director.AllySpawnX
+            if side.Team ~= 1 then spawnX = director.EnemySpawnX end
             local middle = (director.AllyBaseX + director.EnemyBaseX) * 0.5
             local minX = math.min(spawnX, middle)
             local maxX = math.max(spawnX, middle)

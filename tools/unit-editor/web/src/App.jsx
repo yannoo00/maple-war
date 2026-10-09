@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { MODES } from './modes.js';
+import { adaptToKind } from './unit.js';
 import { Messages, useConfirm } from './ui.jsx';
 import Sidebar from './Sidebar.jsx';
 import UnitForm, { UnitBadges } from './forms/UnitForm.jsx';
@@ -24,9 +25,11 @@ export default function App() {
   const [result, setResult] = useState(null);    // 검사/저장 결과 메시지
   const [filterKind, setFilterKind] = useState('');
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState({ key: 'Rarity', dir: 1 });   // 목록(편집)과 표가 함께 쓰는 정렬
   const [view, setView] = useState('edit');     // 유닛 모드: 'edit' 목록+폼 / 'table' 요약 표
   const [tableEdits, setTableEdits] = useState({});
   const { ask, dialog } = useConfirm();
+  const headerRef = useRef(null);
 
   const m = MODES[mode];
   const { Form, Badges } = FORMS[mode];
@@ -43,13 +46,30 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
+  // 헤더가 줄바꿈되면 높이가 달라지므로, 표의 고정 도구줄이 헤더 바로 밑에 붙도록 실제 높이를 CSS 변수로 알려 준다.
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return undefined;
+    const sync = () => document.documentElement.style.setProperty('--header-h', `${el.offsetHeight}px`);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [data]);
+
   if (!data) return null;
 
   const find = (d, id) => d[m.list].find((x) => x[m.idKey] === id);
   const show = (next, message = null) => { setEditing(next); setResult(message); setDirty(false); };
   const open = (item, d = data) => show({ draft: m.open(item, d.schema), isNew: false, originalId: item[m.idKey], enemyStages: item._status.enemyStages ?? [] });
   const startNew = () => show({ draft: m.blank(data.schema, 'monster'), isNew: true, originalId: null, enemyStages: [] });
-  const set = (key, value) => { setEditing((e) => ({ ...e, draft: { ...e.draft, [key]: value } })); setDirty(true); };
+  const set = (key, value) => {
+    setEditing((e) => {
+      const draft = mode === 'units' && key === 'Kind' ? adaptToKind(e.draft, value, data.schema) : { ...e.draft, [key]: value };
+      return { ...e, draft };
+    });
+    setDirty(true);
+  };
   const setEdits = (fn) => {
     const next = typeof fn === 'function' ? fn(tableEdits) : fn;
     setTableEdits(next);
@@ -105,7 +125,7 @@ export default function App() {
 
   return (
     <>
-      <header>
+      <header ref={headerRef}>
         <h1>유닛 편집기</h1>
         <div className="mode">
           {Object.entries(MODES).map(([key, v]) => (
@@ -128,12 +148,12 @@ export default function App() {
 
       {mode === 'units' && view === 'table' ? (
         <UnitTable data={data} edits={tableEdits} setEdits={setEdits} filterKind={filterKind} setFilterKind={setFilterKind}
-          search={search} setSearch={setSearch} onSaved={load}
+          search={search} setSearch={setSearch} sort={sort} setSort={setSort} onSaved={load}
           onOpen={(item) => guard(() => { setView('edit'); open(item); })} />
       ) : (
       <div className="layout">
         <Sidebar mode={mode} m={m} data={data} selectedId={editing?.originalId} filterKind={filterKind} setFilterKind={setFilterKind}
-          search={search} setSearch={setSearch} onSelect={(item) => guard(() => open(item))} />
+          search={search} setSearch={setSearch} sort={sort} setSort={setSort} onSelect={(item) => guard(() => open(item))} />
         <main>
           {!editing ? <div className="empty">{m.empty}</div> : (
             <>

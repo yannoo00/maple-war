@@ -4,6 +4,8 @@ script Commander extends Component
     property number ScrollSpeed = 8
     @HideFromInspector property number CamX = -16.8
     @HideFromInspector property integer PendingSlot = 0
+    -- PendingSlot value that means "aiming the base skill" instead of a hand slot.
+    property integer BaseSkillSlot = 99
 
     @ExecSpace("ClientOnly")
     method void OnBeginPlay()
@@ -92,6 +94,23 @@ script Commander extends Component
     end
 
     @ExecSpace("ClientOnly")
+    method void SelectBaseSkill()
+        -- Starts aiming the base skill (a free skill card with a cooldown); pressing again cancels. The touch that
+        -- follows picks the position, like a skill card from the hand.
+        ---@type BattleSide
+        local side = self:GetMySide()
+        if side == nil or side.BaseSkillId == "" or side.BaseSkillType ~= "active" then return end
+        if self.PendingSlot == self.BaseSkillSlot then
+            self.PendingSlot = 0
+            return
+        end
+        if _UtilLogic.ServerElapsedSeconds < side.BaseSkillReadyAt then return end
+        self.PendingSlot = self.BaseSkillSlot
+        self._T.pendingUnit = side.BaseSkillId
+        log("[VRF] Commander targeting base skill " .. side.BaseSkillId)
+    end
+
+    @ExecSpace("ClientOnly")
     @EventSender("Service", "InputService")
     handler HandleKeyDownEvent(KeyDownEvent event)
         -- Number keys 1~5 select hand slots, Esc cancels targeting.
@@ -119,7 +138,24 @@ script Commander extends Component
         local world = _UILogic:ScreenToWorldPosition(event.TouchPoint)
         local slot = self.PendingSlot
         self.PendingSlot = 0
+        if slot == self.BaseSkillSlot then
+            self:RequestUseBaseSkill(world.x)
+            return
+        end
         self:RequestUseCard(slot, self._T.pendingUnit or "", world.x)
+    end
+
+    @ExecSpace("Server")
+    method void RequestUseBaseSkill(number targetX)
+        -- Asks the battle director to use this player's active base skill at targetX (the cooldown is checked there).
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        ---@type BattleDirector
+        local director = self:GetDirector()
+        if director == nil then return end
+        ---@type BattleSide
+        local side = director:GetSideByUser(senderUserId)
+        if side == nil then return end
+        director:UseBaseSkill(side.Team, targetX)
     end
 
     @ExecSpace("Server")

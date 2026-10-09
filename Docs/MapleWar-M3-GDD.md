@@ -1,10 +1,10 @@
 # 메이플 워 (가칭) — 횡스크롤 라인 대전 기획서 (GDD, M3)
 
 > 🔖 **AI note — resuming?** If you're reading this in a new session to continue/resume this game, load the `msw-planning` skill FIRST and follow its resume flow (read `MapleWar-Roadmap.md` + `Archive/As-built.md` → reconstruct state → reconcile) — don't edit or implement straight from this doc. **Before touching any `⬜/🟡/✅` state or running a completion, Read the skill's `references/build-management.md` IN FULL.** (스킬이 없는 PC에서는 `Archive/As-built.md`의 "로컬 워크스페이스" 규칙을 따른다.)
-> Last updated: 2026-10-07 / Stage: Phase 4 (전투 기본기) 진행 중 — Phase 1·2 done, Phase 3은 출시 환경의 실제 결제 확인만 남음, Phase 5 not started
+> Last updated: 2026-10-09 / Stage: Phase 4 (전투 기본기) 진행 중 — Phase 1·2 done, Phase 3은 출시 환경의 실제 결제 확인만 남음, Phase 5 (기지 시스템) 구현함·테스트 대기(전부 🟡, Maker 미연결로 실행 확인 못 함), Phase 6 (PC로 연다) not started
 
 ## 1. One-line concept
-> "캠페인에 들어갈 때 입장권을 쓴다. 입장권은 시간이 지나면 차오르고, 모자라면 Worldcoin으로 산다. 이 재화 틀은 이후 대전의 메이플 코인이 그대로 쓴다. PC로 열기 전에 전투의 기본기를 '냥코 대전쟁' 골격에 맞춰 올린다(첫 단계: 공격 타입 4종). 여기까지 되면 PC로 연다."
+> "캠페인에 들어갈 때 입장권을 쓴다. 입장권은 시간이 지나면 차오르고, 모자라면 Worldcoin으로 산다. 이 재화 틀은 이후 대전의 메이플 코인이 그대로 쓴다. PC로 열기 전에 전투의 기본기를 '냥코 대전쟁' 골격에 맞춰 올린다(첫 단계: 공격 타입 4종). 또 기지(베이스캠프)를 고정값이 아닌 고르고 키우는 것으로 바꾼다: 노말~레전더리 기지를 Worldcoin으로 사고, 기지마다 HP·마나·전용 스킬이 다르며, 메소로 영구 강화한다. 여기까지 되면 PC로 연다."
 
 ## 2. Key decisions (immutable baseline)
 | Item | Decision | Notes |
@@ -25,6 +25,15 @@
 | 넉백 | 몬스터는 체력이 **일정 % 이하**로 줄면 뒤로 조금 밀리면서 피격 모션을 재생한다. 그 %는 몬스터마다 다르다 | 사용자 결정 2026-10-07. 피격 모션 열 추가 |
 | 레벨업 | 유닛 **카드를 모아서** 레벨업(클래시 로얄식). 레벨마다 필요한 카드 수는 표(`UnitLevelTable.CardsNeeded`: 2 / 4 / 10 / 20 / 50 / 100 / 200 / 400 / 800), 메소 비용은 기존 표 값을 함께 받는다(0으로 두면 카드만) | 사용자 결정 2026-10-07. 카드는 스테이지 승리 보상(`StageTable.RewardCards`: 3~8장, 보유 유닛에 무작위)으로 얻는다 — 보상 방식은 AI 잠정안 |
 | 몬스터 화면 | 로비에 '몬스터' 화면: 보유 유닛을 타일로(초상화, 코스트, 레벨, 등급 테두리, 다음 레벨까지 카드 `n/필요`) | 사용자 결정 2026-10-07 |
+| 기지(베이스캠프) | 기지는 **종류가 있는 것**이다(노말 / 레어 / 에픽 / 유니크 / 레전더리). 플레이어는 보유한 기지 중 하나를 덱의 기지 칸에 넣어 전투에 들어간다. 기지마다 **최대 HP, 마나(코스트) 시작·최대·회복, 전용 스킬**이 다르다 | 사용자 결정 2026-10-09. 기획서 "베이스 캠프" 절. 몬스터 소환과 마나 생산은 기지의 역할 |
+| 표시 용어 | 게임 화면과 운영툴에 보이는 이름은 **'마나'**다(소환 마나, 마나 최대치, 마나 적응 강화). 코드 식별자(`Cost`, `CostMax`, `CostLevel*` 등)와 CSV 열 이름은 그대로 둔다 | 사용자 결정 2026-10-09. 문서 본문의 "코스트"는 같은 것을 가리킨다 |
+| 기지 카드 | **기지는 카드 목록에 카드처럼 나오고, 덱에서 고른다.** 덱 = 몬스터·설치물·스킬 최대 10장 + **기지 1칸(별도)**. 기지 칸은 10장 한도에 포함되지 않고 손패에도 들어오지 않는다. 기지가 없으면 전투를 시작할 수 없다(기본 기지는 항상 보유) | 사용자 결정 2026-10-09. 선택한 기지 = 덱의 기지 칸 |
+| 기지 획득 | 기지는 **Worldcoin으로만** 산다(월드 상품). 기본 기지는 처음부터 지급. 기본 기지도 업그레이드를 끝까지 하면 가장 좋은 성능이 나오게 한다 | 사용자 결정 2026-10-09. 메소로는 살 수 없음 |
+| 기지 영구 강화 | 아웃게임에서 기지를 영구 강화한다: 최대 HP 증가, 인게임 '마나 적응 강화' 비용 감소, **마나 적응(마나 레벨)을 올릴 수 있는 한도 증가** | 사용자 결정 2026-10-09. 강화 재화·레벨 수는 잠정(§8) |
+| 마나 레벨 한도 | 전투 중 올릴 수 있는 마나 적응 레벨의 한도는 **플레이어가 아니라 기지마다** 다르다: 기지의 시작 한도(`ManaLevelStart`) + 기지 강화 레벨이 더해 주는 증가분(`BaseLevelTable.ManaLevelBonus`). **상점에서 메소로 한도를 사던 기능은 없앴다** | 사용자 결정 2026-10-09 (중요 수정) |
+| 기지 스킬 | **능동 스킬** = 마나 0짜리 기존 스킬 카드 한 장과 같다: 모델·데이터는 기존 스킬(`UnitTable` 스킬 행)을 그대로 쓰고, 기지가 쿨타임을 들고 있다가 쿨타임이 끝나면 쓸 수 있다. **패시브 스킬** = 지속 시간이 무제한인 스킬을 계속 발동하고 있는 것과 같다 | 사용자 결정 2026-10-09 |
+| 적 기지 | 적 기지의 종류는 **스테이지가 지정**한다(`StageTable.EnemyBase`). cave 맵의 적 기지(발록 기지)는 스킬을 쓴다 | 사용자 결정 2026-10-09 |
+| 기지 종류 수(이번 범위) | 기본 기지 1 + 샘플 2~3종. 나머지는 운영툴로 데이터만 추가 | 사용자 결정 2026-10-09 |
 | 원칙 | 밸런스·모바일 점검은 이 마일스톤에서 하지 않음. 연출은 클라이언트만 | `Archive/As-built.md` Standing rules |
 
 ## 3. Core loop (one session)
@@ -79,6 +88,16 @@
 - 아이콘: 걸린 유닛의 HP 바 위에 효과별 픽셀 글리프를 띄운다(여러 개면 가로로 나란히). 표시 시간은 효과 지속 시간, 최소 1초.
 - 남은 미정 사항: 기지는 효과·넉백 대상이 아님(잠정).
 
+**기지 (기획 — 아직 구현 전, Phase 5)**
+- 기지 정의는 `UnitTable`의 `Kind = base` 행이다(카드 목록·등급 테두리·정렬·운영툴을 그대로 쓰기 위해 별도 표를 만들지 않았다): 이름, 등급, 최대 HP(`MaxHp`), 카드 그림(`IconRuid`), 시작 마나(`ManaStart`)·마나 최대 배율(`ManaMaxRate`)·마나 회복 배율(`ManaRegenRate`), 기지 스킬(`BaseSkill` = 스킬 행의 id, `BaseSkillType` = active / passive, `BaseSkillCooldown`), 월드 상품(`ProductId`), 적 전용(`EnemyOnly`). 마나 최대·회복은 마나 레벨 표(`CostLevelTable`) 값에 배율을 곱한다. 영구 강화는 `BaseLevelTable`: 레벨, `HpRate`(최대 HP 배율), `ManaUpgradeDiscount`(마나 적응 강화 비용 감소 비율), `ManaLevelBonus`(그 레벨까지 쌓인 마나 레벨 한도 증가분), `UpgradeCost`(메소). 마나 레벨 한도 = `ManaLevelStart`(기지 행) + `ManaLevelBonus`(기지 강화 레벨 행), 마나 레벨 표 길이까지.
+- 플레이어 데이터: 보유 기지는 보유 유닛 목록(`UnitsCsv`)에 다른 유닛과 같이 `id:강화 레벨`로 들어가고(카드 레벨업과 달리 메소만 쓰는 `UpgradeBase`), 덱의 기지 칸은 `SelectedBase`로 저장한다. 기본 기지는 기존 계정을 포함해 첫 로드에서 지급한다. 기지 교체는 **로비에서만** 한다(전투 중 교체 없음, 잠정).
+- 전투 시작: 플레이어 팀은 선택한 기지의 능력(강화 반영)으로, 적 팀은 스테이지가 지정한 기지로 시작한다. 마나 레벨 한도도 그 기지에서 온다(플레이어 데이터에는 한도가 없다). 지금의 "전역 `CostStart`·`CostPerSecond`, 스테이지 `BaseHp`"는 기지 값으로 대체된다. 마나 적응 강화의 비용은 기지의 강화 레벨만큼 줄어든다.
+- 능동 스킬: 진영(`BattleSide`)이 쿨타임을 보유하고, 끝나면 사용 가능. 사용 효과는 기존 스킬 카드 실행 경로(`PlayUnit`)를 그대로 쓴다(마나 비용 0). 플레이어는 전투 HUD 우측 하단의 기지 스킬 버튼을 눌러 조준하고(스킬 카드와 같은 방식, 미리보기 박스 포함), 적 기지는 쿨타임이 끝나면 자동으로 가장 가까운 아군(플레이어 쪽) 유닛에게 쓴다.
+- 패시브 스킬(잠정 구현): 현재 스킬은 범위 피해뿐이라, 쿨타임이 끝날 때마다 자동으로 가장 가까운 적에게 발동하는 것으로 구현했다. '지속 시간 무제한 효과'가 필요한 패시브는 §8의 미정 사항.
+- 구매: 기지마다 월드 상품을 등록(상품 구성·가격은 사용자 확인 후, 입장권과 같은 절차)하고 `UnitTable.ProductId`에 적는다. `CurrencyShop`의 지급 콜백은 구매 상품 id가 `ShopProductTable`에 없으면 기지의 `ProductId`에서 찾아 기지를 지급한다(`GrantBasePurchase`). 같은 구매의 중복 지급 방지는 입장권과 같다. 카드 정보 창의 [구매] 버튼이 구매 창을 연다.
+- 덱 화면의 카드 목록: 기지도 몬스터·설치물·스킬과 같은 타일로 나온다(등급 테두리, HP·마나·스킬 요약, 보유/미보유 음영, 종류 표시 '기지'). 타일의 메뉴에서 [사용(덱의 기지 칸에 넣기) / 정보 / 강화 / 구매]를 고르고, 덱 목록 맨 위에 기지 칸이 따로 보인다. 카드 목록의 정렬(등급순·마나순)과 운영툴의 표·사이드바 목록에도 기지가 같이 나온다.
+- 대전(M5)에서는 상대 플레이어가 선택한 기지가 적 팀 기지가 된다(같은 구조를 재사용).
+
 **UI**
 - 로비 상단: 메소 옆에 입장권 잔량(`입장권 25 / 30 · 다음 +1 04:32`)과 구매 버튼.
 - 스테이지 카드: 입장 비용 표시. 입장 버튼은 입장권이 모자라면 비활성 + 안내 문구.
@@ -96,6 +115,12 @@
 | 구매 처리 | @Logic `CurrencyShop`(서버 `OnBeginPlay`에서 `_WorldShopService:SetProcessPurchaseCallback`), 월드 상품은 `msw-mcp` `world_item_*`로 등록 |
 | UI | `ui/LobbyUI.ui` + `UI/LobbyUI.mlua`(잔량, 스테이지 비용, 입장권 상점 화면), `ui/BattleHUD.ui` + `UI/BattleHUD.mlua`(다시 하기 비용) |
 | 공격 타입 | `UnitTable.AttackType` → `BattleConfig`(unit.attackType) → `BattleUnit`(타격 시점에 단일/범위 분기), 범위 대상 탐색은 `BattleDirector:FindTargetsInRange` |
+| 기지 정의·강화 | `UnitTable`의 `Kind = base` 행, UserDataSet `BaseLevelTable`, `BattleConfig:GetBaseAtLevel(id, level)` · `GetBaseLevel(level)` · `GetStarterBaseIds` · `GetBaseByProduct` |
+| 기지 보유·덱의 기지 칸 | `PlayerData`의 `UnitsCsv`(보유 기지 = `id:강화 레벨`)·`SelectedBase`(덱의 기지 칸, 저장 JSON `base`), 서버 메서드 `GrantBase` / `SelectBase` / `UpgradeBase` / `GrantBasePurchase`, 클라이언트 요청 `RequestSelectBase` / `RequestUpgradeBase` |
+| 전투 적용 | `BattleDirector:StartBattle`(팀별 기지 설정), `BattleSide:Reset`·`UpgradeCostLevel`(기지의 마나 값·강화 비용 할인, 동기화 `UpgradeCost`), `StageTable.EnemyBase` |
+| 기지 스킬 | `BattleSide`(`BaseSkillId` / `BaseSkillType` / `BaseSkillReadyAt` 동기화), `BattleDirector:UseBaseSkill`·`TickBaseSkill`·`CastBaseSkill`(스킬 카드 실행 경로 `PlayUnit` 공유)·`NotifySkillCast`(Multicast 효과), `Commander:SelectBaseSkill`·`RequestUseBaseSkill`, `FieldFx` 미리보기, `BattleHUD:UpdateBaseSkillButton` |
+| 기지 구매 | `UnitTable.ProductId` + `CurrencyShop` 지급 콜백 확장(표 변경 없음) |
+| 기지 UI | `LobbyUI`(`GetOwnableUnits`에 기지 포함, 타일·정보 창·덱의 첫 줄 기지 칸), `BattleHUD`(`BaseSkill` 버튼) — UIBuilder로 작업 |
 | 출시 설정 | 사용자 작업: 월드 출시 설정에서 최대 인원, 플레이 가능 기기 = PC |
 
 ## 6. Roadmap (Phases)
@@ -136,7 +161,21 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 - 🟡 카드 수집형 레벨업과 로비 '몬스터' 화면: 유닛 카드(`PlayerData.CardsCsv`)를 모아 레벨업(`UnitLevelTable.CardsNeeded` + 기존 메소 비용), 승리 보상으로 카드 지급(`StageTable.RewardCards`, 보유 유닛에 무작위 분배), 로비 메인에 '몬스터' 버튼과 클래시 로얄식 타일 화면(초상화·코스트 배지·레벨 띠·등급 테두리·카드 진행도 `n/필요`, 조건이 되면 초록 막대, 타일 클릭 = 레벨업). 상점의 메소 레벨업은 뺐다  ⚠️ needs user test: 타일의 모양·크기·간격, 버튼 클릭, 카드가 모였을 때의 강화 흐름 (화면 확인: 타일 그리드 6열·등급 테두리·초록/파랑 막대. 로그 확인: 주황버섯 카드 3/2로 레벨업 → 카드 1, 메소 450 → 350, 레벨 2 저장. 카드 1/2인 골렘은 거부. 보상 5장이 보유 유닛에 무작위 분배되어 저장)
 - 🟡 유닛별 속성·효과 배정(AI 임의 배정, 2026-10-07)과 효과가 걸렸을 때 머리 위 아이콘  ⚠️ needs user test: 배정이 마음에 드는지, 아이콘(8×8 픽셀 글리프: 공격 무효 빨간 X / 저주 보라 마름모 / 워프 하늘색 고리 / 날려버린다 주황 화살표)의 모양·크기·위치, 효과 확률·시간·거리가 적당한지 (화면 확인: 골렘 HP 바 위에 보라 마름모. 로그 확인: 효과가 걸리면 아이콘 생성, 지속 시간이 끝나면 제거, 서버의 `StatusCsv`도 같이 비워짐) — 아이콘 그림은 나중에 리소스 RUID로 바꿀 수 있다
 
-### Phase 5 — "PC로 연다"
+### Phase 5 — "기지를 고르고 키운다"
+> 2026-10-09 사용자 기획 전달, 같은 날 구현. **Maker MCP(msw-maker-mcp)가 연결되지 않아 refresh·플레이·로그 확인을 하지 못했다.** 확인한 것: 스크립트 블록 균형(대략), 운영툴 검증(`previewValidate`가 기지 5행·스테이지 통과). 아래 🟡는 전부 "Maker refresh 후 실행 확인 필요".
+- 🟡 기지 데이터: `UnitTable`에 `Kind = base` 행 5개(기본 기지 `base`, 샘플 `base_forest` 레어 / `base_mage` 에픽 능동 스킬 번개 / `base_golem` 유니크 패시브 눈보라, 적 전용 `base_balrog` 레전더리 메테오)와 기지 열 8개, 새 데이터셋 `BaseLevelTable`(10레벨), `BattleConfig` 읽기(`GetBaseAtLevel` 등). 전역 `CostStart`·`CostPerSecond`는 기지가 비워 둔 값의 기본값으로 남김  ⚠️ needs user test: Maker refresh에서 새 데이터셋 `BaseLevelTable` 인식(`[BattleConfig] BaseLevelTable loaded rows=10` 로그), `UnitTable` 로드 오류 없음
+- 🟡 플레이어 데이터: 보유 기지는 `UnitsCsv`에 `id:강화 레벨`, 덱의 기지 칸 `SelectedBase`(저장 `base`), 기존 계정과 신규 계정에 스타터 기지 지급, 기지 칸 보정(`NormalizeBase`), 기지는 덱 카드·카드 레벨업에서 제외  ⚠️ needs user test: 기존 테스트 계정 로드 후 `[VRF] PlayerData base slot set to base` 와 보유 목록에 `base:1`
+- 🟡 전투 적용: 플레이어 기지 = 선택한 기지(HP × 강화 배율), 적 기지 = 스테이지 `EnemyBase`(HP는 스테이지 `BaseHp`), 진영이 기지의 시작 마나·마나 최대/회복 배율·강화 비용 할인·마나 레벨 한도를 사용(전에 있던 플레이어 공통 한도 `PlayerData.CostLevelCap`과 로비 상점의 한도 구매 버튼은 삭제)(`BattleSide.UpgradeCost` 동기화, HUD 가격 표시)  ⚠️ needs user test: 전투 시작 로그 `[VRF] BattleDirector bases player=… enemy=…`, 기지별 마나 차이, HUD 마나 레벨 버튼의 할인된 가격
+- 🟡 기지 스킬: 능동(쿨타임 후 HUD 버튼으로 조준, 마나 0, 스킬 카드 실행 경로), 패시브(쿨타임마다 자동 — 잠정 해석), 적 기지(자동), 효과는 `NotifySkillCast`로 모든 클라이언트에 재생  ⚠️ needs user test: 번개·메테오 이펙트 위치, 능동 스킬 조준 미리보기, 쿨타임 시작 시점(전투 시작부터 1회 쿨타임), 적 기지(cave 스테이지) 스킬 발동
+- 🟡 기지 구매 지급: `CurrencyShop`이 기지의 `ProductId`로 기지를 지급(`GrantBasePurchase`), 카드 정보 창의 [구매] 버튼이 구매 창을 엶(상품이 있을 때만)  ⚠️ needs user test: 상품 등록 후 Maker 테스트 구매로 지급
+- ⬜ 기지 월드 상품 등록: 어떤 기지를 얼마에 팔지 사용자 확인 → AI가 월드 상품 등록(비공개) → `UnitTable.ProductId` 기입 (지금은 모든 기지의 `ProductId`가 빈칸이라 카드에 "준비 중")
+- 🟡 덱 화면의 기지 카드: 카드 목록에 기지 타일(기지 Lv·강화 비용·미보유 음영·종류 '기지'), 메뉴 [사용 / 정보], 정보 창(HP·마나·스킬·강화/구매 버튼), 덱 목록 맨 위의 별도 기지 칸(덱 목록 영역·줄 간격 조정으로 11줄이 들어가게 함), 등급순·마나순 정렬에 포함  ⚠️ needs user test: 덱 목록 11줄이 영역에 맞는지, 기지 칸의 메뉴(제거 버튼 비활성), 타일 표시, 정렬
+- 🟡 기지 영구 강화: 메소로 강화(`BaseLevelTable`: 최대 HP↑·마나 적응 강화 비용↓·마나 레벨 한도↑), 정보 창의 [강화] 버튼과 한도 표시(`마나 적응 한도 Lv N (강화 시 Lv M)`)  ⚠️ needs user test: 강화 후 전투에서 HP·할인·마나 레벨 한도 적용, 기지마다 한도가 다른지
+- 🟡 전투 HUD 기지 스킬 버튼: 우하단 `BaseSkill` 버튼(스킬 이름·남은 초·사용 가능, 패시브는 이름만, 스킬 없는 기지는 숨김)  ⚠️ needs user test: 위치·크기·글자, 쿨타임 표시
+- 🟡 기지 콘텐츠: 위 샘플 기지 4종 + `cave_1`~`cave_5` 스테이지의 적 기지 = 발록 기지(메테오)  ⚠️ needs user test: 능력치·스킬·쿨타임 수치는 전부 AI 잠정값. 샘플 기지는 모두 같은 타워 그림을 쓴다(기지별 외형은 `StandRuid`·모델 작업이 따로 필요)
+- 🟡 운영툴: 유닛 편집에 '기지' 종류(기지 칸 그룹)·탭·목록 표시, 스테이지 편집에 '적 기지' 선택, 시간표에 기지가 들어가지 않게 검사  ⚠️ needs user test: 브라우저에서 기지 행 편집·저장, 스테이지의 적 기지 선택
+
+### Phase 6 — "PC로 연다"
 - ⬜ 출시 설정: 최대 인원, 플레이 가능 기기 PC (사용자 작업)
 - ⬜ 로드맵 Backlog의 "M2 이월 확인" 항목 훑기 (사용자 테스트)
 - ⬜ 출시 기준 점검: 신규 유저가 설명 없이 첫 판을 이길 수 있는가 — 스테이지 1 수치 조정이 필요한지 사용자와 결정
@@ -151,6 +190,9 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 | `UnitTable` (추가) | `AttackType` (`melee` / `ranged` / `melee_area` / `ranged_area`, 스킬·기지는 빈칸), `AttackEffectRuid`, `HitEffectRuid`, `AttackSoundRuid`, `DamageSoundRuid`, `DieSoundRuid` |
 | `UnitTable` (추가) | `Attribute`(earth / water / fire / wind / light / dark), `Effect`(EffectTable의 id), `HitRuid`, `KnockbackHpPercent`·`KnockbackDistance`·`KnockbackSeconds`(빈칸 = 공용 기본값) |
 | `EffectTable` (기본값) | `EffectId, Type, Name, Duration, Power, ChanceEarth, ChanceWater, ChanceFire, ChanceWind, ChanceLight, ChanceDark, #Memo` |
+| `UnitTable` (추가, 기지 행 `Kind = base`) | `ManaStart, ManaMaxRate, ManaRegenRate, ManaLevelStart, BaseSkill, BaseSkillType(active / passive), BaseSkillCooldown, ProductId, EnemyOnly` — 기지 행이 쓰는 칸: `UnitId, Kind, Name, Rarity, Starter, MaxHp, IconRuid, BarY, BarWidth` + 위 9열 + `#Memo` (나머지 전투 칸은 비움) |
+| `BaseLevelTable` (신규) | `Level, HpRate, ManaUpgradeDiscount, ManaLevelBonus, UpgradeCost, #Memo` |
+| `StageTable` (추가) | `EnemyBase`(`UnitTable`의 기지 id, 빈칸 = 기본 기지 `base`) |
 | `UnitTable` (추가) | `EffectDuration`, `EffectPower`, `EffectChanceEarth`~`EffectChanceDark` (효과 표 기본값의 유닛별 덮어쓰기, 빈칸 = 기본값. 몬스터·설치물) |
 
 **몬스터 한 종을 추가할 때 필요한 정보**
@@ -176,6 +218,12 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 | 상품 구성과 Worldcoin 가격 | Decided (2026-10-06, 사용자): 10장 50 / 30장 130 / 100장 400. 비공개로 등록했고 판매 시작(공개)은 Phase 4에서 사용자 확인 후 |
 | 스테이지 1 난이도(출시 기준) 조정 여부 | Pending → Phase 5 |
 | 전투 골격 = 냥코 대전쟁, 공격 타입 4종 | Decided (2026-10-07, 사용자) |
+| 기지 = 종류 있음(노말~레전더리), Worldcoin으로만 구매, 기본 기지 지급, 영구 강화(HP↑·마나 적응 강화 비용↓), 스킬(능동·패시브) = 기존 스킬 데이터 재사용, 적 기지는 스테이지 지정, 이번 범위 기본 1 + 샘플 2~3종, M3 Phase 5로 추가 | Decided (2026-10-09, 사용자) |
+| 기지 카드 = 카드 목록에 같은 타일로 나오고 덱의 별도 1칸(10장 한도 밖·손패 밖)에서 선택, 표시 용어 코스트 → 마나(식별자 유지) | Decided (2026-10-09, 사용자) |
+| 기지 강화 재화와 레벨 수·곡선 | Pending(잠정, AI 제안): 재화 = 메소, 최대 10레벨. 사용자가 다르게 정하면 수정 |
+| 적 기지의 HP | Pending(잠정, AI 제안): 스테이지 `BaseHp` 유지(스테이지 난이도 조절 수단), 기지 종류의 HP는 플레이어 기지에만 적용. 적 기지도 종류별 HP를 쓰고 싶으면 알려 줄 것 |
+| 기지 교체 시점 | Decided(잠정): 로비에서만. 전투 중에는 바꾸지 않음 |
+| 패시브 스킬이 쓰는 효과 | Pending: 지금은 "쿨타임마다 자동으로 가까운 적에게 스킬 발동"으로 구현(잠정). 지속 시간 무제한 효과가 필요하면 효과 목록과 함께 정함 |
 | 범위 공격의 판정 범위 | Decided(잠정, AI 제안): 타격 시점에 공격자 사거리 안의 적 전부(기지 포함). 범위 공격 유닛을 실제로 넣을 때 사용자가 다르게 정하면 수정 |
 
 ## 9. Plan changes (revision log)
@@ -190,3 +238,8 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 | 2026-10-07 | Modify | 넉백을 `MovementComponent` 밀기에서 물리 충격(`RigidbodyComponent:SetForce`, 뒤쪽 힘 + 위로 약간)으로 교체. 공용 기본값 0.45초, 날려버린다 0.8초 | 사용자 보고 — 넉백이 순간이동처럼 보임(2배 속도로 밀고 목표 지점에 위치를 고정하던 방식 때문) | 엔진이 감속시켜 0.3~0.4초에 걸쳐 밀리고 살짝 뜬다. 로그 확인: 구간 넉백 0.52 목표 → 0.24 / 0.42 / 0.49 / 0.52(0.1초 간격), 날려버린다 1.30 목표 → 1.67(큰 힘은 거리가 비례보다 길어짐, 잠정 허용). 힘 상수 `KnockbackForcePerUnit` 12.5는 측정으로 맞춘 값 |
 | 2026-10-07 | Modify | 미정 사항에 대한 사용자 답을 반영해 속성·효과·넉백을 구현(🟡). 확률표는 따로 두지 않고 효과 표 한 줄에 속성별 확률을 둔다. "유닛별 속성·효과 배정과 화면 표시" 항목을 새로 추가(⬜) | 사용자 답: 축 = 효과 × 맞은 유닛 속성, 효과는 하나, 넉백은 구간마다, 상성 없음 | 효과 4종의 동작은 AI의 잠정 해석. 표의 확률·시간·거리는 전부 잠정값. 유닛의 속성·효과 칸이 비어 있어 실제 전투에서는 넉백만 일어난다(모든 몬스터 34% 구간) |
 | 2026-10-07 | Modify | 효과 표의 지속 시간·세기·속성별 확률을 '기본값'으로 바꾸고, `UnitTable`에 `EffectDuration` / `EffectPower` / `EffectChance*` 8열을 추가해 유닛이 덮어쓰게 함. 설치물도 효과를 걸 수 있게 함(받는 쪽은 속성 있는 몬스터만). 편집기에 "효과" 그룹 추가 | 사용자 요청 | 변경: `BattleConfig.GetUnits`(`effectOverride`), `BattleUnit.Setup`·`TryApplyEffect`, `schema.cjs`·`unitdata.cjs`. 기존 데이터는 덮어쓰기 칸이 전부 빈칸이라 동작이 그대로다. ⚠️ needs user test: Maker refresh 후 설치물에 효과를 넣고 플레이해 로그 `[BattleUnit] effect ...`로 걸리는지, 덮어쓴 확률·지속 시간이 적용되는지 확인 |
+| 2026-10-09 | Add | 새 Phase 5 "기지를 고르고 키운다"를 PC 오픈 앞에 넣고, 기존 Phase 5 "PC로 연다"는 Phase 6으로 번호만 바꿈. 기지 종류·Worldcoin 구매·영구 강화·기지 스킬·스테이지 지정 적 기지 | 사용자 기획서(베이스 캠프) 전달 — 기지를 고정이 아닌 고르고 키우는 것으로 변경 | 옮긴 Phase의 항목은 전부 ⬜라 상태 변화 없음. §1·§2·§4·§5·§7·§8과 로드맵 M3 줄에 반영. 기존 `base` 유닛 행·스테이지 `BaseHp`·전역 `CostStart`·`CostPerSecond`는 Phase 5에서 기지 값으로 대체되므로 그때 정리. 기획서와 다른 부분 4건(속성 상성, 효과 목록, 카드 레벨 능력치, 용어)은 결정이 필요해 로드맵 Backlog에 올림 |
+| 2026-10-09 | Modify | 화면·운영툴에 보이는 용어 "코스트"를 "마나"로 교체(로비·전투 HUD 글자, UI 템플릿 글자, 운영툴 표시). 코드 식별자와 CSV 열 이름은 그대로 | 사용자 요청 | 구현 완료(표시만). `UnitTable.csv`·`CostLevelTable.csv`의 `#Memo` 글과 과거 문서 본문의 "코스트"는 그대로 둠(같은 것을 가리킴). 확인 필요: Maker refresh 후 글자 표시 |
+| 2026-10-09 | Modify | 기지 선택 방식을 별도 '기지' 화면에서 "카드 목록의 카드 + 덱의 별도 기지 1칸"으로 변경(Phase 5의 '기지' 화면 항목을 '덱 화면의 기지 카드'로 교체, 플레이어 데이터·운영툴 항목에 반영) | 사용자 요청 | 모두 ⬜인 항목의 문구 수정이라 상태 변화 없음. 기지 칸은 10장 한도·손패와 무관. §2·§4·§5·§6·§8에 반영 |
+| 2026-10-09 | Modify | Phase 5 구현 중 설계 두 가지를 바꿈: ① 기지 정의를 별도 `BaseTable` 대신 `UnitTable`의 `Kind = base` 행으로(카드 목록·등급 테두리·정렬·운영툴 재사용), 보유 기지도 `UnitsCsv`에 같이 저장 ② 구매 지급은 `ShopProductTable` 확장 대신 기지의 `ProductId`를 `CurrencyShop`이 찾는 방식. Phase 5의 '기지 구매' 항목을 '구매 지급'(🟡)과 '월드 상품 등록'(⬜, 사용자 확인 필요)으로 나눔 | 구현 단순화(새 표·새 저장 필드 최소화) | 항목 전부 🟡(⚠️ Maker 미연결로 실행 확인 못 함). `BattleConfig`·`PlayerData`·`BattleSide`·`BattleDirector`·`Commander`·`CurrencyShop`·`BattleHUD`·`LobbyUI`·`FieldFx`와 데이터 3종(`UnitTable`·`StageTable`·`BaseLevelTable`), 운영툴 스키마·화면 수정. 기존 `base` 행은 사용하지 않는 칸을 비움 |
+| 2026-10-09 | Modify | 마나 레벨 한도를 플레이어 공통(상점에서 메소로 구매, `PlayerData.CostLevelCap`)에서 **기지별**로 변경: `UnitTable.ManaLevelStart`(기지 행, 샘플은 기본 3 / 숲 3 / 마법사 4 / 석상 2 / 발록 5) + `BaseLevelTable.ManaLevelBonus`(강화 레벨별 누적 0,0,1,2,3,4,5,6,7,7). 상점의 한도 구매 버튼·`RequestUnlockCostLevel`·저장 필드 `costCap` 삭제, 기지 정보 창에 한도 표시, 운영툴 칸 추가 | 사용자 요청(중요 수정) | 이전 M2에서 만든 "한도 해금(메소)" 기능이 사라진다(`CostLevelTable.UnlockMeso` 열은 쓰이지 않게 됨, 값은 그대로). 기존 계정의 저장된 `costCap`은 무시된다. ⚠️ needs user test: Maker refresh 후 상점 화면(버튼이 없어졌는지, 빌드 오류 없음), 기지별 한도 |

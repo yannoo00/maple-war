@@ -19,10 +19,13 @@ script BattleConfig extends Logic
     property number ScreenHalfWidth = 6.4
     property number FieldMargin = 1.0
     -- Cost at battle start and base income per second. The cost cap and the income multiplier come from
-    -- the side's in-battle cost level (CostLevelTable). DefaultCostLevelCap is how far a new player can upgrade.
+    -- the side's in-battle cost level (CostLevelTable). How far a side may raise that level (the mana level cap) comes from its
+    -- base: the base's ManaLevelStart plus the upgrade level's ManaLevelBonus (BaseLevelTable); DefaultCostLevelCap is the fallback.
     property number CostStart = 100
     property number CostPerSecond = 20
     property integer DefaultCostLevelCap = 3
+    -- The base every player owns from the start and every stage's enemy uses unless the stage names another (UnitTable id, Kind = base).
+    property string DefaultBaseId = "base"
     -- Knockback shared by every monster unless its UnitTable row says otherwise: HP lost (percent of max) per
     -- knockback, how far it is pushed (authored units, scaled by RangeScale) and how long the push lasts.
     property number KnockbackHpPercent = 34
@@ -32,6 +35,10 @@ script BattleConfig extends Logic
     -- plus a small upward lift so the unit hops back. Calibrated by measurement; see As-built.
     property number KnockbackForcePerUnit = 12.5
     property number KnockbackLift = 2
+    -- Attribute advantage: an attack on a unit whose attribute the attacker beats deals this much more damage
+    -- (0.2 = +20%). Light and dark beat each other; wind beats water, water beats fire, fire beats earth, earth beats
+    -- wind. There is no penalty the other way round, and units without an attribute (builds, bases) get no bonus.
+    property number AttributeBonus = 0.2
     -- Shortest time an effect icon stays above a unit's head (client), so a short push is still readable.
     property number StatusIconMinSeconds = 1.0
     property integer DeckSize = 10
@@ -158,6 +165,18 @@ script BattleConfig extends Logic
                     -- iconRuid (optional, skills): the card picture; blank = the effect clip's thumbnail.
                     spawnCount = math.max(1, math.floor(self:Num(ds:GetCell(i, "SpawnCount"), 1))),
                     iconRuid = self:OptText(ds:GetCell(i, "IconRuid")),
+                    -- Bases (Kind = base) only: starting mana (blank = CostStart), multipliers on the mana level table's
+                    -- max / income (blank = 1), the base skill (a skill unit id) with its type (active / passive) and
+                    -- cooldown seconds, the World Shop product that sells the base, and enemy-only bases (hidden from the card list).
+                    manaStart = self:OptNum(ds:GetCell(i, "ManaStart")),
+                    manaLevelStart = math.floor(self:Num(ds:GetCell(i, "ManaLevelStart"), self.DefaultCostLevelCap)),
+                    manaMaxRate = self:Num(ds:GetCell(i, "ManaMaxRate"), 1),
+                    manaRegenRate = self:Num(ds:GetCell(i, "ManaRegenRate"), 1),
+                    baseSkill = self:OptText(ds:GetCell(i, "BaseSkill")) or "",
+                    baseSkillType = self:OptText(ds:GetCell(i, "BaseSkillType")) or "active",
+                    baseSkillCooldown = self:Num(ds:GetCell(i, "BaseSkillCooldown"), 0),
+                    productId = self:OptText(ds:GetCell(i, "ProductId")) or "",
+                    enemyOnly = self:Num(ds:GetCell(i, "EnemyOnly"), 0) > 0,
                 }
             end
         end
@@ -335,6 +354,8 @@ script BattleConfig extends Logic
                     power = self:Num(ds:GetCell(i, "Power"), 0),
                     -- Who the effect may be used on: "target" (an enemy it hits), "self" (the unit itself) or "both".
                     applies = self:OptText(ds:GetCell(i, "Applies")) or "target",
+                    -- Text parameter for types that need one (spawn: the unit id it summons).
+                    param = self:OptText(ds:GetCell(i, "Param")) or "",
                 }
             end
         end
@@ -368,7 +389,9 @@ script BattleConfig extends Logic
                 local target = ds:GetCell(i, "Target")
                 if id ~= nil and id ~= "" and effectId ~= nil and effectId ~= "" then
                     if (trigger == "on_hit" and target == "target") or (trigger == "always" and target == "self") then
-                        local chance = 100
+                        -- on_hit: chance to apply the effect. always: the trait's own proc chance where it has one
+                        -- (might), 100 when the cell is blank.
+                        local chance = self:Num(ds:GetCell(i, "Chance"), 100)
                         if trigger == "on_hit" then chance = self:Num(ds:GetCell(i, "Chance"), 0) end
                         if byUnit[id] == nil then byUnit[id] = {} end
                         table.insert(byUnit[id], {
@@ -390,6 +413,68 @@ script BattleConfig extends Logic
         return byUnit[unitId] or {}
     end
 
+    method number GetAttributeRate(string attackerAttribute, string targetAttribute)
+        -- Returns the damage multiplier of an attack by attribute: 1 + AttributeBonus when the attacker's attribute
+        -- beats the target's, otherwise 1.
+        if attackerAttribute == nil or attackerAttribute == "" or targetAttribute == nil or targetAttribute == "" then return 1 end
+        local beats = self._T.attributeBeats
+        if beats == nil then
+            beats = { light = "dark", dark = "light", wind = "water", water = "fire", fire = "earth", earth = "wind" }
+            self._T.attributeBeats = beats
+        end
+        if beats[attackerAttribute] == targetAttribute then return 1 + self.AttributeBonus end
+        return 1
+    end
+
+    method table GetSkillActions(string skillId)
+        -- Returns the action rows of one skill in table order (empty when it has none), loaded once from SkillActionTable:
+        -- { action = damage|heal|effect, team = enemy|ally|all, kinds = { monster = true, ... }, attribute, excludeAttribute,
+        --   maxTargets (0 = all), power (nil = the skill's SkillDamage), effectId, delay, repeats, interval }.
+        local bySkill = self._T.skillActions
+        if bySkill == nil then
+            bySkill = {}
+            local ds = _DataService:GetTable("SkillActionTable")
+            local count = 0
+            if ds ~= nil then count = ds:GetRowCount() end
+            for i = 1, count do
+                local id = ds:GetCell(i, "SkillId")
+                local action = ds:GetCell(i, "Action")
+                if id ~= nil and id ~= "" and (action == "damage" or action == "heal" or action == "effect") then
+                    local kinds = {}
+                    local kindsText = self:OptText(ds:GetCell(i, "Kinds")) or "monster;build"
+                    for kind in string.gmatch(kindsText, "[^;]+") do kinds[kind] = true end
+                    if bySkill[id] == nil then bySkill[id] = {} end
+                    table.insert(bySkill[id], {
+                        action = action,
+                        team = self:OptText(ds:GetCell(i, "Team")) or "enemy",
+                        kinds = kinds,
+                        attribute = self:OptText(ds:GetCell(i, "Attribute")) or "",
+                        excludeAttribute = self:OptText(ds:GetCell(i, "ExcludeAttribute")) or "",
+                        maxTargets = math.floor(self:Num(ds:GetCell(i, "MaxTargets"), 0)),
+                        power = self:OptNum(ds:GetCell(i, "Power")),
+                        effectId = self:OptText(ds:GetCell(i, "EffectId")) or "",
+                        delay = self:Num(ds:GetCell(i, "Delay"), 0),
+                        repeats = math.max(1, math.floor(self:Num(ds:GetCell(i, "Repeat"), 1))),
+                        interval = self:Num(ds:GetCell(i, "Interval"), 1),
+                    })
+                elseif id ~= nil and id ~= "" then
+                    log_warning("[BattleConfig] SkillActionTable row " .. tostring(i) .. " skipped: action=" .. tostring(action))
+                end
+            end
+            self._T.skillActions = bySkill
+            log("[BattleConfig] SkillActionTable loaded rows=" .. tostring(count))
+        end
+        return bySkill[skillId] or {}
+    end
+
+    method number GetStatRate(integer level)
+        -- Returns the stat multiplier of a unit level (UnitLevelTable StatRate), 1 for an unknown level.
+        local levels = self:GetLevels()
+        local entry = levels[math.max(1, math.min(#levels, level))]
+        if entry == nil then return 1 end
+        return entry.statRate
+    end
+
     method string GetAttackTypeLabel(string attackType)
         -- Returns the display name of an attack type ("" for units that do not attack, such as skills).
         if attackType == "melee" then return "근거리" end
@@ -403,6 +488,8 @@ script BattleConfig extends Logic
         -- Returns the RUID to show a unit or skill as a static icon in UI (thumbnail of its stand clip or effect clip).
         local unit = self:GetUnit(unitId)
         if unit == nil then return "" end
+        -- A base is shown with its plain sprite (IconRuid), not a clip thumbnail.
+        if unit.kind == "base" then return unit.iconRuid or "" end
         local ruid = unit.standRuid
         if unit.kind == "skill" then ruid = unit.iconRuid or unit.effectRuid or "" end
         if ruid == nil or ruid == "" then return "" end
@@ -498,15 +585,82 @@ script BattleConfig extends Logic
     end
 
     method table GetStarterUnitIds()
-        -- Returns the ids of the units every new player receives (Starter = 1 in UnitTable), in table order.
+        -- Returns the ids of the card units (monster / build / skill) every new player receives (Starter = 1 in UnitTable),
+        -- in table order. Bases are not deck cards; see GetStarterBaseIds.
         local list = {}
         for _, unit in pairs(self:GetUnits()) do
-            if unit.starter then table.insert(list, unit) end
+            if unit.starter and unit.kind ~= "base" then table.insert(list, unit) end
         end
         table.sort(list, function(a, b) return a.order < b.order end)
         local ids = {}
         for _, unit in ipairs(list) do table.insert(ids, unit.id) end
         return ids
+    end
+
+    method table GetStarterBaseIds()
+        -- Returns the ids of the bases every player owns from the start (Kind = base, Starter = 1), in table order.
+        local list = {}
+        for _, unit in pairs(self:GetUnits()) do
+            if unit.starter and unit.kind == "base" then table.insert(list, unit) end
+        end
+        table.sort(list, function(a, b) return a.order < b.order end)
+        local ids = {}
+        for _, unit in ipairs(list) do table.insert(ids, unit.id) end
+        return ids
+    end
+
+    method table GetBaseLevels()
+        -- Returns the base upgrade table as an array: { hpRate, manaDiscount, upgradeCost } per level, loaded once from
+        -- BaseLevelTable. Level 1 is a base that has not been upgraded; upgradeCost (meso) 0 = top level.
+        local levels = self._T.baseLevels
+        if levels ~= nil then return levels end
+        levels = {}
+        local ds = _DataService:GetTable("BaseLevelTable")
+        local count = 0
+        if ds ~= nil then count = ds:GetRowCount() end
+        for i = 1, count do
+            local level = math.floor(self:Num(ds:GetCell(i, "Level"), i))
+            levels[level] = {
+                hpRate = self:Num(ds:GetCell(i, "HpRate"), 1),
+                manaDiscount = math.max(0, math.min(0.9, self:Num(ds:GetCell(i, "ManaUpgradeDiscount"), 0))),
+                -- Mana level cap gained up to this base level (cumulative, added to the base's ManaLevelStart).
+                manaLevelBonus = math.floor(self:Num(ds:GetCell(i, "ManaLevelBonus"), 0)),
+                upgradeCost = math.floor(self:Num(ds:GetCell(i, "UpgradeCost"), 0)),
+            }
+        end
+        self._T.baseLevels = levels
+        log("[BattleConfig] BaseLevelTable loaded rows=" .. tostring(count))
+        return levels
+    end
+
+    method integer GetMaxBaseLevel()
+        -- Returns the highest level defined in BaseLevelTable.
+        return math.max(1, #self:GetBaseLevels())
+    end
+
+    method table GetBaseLevel(integer level)
+        -- Returns one BaseLevelTable row (level clamped into the table), or a neutral row when the table is empty.
+        local levels = self:GetBaseLevels()
+        local entry = levels[math.max(1, math.min(#levels, level))]
+        if entry == nil then return { hpRate = 1, manaDiscount = 0, manaLevelBonus = 0, upgradeCost = 0 } end
+        return entry
+    end
+
+    method table GetBaseAtLevel(string baseId, integer level)
+        -- Returns a copy of a base definition (Kind = base) with its max HP scaled by the upgrade level's HpRate and the
+        -- level's mana upgrade discount attached. Falls back to the default base when the id is not a base. nil if there is none.
+        local base = self:GetUnit(baseId)
+        if base == nil or base.kind ~= "base" then base = self:GetUnit(self.DefaultBaseId) end
+        if base == nil then return nil end
+        local entry = self:GetBaseLevel(level)
+        local unit = {}
+        for key, value in pairs(base) do unit[key] = value end
+        unit.level = level
+        unit.maxHp = base.maxHp * entry.hpRate
+        unit.manaDiscount = entry.manaDiscount
+        -- How far this base can raise the in-battle mana level: its starting cap plus what its upgrade level adds.
+        unit.manaLevelCap = math.max(1, math.min(#self:GetCostLevels(), base.manaLevelStart + entry.manaLevelBonus))
+        return unit
     end
 
     method table GetCurrencies()
@@ -576,6 +730,15 @@ script BattleConfig extends Logic
         return nil
     end
 
+    method table GetBaseByProduct(string productId)
+        -- Returns the base definition sold by a World Shop product id (UnitTable ProductId), or nil.
+        if productId == nil or productId == "" then return nil end
+        for _, unit in pairs(self:GetUnits()) do
+            if unit.kind == "base" and unit.productId == productId then return unit end
+        end
+        return nil
+    end
+
     method table GetStage(string stageId)
         -- Returns one stage definition from StageTable, or nil when the id is unknown.
         local stages = self._T.stages
@@ -601,6 +764,8 @@ script BattleConfig extends Logic
                         -- Chest (ChestTable id) opened for the player on a win; blank = none.
                         rewardChest = self:OptText(ds:GetCell(i, "RewardChest")) or "",
                         entryCost = self:Num(ds:GetCell(i, "EntryCost"), 0),
+                        -- The enemy side's base (UnitTable id, Kind = base). Blank = DefaultBaseId. Its HP is the stage's BaseHp.
+                        enemyBase = self:OptText(ds:GetCell(i, "EnemyBase")) or self.DefaultBaseId,
                         unlockStage = ds:GetCell(i, "UnlockStage") or "",
                         loopPool = pool,
                         loopStartInterval = self:Num(ds:GetCell(i, "LoopStartInterval"), 6),

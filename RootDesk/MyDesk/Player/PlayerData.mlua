@@ -10,11 +10,11 @@ script PlayerData extends Component
     @TargetUserSync property integer Meso = 0
     @TargetUserSync property string UnitsCsv = ""
     @TargetUserSync property string DeckCsv = ""
+    -- The base in the deck's base slot (UnitTable id, Kind = base). Owned bases are listed in UnitsCsv with their upgrade level.
+    @TargetUserSync property string SelectedBase = ""
     @TargetUserSync property string StagesCsv = ""
     -- Collected unit cards as "id:count,...". Cards are won in battle and spent to level a unit up.
     @TargetUserSync property string CardsCsv = ""
-    -- Highest in-battle cost level this player may reach (raised with meso in the lobby).
-    @TargetUserSync property integer CostLevelCap = 3
     -- Wallet as "currencyId:amount:nextAt,...". nextAt is the _UtilLogic.ServerElapsedSeconds at which the
     -- next +1 arrives in this room (0 = not refilling). Written by the server only (PublishWallet).
     @TargetUserSync property string WalletCsv = ""
@@ -60,6 +60,18 @@ script PlayerData extends Component
         return ids
     end
 
+    method string GetSelectedBaseId()
+        -- Returns the base the player brings to battle: the selected one when it is owned, else the default base.
+        local levels = self:GetUnitLevels()
+        if self.SelectedBase ~= "" and levels[self.SelectedBase] ~= nil then return self.SelectedBase end
+        return _BattleConfig.DefaultBaseId
+    end
+
+    method integer GetBaseUpgradeLevel(string baseId)
+        -- Returns an owned base's upgrade level (1 = not upgraded), or 1 when it is not owned.
+        return self:GetUnitLevels()[baseId] or 1
+    end
+
     method boolean IsStageCleared(string stageId)
         -- Returns true when the stage has been cleared at least once.
         for id in string.gmatch(self.StagesCsv, "[^,]+") do
@@ -100,11 +112,12 @@ script PlayerData extends Component
             self.StagesCsv = data.stages or ""
             self.CardsCsv = data.cards or ""
             self.StonesCsv = data.stones or ""
-            self.CostLevelCap = math.max(_BattleConfig.DefaultCostLevelCap, math.floor(data.costCap or 0))
+            self.SelectedBase = data.base or ""
             self:LoadPurchases(data.purchases)
             -- An account saved before a currency existed receives that currency's start amount once.
             local granted = self:LoadWallet(data.wallet)
             self:GrantMissingStarters()
+            if self:NormalizeBase() then granted = true end
             if granted then
                 self:MarkDirty()
                 self:Save(false)
@@ -135,12 +148,15 @@ script PlayerData extends Component
             table.insert(units, id .. ":1")
             if #deck < _BattleConfig.DeckSize then table.insert(deck, id) end
         end
+        -- Starter bases are owned too (they are not deck cards); the first one goes into the base slot.
+        local starterBases = _BattleConfig:GetStarterBaseIds()
+        for _, id in ipairs(starterBases) do table.insert(units, id .. ":1") end
+        self.SelectedBase = starterBases[1] or _BattleConfig.DefaultBaseId
         self.Meso = 0
         self.UnitsCsv = table.concat(units, ",")
         self.DeckCsv = table.concat(deck, ",")
         self.StagesCsv = ""
         self.CardsCsv = ""
-        self.CostLevelCap = _BattleConfig.DefaultCostLevelCap
     end
 
     @ExecSpace("ServerOnly")
@@ -148,7 +164,10 @@ script PlayerData extends Component
         -- Existing players receive starter units added to the table after their account was created.
         local levels = self:GetUnitLevels()
         local added = 0
-        for _, id in ipairs(_BattleConfig:GetStarterUnitIds()) do
+        local starters = {}
+        for _, id in ipairs(_BattleConfig:GetStarterUnitIds()) do table.insert(starters, id) end
+        for _, id in ipairs(_BattleConfig:GetStarterBaseIds()) do table.insert(starters, id) end
+        for _, id in ipairs(starters) do
             if levels[id] == nil then
                 if self.UnitsCsv == "" then
                     self.UnitsCsv = id .. ":1"
@@ -164,6 +183,23 @@ script PlayerData extends Component
             self:Save(false)
             log("[PlayerData] granted " .. tostring(added) .. " new starter units")
         end
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean NormalizeBase()
+        -- Makes sure the base slot holds an owned base (first load of a base-less save, or a base that was removed from
+        -- the table). Returns true when the value changed, so the caller saves.
+        local levels = self:GetUnitLevels()
+        local unit = _BattleConfig:GetUnit(self.SelectedBase)
+        if self.SelectedBase ~= "" and levels[self.SelectedBase] ~= nil and unit ~= nil and unit.kind == "base" then return false end
+        local pick = _BattleConfig.DefaultBaseId
+        for _, id in ipairs(_BattleConfig:GetStarterBaseIds()) do
+            pick = id
+            break
+        end
+        self.SelectedBase = pick
+        log("[VRF] PlayerData base slot set to " .. pick)
+        return true
     end
 
     -- ===== Save =====
@@ -197,7 +233,7 @@ script PlayerData extends Component
     method string BuildPayload()
         -- Serializes everything that is stored for this player.
         return _HttpService:JSONEncode({
-            meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, stages = self.StagesCsv, cards = self.CardsCsv, costCap = self.CostLevelCap,
+            meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, base = self.SelectedBase, stages = self.StagesCsv, cards = self.CardsCsv,
             stones = self.StonesCsv,
             wallet = self:ExportWallet(), purchases = table.concat(self._T.purchases or {}, ","),
         })
@@ -420,6 +456,27 @@ script PlayerData extends Component
         return true
     end
 
+    @ExecSpace("ServerOnly")
+    method boolean GrantBasePurchase(string purchaseId, string baseId)
+        -- Delivers a World Shop purchase of a base (it becomes owned at upgrade level 1). Same contract as GrantPurchase:
+        -- true when delivered (or already was), false when it must be retried.
+        if self.Loaded == false or self._T.purchases == nil then return false end
+        for _, id in ipairs(self._T.purchases) do
+            if id == purchaseId then
+                log("[PlayerData] purchase " .. purchaseId .. " was already delivered")
+                return true
+            end
+        end
+        local reason = self:GrantBase(baseId)
+        if reason ~= "" and reason ~= "already owned" then return false end
+        table.insert(self._T.purchases, purchaseId)
+        while #self._T.purchases > self.PurchaseHistorySize do table.remove(self._T.purchases, 1) end
+        self:MarkDirty()
+        self:Save(false)
+        log("[PlayerData] purchase " .. purchaseId .. " delivered base " .. baseId)
+        return true
+    end
+
     -- ===== Mutations (server) =====
 
     @ExecSpace("ServerOnly")
@@ -597,6 +654,8 @@ script PlayerData extends Component
         local levels = self:GetUnitLevels()
         local level = levels[unitId]
         if level == nil then return "not owned" end
+        local unit = _BattleConfig:GetUnit(unitId)
+        if unit ~= nil and unit.kind == "base" then return "bases are upgraded with UpgradeBase" end
         if level >= _BattleConfig:GetMaxLevel() then return "max level" end
         local entry = _BattleConfig:GetLevels()[level]
         local cost = math.floor(entry.upgradeCost)
@@ -617,15 +676,54 @@ script PlayerData extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method string UnlockCostLevel()
-        -- Raises the in-battle cost level cap by one with meso. Returns "" on success or the reason it was refused.
+    method string GrantBase(string baseId)
+        -- Makes a base owned at upgrade level 1 (no save; the caller saves). Returns "" or the reason it was refused.
+        local unit = _BattleConfig:GetUnit(baseId)
+        if unit == nil or unit.kind ~= "base" then return "not a base" end
+        if self:GetUnitLevels()[baseId] ~= nil then return "already owned" end
+        if self.UnitsCsv == "" then
+            self.UnitsCsv = baseId .. ":1"
+        else
+            self.UnitsCsv = self.UnitsCsv .. "," .. baseId .. ":1"
+        end
+        self:MarkDirty()
+        return ""
+    end
+
+    @ExecSpace("ServerOnly")
+    method string SelectBase(string baseId)
+        -- Puts an owned base into the deck's base slot. Returns "" on success or the reason it was refused.
         if self.Loaded == false then return "not loaded" end
-        local nextLevel = _BattleConfig:GetCostLevels()[self.CostLevelCap + 1]
-        if nextLevel == nil then return "max level" end
-        local price = math.floor(nextLevel.unlockMeso)
-        if self.Meso < price then return "not enough meso" end
-        self.Meso = self.Meso - price
-        self.CostLevelCap = self.CostLevelCap + 1
+        local unit = _BattleConfig:GetUnit(baseId)
+        if unit == nil or unit.kind ~= "base" then return "not a base" end
+        if unit.enemyOnly then return "enemy only" end
+        if self:GetUnitLevels()[baseId] == nil then return "not owned" end
+        if self.SelectedBase == baseId then return "" end
+        self.SelectedBase = baseId
+        self:MarkDirty()
+        self:Save(false)
+        return ""
+    end
+
+    @ExecSpace("ServerOnly")
+    method string UpgradeBase(string baseId)
+        -- Permanently upgrades an owned base by one level with meso (BaseLevelTable: more max HP, cheaper mana upgrades in
+        -- battle). Returns "" on success or the reason it was refused.
+        if self.Loaded == false then return "not loaded" end
+        local unit = _BattleConfig:GetUnit(baseId)
+        if unit == nil or unit.kind ~= "base" then return "not a base" end
+        local levels = self:GetUnitLevels()
+        local level = levels[baseId]
+        if level == nil then return "not owned" end
+        if level >= _BattleConfig:GetMaxBaseLevel() then return "max level" end
+        local cost = _BattleConfig:GetBaseLevel(level).upgradeCost
+        if cost <= 0 then return "max level" end
+        if self.Meso < cost then return "not enough meso" end
+        self.Meso = self.Meso - cost
+        levels[baseId] = level + 1
+        local parts = {}
+        for id in string.gmatch(self.UnitsCsv, "([^,:]+):%d+") do table.insert(parts, id .. ":" .. tostring(levels[id])) end
+        self.UnitsCsv = table.concat(parts, ",")
         self:MarkDirty()
         self:Save(false)
         return ""
@@ -641,6 +739,8 @@ script PlayerData extends Component
         local seen = {}
         for _, id in ipairs(deckIds) do
             if levels[id] == nil then return "not owned: " .. id end
+            local unit = _BattleConfig:GetUnit(id)
+            if unit == nil or unit.kind == "base" then return "not a deck card: " .. id end
             if seen[id] then return "duplicate: " .. id end
             seen[id] = true
         end
@@ -667,11 +767,19 @@ script PlayerData extends Component
     end
 
     @ExecSpace("Server")
-    method void RequestUnlockCostLevel()
-        -- Client request: raise the in-battle cost level cap.
+    method void RequestSelectBase(string baseId)
+        -- Client request: put an owned base into the deck's base slot.
         if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
-        local reason = self:UnlockCostLevel()
-        log("[PlayerData] unlock cost level -> " .. (reason == "" and "ok" or reason) .. " cap=" .. tostring(self.CostLevelCap) .. " meso=" .. tostring(self.Meso))
+        local reason = self:SelectBase(baseId)
+        log("[VRF] PlayerData select base " .. baseId .. " -> " .. (reason == "" and "ok" or reason) .. " selected=" .. self.SelectedBase)
+    end
+
+    @ExecSpace("Server")
+    method void RequestUpgradeBase(string baseId)
+        -- Client request: upgrade an owned base one level with meso.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        local reason = self:UpgradeBase(baseId)
+        log("[VRF] PlayerData upgrade base " .. baseId .. " -> " .. (reason == "" and "ok" or reason) .. " meso=" .. tostring(self.Meso) .. " units=" .. self.UnitsCsv)
     end
 
     @ExecSpace("Server")
@@ -682,6 +790,59 @@ script PlayerData extends Component
         for id in string.gmatch(deckCsv, "[^,]+") do table.insert(ids, id) end
         local reason = self:SetDeck(ids)
         log("[PlayerData] set deck -> " .. (reason == "" and "ok" or reason) .. " deck=" .. self.DeckCsv)
+    end
+
+    -- ===== Development cheats (Maker play only) =====
+    -- Asked for by the lobby's development bar (LobbyUI.SetupDevBar): summon stones, cards (and every unit unlocked),
+    -- meso, entry tickets, every stage cleared, or back to a new player's data. The bar is shown in Maker play only and
+    -- the server request refuses outside Maker play (Environment:IsMakerPlay), so a published world never grants anything.
+    property integer DevStoneAmount = 5
+    property integer DevCardAmount = 50
+    property integer DevMesoAmount = 100000
+    property integer DevTicketAmount = 50
+
+    @ExecSpace("Server")
+    method void RequestDevGrant(string action)
+        -- Client request (Maker play only): gives the requesting player test resources and saves.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        if Environment:IsMakerPlay() == false then
+            log_warning("[PlayerData] dev grant refused outside Maker play: " .. action)
+            return
+        end
+        if self.Loaded == false then return end
+        if action == "stones" then
+            for _, id in ipairs(_BattleConfig:GetChestIds()) do self:AddStones(id, self.DevStoneAmount) end
+        elseif action == "cards" then
+            -- Every card unit: unlocked at level 1 when not owned yet, plus DevCardAmount cards of it.
+            local owned = self:GetUnitLevels()
+            for _, rarity in ipairs(_BattleConfig:GetRarities()) do
+                for _, unitId in ipairs(_BattleConfig:GetUnitsByRarity(rarity)) do
+                    if owned[unitId] == nil then
+                        if self.UnitsCsv == "" then
+                            self.UnitsCsv = unitId .. ":1"
+                        else
+                            self.UnitsCsv = self.UnitsCsv .. "," .. unitId .. ":1"
+                        end
+                    end
+                    self:AddCards(unitId, self.DevCardAmount)
+                end
+            end
+        elseif action == "meso" then
+            self.Meso = self.Meso + self.DevMesoAmount
+        elseif action == "tickets" then
+            self:AddCurrency(_BattleConfig.EntryCurrencyId, self.DevTicketAmount)
+        elseif action == "stages" then
+            self.StagesCsv = table.concat(_BattleConfig:GetStageIds(), ",")
+        elseif action == "reset" then
+            self:GiveStarterSet()
+            self.StonesCsv = ""
+        else
+            log_warning("[PlayerData] unknown dev grant " .. action)
+            return
+        end
+        self:MarkDirty()
+        self:Save(false)
+        log("[VRF] [PlayerData] dev grant " .. action .. " -> meso=" .. tostring(self.Meso) .. " units=" .. self.UnitsCsv .. " cards=" .. self.CardsCsv .. " stones=" .. self.StonesCsv .. " stages=" .. self.StagesCsv .. " wallet=" .. self.WalletCsv)
     end
 
 end

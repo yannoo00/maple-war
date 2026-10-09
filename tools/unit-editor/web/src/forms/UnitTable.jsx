@@ -2,23 +2,23 @@ import { useState } from 'react';
 import { api } from '../api.js';
 import { MODES } from '../modes.js';
 import { Thumb } from '../ui.jsx';
-import { unitIconRuid } from '../unit.js';
+import { SORT_OPTIONS, sortUnits, unitIconRuid } from '../unit.js';
 
-const KIND_TABS = [['', '전체'], ['monster', '몬스터'], ['build', '설치물'], ['skill', '스킬']];
+const KIND_TABS = [['', '전체'], ['monster', '몬스터'], ['build', '설치물'], ['skill', '스킬'], ['base', '기지']];
 const COLUMNS = [
   { key: 'Name', label: '이름', type: 'text' },
   { key: 'Kind', label: '종류' },
   { key: 'Rarity', label: '등급', type: 'enum' },
-  { key: 'Cost', label: '코스트', type: 'number' },
+  { key: 'Cost', label: '마나', type: 'number' },
   { key: 'Attack', label: '공격력', type: 'number' },
   { key: 'MaxHp', label: '체력', type: 'number' },
+  { key: 'Speed', label: '이동속도', type: 'number' },
   { key: 'AttackType', label: '공격타입', type: 'enum' },
 ];
 
 // 요약 표: 몬스터/설치물/스킬을 한 표에서 보고 바로 고친다. 저장은 유닛 편집과 같은 검증·저장 API를 쓴다.
-export default function UnitTable({ data, edits, setEdits, filterKind, setFilterKind, search, setSearch, onOpen, onSaved }) {
+export default function UnitTable({ data, edits, setEdits, filterKind, setFilterKind, search, setSearch, sort, setSort, onOpen, onSaved }) {
   const { schema } = data;
-  const [sort, setSort] = useState({ key: '', dir: 1 });
   const [errors, setErrors] = useState({});   // UnitId -> 메시지 목록
   const [busy, setBusy] = useState(false);
   const fieldOf = (key) => schema.fields.find((f) => f.key === key);
@@ -29,12 +29,8 @@ export default function UnitTable({ data, edits, setEdits, filterKind, setFilter
   let rows = data.units
     .filter((u) => schema.kinds.includes(u.Kind) && (!filterKind || u.Kind === filterKind))
     .filter((u) => !q || u.UnitId.toLowerCase().includes(q) || (u.Name || '').toLowerCase().includes(q));
-  if (sort.key) {
-    const num = ['Cost', 'Attack', 'MaxHp'].includes(sort.key);
-    const order = sort.key === 'Rarity' ? schema.fields.find((f) => f.key === 'Rarity').enum : null;
-    const k = (u) => { const v = value(u, sort.key); return order ? order.indexOf(v) : num ? (v === '' ? -Infinity : Number(v)) : v; };
-    rows = [...rows].sort((a, b) => (k(a) > k(b) ? 1 : k(a) < k(b) ? -1 : 0) * sort.dir);
-  }
+  // 저장된 값으로 정렬한다(입력 중에 행이 뒤섞이지 않도록).
+  rows = sortUnits(rows, sort.key, sort.dir, schema.fields.find((f) => f.key === 'Rarity').enum);
 
   const edit = (id, key, v, original) => setEdits((cur) => {
     const row = { ...cur[id], [key]: v };
@@ -71,6 +67,9 @@ export default function UnitTable({ data, edits, setEdits, filterKind, setFilter
           <button key={kind} className={`tab ${filterKind === kind ? 'on' : ''}`} onClick={() => setFilterKind(kind)}>{label}</button>
         ))}
         <input type="text" placeholder="이름 / id 검색" value={search} onChange={(e) => setSearch(e.target.value)} style={{ maxWidth: 240 }} />
+        <select value={sort.key} onChange={(e) => setSort({ ...sort, key: e.target.value })} style={{ width: 'auto' }}>
+          {SORT_OPTIONS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+        </select>
         <span className="muted">{rows.length}개</span>
         <span className="spacer" />
         {ids.length > 0 && <span className="muted">{ids.length}개 유닛 수정됨</span>}
@@ -89,7 +88,7 @@ export default function UnitTable({ data, edits, setEdits, filterKind, setFilter
           {rows.length === 0 && <tr><td colSpan={COLUMNS.length + 2} className="muted">없음</td></tr>}
           {rows.flatMap((u) => {
             const out = [(
-              <tr key={u.UnitId}>
+              <tr key={u.UnitId} className={`r-${u.Rarity || 'normal'}`}>
                 <td><Thumb ruid={unitIconRuid(u)} /></td>
                 {COLUMNS.map((c) => {
                   const changed = edits[u.UnitId] && c.key in edits[u.UnitId];

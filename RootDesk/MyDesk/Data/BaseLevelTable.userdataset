@@ -1,7 +1,7 @@
 {
   "Id": "",
   "GameId": "",
-  "EntryKey": "userdataset://395d0f54-a2c6-4d39-a27d-2cf745089989",
+  "EntryKey": "userdataset://491fe8d6-0bc4-44dc-a2c8-ff8286f7effa",
   "ContentType": "x-mod/userdataset",
   "Content": "",
   "Usage": 0,
@@ -13,8 +13,8 @@
   "ContentProto": {
     "Use": "Json",
     "Json": {
-      "name": "StageWaveTable",
-      "id": "395d0f54-a2c6-4d39-a27d-2cf745089989",
+      "name": "BaseLevelTable",
+      "id": "491fe8d6-0bc4-44dc-a2c8-ff8286f7effa",
       "serveronly": false,
       "syncDataSetWebUrl": "",
       "dynamicloading": 0

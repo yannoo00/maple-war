@@ -7132,6 +7132,138 @@
           ],
           "@version": 1
         }
+      },
+      {
+        "id": "9937e9b0-89f2-42be-9d92-57c9b8313eb9",
+        "path": "/maps/battle3/AllyPortal",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "AllyPortal",
+          "path": "/maps/battle3/AllyPortal",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 5,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -13.4,
+                "y": -1.008,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 0.4,
+                "y": 0.4,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 1,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer0"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "mapobject",
+            "sub_entity_id": null,
+            "root_entity_id": "9937e9b0-89f2-42be-9d92-57c9b8313eb9",
+            "replaced_model_id": null
+          }
+        }
+      },
+      {
+        "id": "4eb83a73-75bd-4d34-a986-cc4afae475c2",
+        "path": "/maps/battle3/EnemyPortal",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "EnemyPortal",
+          "path": "/maps/battle3/EnemyPortal",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 6,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -2.58911467,
+                "y": -1.008,
+                "z": 0
+              },
+              "QuaternionRotation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 1
+              },
+              "Scale": {
+                "x": 0.4,
+                "y": 0.4,
+                "z": 1
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "Color": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              },
+              "DrawMode": 0,
+              "FlipX": false,
+              "FlipY": false,
+              "PlayRate": 1,
+              "OrderInLayer": 1,
+              "StartFrameIndex": 0,
+              "EndFrameIndex": 2147483647,
+              "Enable": true,
+              "SortingLayer": "MapLayer0"
+            }
+          ],
+          "@version": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "mapobject",
+            "sub_entity_id": null,
+            "root_entity_id": "4eb83a73-75bd-4d34-a986-cc4afae475c2",
+            "replaced_model_id": null
+          }
+        }
       }
     ]
   }

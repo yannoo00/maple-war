@@ -4,17 +4,21 @@
 // Columns are listed in CSV order; the tool reads the real header from the file and keeps unknown
 // columns untouched, so adding a column to the CSV never breaks the tool.
 
-const KINDS = ['monster', 'build', 'skill'];
+const KINDS = ['monster', 'build', 'skill', 'base'];
+// Kinds that are cards played from the hand (a base is chosen into the deck's separate base slot instead).
+const CARD_KINDS = ['monster', 'build', 'skill'];
 
-const KIND_LABELS = { monster: '몬스터', build: '설치물', skill: '스킬' };
+const KIND_LABELS = { monster: '몬스터', build: '설치물', skill: '스킬', base: '기지' };
 
 const ENUMS = {
   Rarity: ['normal', 'rare', 'epic', 'unique', 'legendary'],
   AttackType: ['melee', 'ranged', 'melee_area', 'ranged_area'],
   Attribute: ['earth', 'water', 'fire', 'wind', 'light', 'dark'],
+  BaseSkillType: ['active', 'passive'],
 };
 
 const ENUM_LABELS = {
+  BaseSkillType: { active: '능동 (HUD 버튼, 쿨타임)', passive: '패시브 (쿨타임마다 자동)' },
   Rarity: { normal: '노멀', rare: '레어', epic: '에픽', unique: '유니크', legendary: '레전더리' },
   AttackType: { melee: '근거리', ranged: '원거리', melee_area: '근거리 범위', ranged_area: '원거리 범위' },
   Attribute: { earth: '땅', water: '물', fire: '화염', wind: '바람', light: '빛', dark: '어둠' },
@@ -23,11 +27,12 @@ const ENUM_LABELS = {
 const GROUPS = [
   { id: 'id', label: '식별', kinds: KINDS },
   { id: 'card', label: '카드', kinds: KINDS },
-  { id: 'combat', label: '전투 수치', kinds: ['monster', 'build'] },
+  { id: 'combat', label: '전투 수치', kinds: ['monster', 'build', 'base'] },
   { id: 'timing', label: '공격 타이밍 (화면 보고 맞추는 값)', kinds: ['monster', 'build'] },
   { id: 'clip', label: '애니메이션 RUID', kinds: ['monster', 'build'] },
-  { id: 'fx', label: '공격 연출 (클라이언트 전용)', kinds: ['monster', 'build'] },
+  { id: 'fx', label: '공격 연출 (클라이언트 전용)', kinds: ['monster', 'build', 'base'] },
   { id: 'monster', label: '속성 · 넉백 (몬스터 전용)', kinds: ['monster'] },
+  { id: 'base', label: '기지 (마나 · 스킬 · 판매)', kinds: ['base'] },
   { id: 'skill', label: '스킬', kinds: ['skill'] },
   { id: 'memo', label: '메모', kinds: KINDS },
 ];
@@ -43,16 +48,16 @@ const FIELDS = [
   { key: 'Rarity', group: 'id', type: 'enum', enum: ENUMS.Rarity, label: '등급', kinds: KINDS, default: 'normal',
     help: '카드 테두리 색만 결정' },
 
-  { key: 'Cost', group: 'card', type: 'number', label: '소환 코스트', required: KINDS, kinds: KINDS },
-  { key: 'IconRuid', group: 'card', type: 'ruid', label: '스킬 카드 아이콘', kinds: ['skill'],
-    help: '카드·상점·덱에 보이는 그림. 빈칸 = 범위 이펙트의 썸네일' },
+  { key: 'Cost', group: 'card', type: 'number', label: '소환 마나', required: CARD_KINDS, kinds: CARD_KINDS },
+  { key: 'IconRuid', group: 'card', type: 'ruid', label: '카드 아이콘 (스킬·기지)', kinds: ['skill', 'base'],
+    help: '카드·덱에 보이는 그림. 스킬은 빈칸 = 범위 이펙트의 썸네일. 기지는 스프라이트 RUID(카드 목록·덱의 기지 칸에 나옴)' },
   { key: 'SpawnCount', group: 'card', type: 'int', label: '한 번에 소환하는 수', kinds: ['monster'],
     help: '빈칸 = 1마리. 2 이상이면 카드 한 장으로 여러 마리(군단): 첫 마리는 바로, 나머지는 0.25초 간격(전투 설정 MultiSpawnInterval). 마리당 능력치는 이 행의 값' },
   { key: 'Starter', group: 'card', type: 'bool', label: '스타터 지급', kinds: KINDS, default: '0',
     help: '1 = 신규 유저가 처음부터 가짐. 0이어도 상자에서 나옴(상자는 같은 등급의 모든 카드 유닛을 뽑음)' },
 
-  { key: 'MaxHp', group: 'combat', type: 'number', label: '최대 HP', required: ['monster', 'build'], kinds: ['monster', 'build'],
-    help: '레벨 StatRate 배율 적용' },
+  { key: 'MaxHp', group: 'combat', type: 'number', label: '최대 HP', required: ['monster', 'build', 'base'], kinds: ['monster', 'build', 'base'],
+    help: '몬스터·설치물은 레벨 StatRate 배율, 기지는 강화 레벨(BaseLevelTable HpRate) 배율. 적 기지는 스테이지 BaseHp가 이 값을 덮어씀' },
   { key: 'Attack', group: 'combat', type: 'number', label: '공격력', required: ['monster', 'build'], kinds: ['monster', 'build'],
     help: '0이면 공격하지 않음' },
   { key: 'Range', group: 'combat', type: 'number', label: '사거리', required: ['monster', 'build'], kinds: ['monster', 'build'],
@@ -99,8 +104,8 @@ const FIELDS = [
   // Monsters and builds have no HP bar any more (BattleFx.ShowUnitBars = false); BarY now only sets how high the effect
   // icons (knockback, curse ...) float above the unit. BarWidth only sizes the base towers' bar, so no card kind fills it
   // (kinds: [] keeps it out of the form; the base row keeps its value).
-  { key: 'BarY', group: 'fx', type: 'number', label: '효과 아이콘 높이', kinds: ['monster', 'build'], help: '머리 위 효과 아이콘이 뜨는 높이. 빈칸 = BattleFx 기본값(0.8). 보통 0.5~1.15' },
-  { key: 'BarWidth', group: 'fx', type: 'number', label: 'HP 바 너비 (기지 전용)', kinds: [] },
+  { key: 'BarY', group: 'fx', type: 'number', label: '효과 아이콘 높이 (기지는 HP 바 높이)', kinds: ['monster', 'build', 'base'], help: '머리 위 효과 아이콘이 뜨는 높이. 빈칸 = BattleFx 기본값(0.8). 보통 0.5~1.15' },
+  { key: 'BarWidth', group: 'fx', type: 'number', label: 'HP 바 너비 (기지 전용)', kinds: ['base'] },
 
   { key: 'Attribute', group: 'monster', type: 'enum', enum: ENUMS.Attribute, label: '속성', kinds: ['monster'],
     help: '지금은 어떤 규칙에도 쓰이지 않음(상성·효과 확률 없음). 나중을 위해 남겨 둔 칸' },
@@ -122,6 +127,17 @@ const FIELDS = [
     help: '스킬을 쓸 때 재생되는 소리. 칸 아래에서 미리 들어 볼 수 있음. 빈칸 = 소리 없음' },
   { key: 'SkillSoundDelay', group: 'skill', type: 'number', label: '효과음 재생 시점(초)', kinds: ['skill'],
     help: '시전 후 몇 초에 재생할지. 빈칸 = 이펙트와 동시. 보통 피해 시점(SkillHitDelay)에 맞춤' },
+
+  { key: 'ManaStart', group: 'base', type: 'number', label: '시작 마나', kinds: ['base'], help: '전투 시작 때 마나. 빈칸 = 공용 기본값(BattleConfig.CostStart 100)' },
+  { key: 'ManaLevelStart', group: 'base', type: 'int', label: '마나 적응 레벨 한도 (강화 전)', kinds: ['base'], help: '강화하지 않은 기지가 전투 중 올릴 수 있는 마나 적응(마나 레벨)의 최대 레벨. 기지 강화 레벨이 오르면 BaseLevelTable의 ManaLevelBonus만큼 늘어남. 빈칸 = 3' },
+  { key: 'ManaMaxRate', group: 'base', type: 'number', label: '마나 최대 배율', kinds: ['base'], default: '1', help: '마나 레벨 표(CostLevelTable)의 최대치에 곱함. 빈칸 = 1' },
+  { key: 'ManaRegenRate', group: 'base', type: 'number', label: '마나 회복 배율', kinds: ['base'], default: '1', help: '마나 레벨 표의 회복 속도에 곱함. 빈칸 = 1' },
+  { key: 'BaseSkill', group: 'base', type: 'text', label: '기지 스킬 (스킬 유닛 id)', kinds: ['base'], help: '마나 0짜리 스킬 카드처럼 쓴다. 이 표의 스킬 행 id. 빈칸 = 스킬 없음' },
+  { key: 'BaseSkillType', group: 'base', type: 'enum', enum: ENUMS.BaseSkillType, label: '스킬 종류', kinds: ['base'], default: 'active',
+    help: '능동 = 플레이어가 HUD 버튼으로 조준해 씀(적 기지는 쿨타임이 끝나면 자동). 패시브 = 쿨타임이 끝날 때마다 자동으로 가장 가까운 적에게' },
+  { key: 'BaseSkillCooldown', group: 'base', type: 'number', label: '스킬 쿨타임(초)', kinds: ['base'], help: '전투 시작부터 첫 사용까지도 이 시간' },
+  { key: 'ProductId', group: 'base', type: 'text', label: '월드 상품 ID', kinds: ['base'], help: 'Worldcoin으로 파는 월드 상품의 ID. 빈칸 = 판매 안 함(카드에 "준비 중")' },
+  { key: 'EnemyOnly', group: 'base', type: 'bool', label: '적 전용', kinds: ['base'], default: '0', help: '1 = 플레이어의 카드 목록에 나오지 않고 스테이지의 적 기지로만 쓰임' },
 
   { key: '#Memo', group: 'memo', type: 'memo', label: '메모', kinds: KINDS, help: '코드가 읽지 않음. 적은 메모가 아니라 스테이지 등장(시간표·반복 풀)으로 정해짐' },
 ];
@@ -149,16 +165,22 @@ const RULE_TRIGGERS = [
   { id: 'always', label: '항상 (특성)', target: 'self' },
 ];
 
+// 스킬의 동작 줄(SkillActionTable): 스킬 하나에 여러 줄. BattleSkills.mlua가 실행한다.
+const SKILL_ACTIONS = ['damage', 'heal', 'effect'];
+const SKILL_TEAMS = ['enemy', 'ally', 'all'];
+const SKILL_KINDS = ['monster', 'build', 'base'];
+
 const EFFECT_FIELDS = [
   { key: 'EffectId', type: 'text', label: '효과 ID', required: true,
     help: '영문 소문자·숫자·밑줄. 유닛의 효과 규칙(UnitEffectTable)이 이 값을 가리킴' },
   { key: 'Type', type: 'text', label: '동작 타입', required: true,
-    help: '코드가 분기하는 키. 기존: nullify / curse / warp / blow. 새 타입을 적으면 "미구현"으로 표시되고, 메모의 설명을 보고 Claude가 구현함' },
+    help: '코드가 분기하는 키(BattleEffects.mlua의 등록부). 적에게 거는 것: nullify / curse / warp / blow / poison. 자신의 특성: might(괴력) / titan(타이탄) / tough(맷집) / siege(공성) / swamp(늪지대). 새 타입을 적으면 "미구현"으로 표시되고, 메모의 설명을 보고 Claude가 구현함' },
   { key: 'Name', type: 'text', label: '표시 이름', required: true },
   { key: 'Duration', type: 'number', label: '지속 시간(초) · 기본값', required: true, help: '유닛의 규칙이 덮어쓸 수 있음. nullify·curse: 효과 유지 / warp: 정지 시간 / blow: 밀리는 시간. 특성(always)으로 쓸 때는 무시됨(사는 동안 지속)' },
-  { key: 'Power', type: 'number', label: '세기 · 기본값', default: '0', help: '유닛의 규칙이 덮어쓸 수 있음. warp·blow: 거리(사거리와 같은 단위) / curse: 공격력 감소 % (50 = 절반). 다른 타입은 의미를 메모에 적을 것' },
+  { key: 'Power', type: 'number', label: '세기 · 기본값', default: '0', help: '유닛의 규칙이 덮어쓸 수 있음. warp·blow: 거리(사거리와 같은 단위) / curse: 공격력 감소 %(50 = 절반) / poison: 초당 피해 / might: 추가 피해 %(100 = 2배) / tough: 받는 피해 감소 %. 다른 타입은 의미를 메모에 적을 것' },
   { key: 'Applies', type: 'enum', enum: EFFECT_APPLIES, label: '쓸 수 있는 대상', default: 'target',
     help: '적에게 거는 효과면 target, 자신의 특성이면 self, 둘 다 되면 both. 유닛의 규칙이 이 값과 맞지 않으면 저장이 막힘' },
+  { key: 'Param', type: 'text', label: '글자 값', help: '숫자로 못 적는 값이 필요한 타입만. spawn: 소환할 유닛 ID(몬스터)' },
   { key: 'IconRuid', type: 'ruid', label: '아이콘', help: '효과에 걸린 유닛 머리 위에 뜨는 그림. 빈칸 = 코드의 기본 픽셀 아이콘' },
   { key: '#Memo', type: 'memo', label: '효과 설명 (구현 스펙)',
     help: '코드는 읽지 않음. 미구현 타입이면 이 설명이 Claude에게 넘길 구현 스펙이 됨: 누구에게, 얼마 동안, 무엇이 일어나는지' },
@@ -177,7 +199,8 @@ const STAGE_FIELDS = [
   { key: 'Name', type: 'text', label: '표시 이름', required: true },
   { key: 'MapName', type: 'map', label: '전투 맵', required: true, help: 'map/ 폴더의 .map 이름 (확장자 없이)' },
   { key: 'GroundY', type: 'number', label: '바닥 높이(GroundY)', required: true, help: '이 맵의 바닥 y. 유닛·포탈이 이 높이에 선다' },
-  { key: 'BaseHp', type: 'number', label: '기지 HP', required: true, help: '양쪽 기지 HP. UnitTable의 base 행 값을 덮어씀' },
+  { key: 'BaseHp', type: 'number', label: '적 기지 HP', required: true, help: '적 기지의 HP(스테이지 난이도). 플레이어 기지의 HP는 고른 기지와 강화 레벨로 정해짐' },
+  { key: 'EnemyBase', type: 'baseunit', label: '적 기지', help: '적이 쓰는 기지(UnitTable의 기지). 빈칸 = 기본 기지(base). 기지 스킬이 있으면 적도 씀' },
   { key: 'RewardMeso', type: 'number', label: '클리어 보상 메소', default: '0' },
   { key: 'RewardCards', type: 'number', label: '클리어 보상 카드 수', default: '0', help: '전투 결과에서 주는 카드 수 (BattleDirector가 읽음)' },
   { key: 'EntryCost', type: 'number', label: '입장 비용(입장권)', default: '0' },
@@ -204,6 +227,7 @@ function fieldsForKind(kind) {
 
 module.exports = {
   KINDS,
+  CARD_KINDS,
   KIND_LABELS,
   ENUMS,
   ENUM_LABELS,
@@ -215,6 +239,9 @@ module.exports = {
   fieldsForKind,
   EFFECT_APPLIES,
   RULE_TRIGGERS,
+  SKILL_ACTIONS,
+  SKILL_TEAMS,
+  SKILL_KINDS,
   EFFECT_FIELDS,
   EFFECT_FIELD_BY_KEY,
   EFFECT_ID_PATTERN,

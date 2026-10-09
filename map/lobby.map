@@ -1,0 +1,228 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "map://lobby",
+  "ContentType": "x-mod/map",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.10.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Binary",
+    "Entities": [
+      {
+        "id": "b60b28e2-8d98-4bf1-90c9-cf43c1ac92ec",
+        "path": "/maps/lobby",
+        "componentNames": "MOD.Core.MapComponent,MOD.Core.FootholdComponent",
+        "jsonString": {
+          "name": "lobby",
+          "path": "/maps/lobby",
+          "nameEditable": false,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 0,
+          "pathConstraints": "//",
+          "revision": 1,
+          "modelId": null,
+          "@components": [
+            {
+              "@type": "MOD.Core.MapComponent",
+              "IsInstanceMap": false,
+              "TileMapMode": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.FootholdComponent",
+              "FootholdsByLayer": {},
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "b8116127-da3a-4ac3-979c-d23df2c07447",
+        "path": "/maps/lobby/Background",
+        "componentNames": "MOD.Core.BackgroundComponent",
+        "jsonString": {
+          "name": "Background",
+          "path": "/maps/lobby/Background",
+          "nameEditable": false,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 0,
+          "pathConstraints": "///",
+          "revision": 1,
+          "modelId": null,
+          "@components": [
+            {
+              "@type": "MOD.Core.BackgroundComponent",
+              "TemplateRUID": "a05b161cb332425bb979390c4d75cde9",
+              "Type": 1,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "53ca3819-9c01-44a5-977a-25eacefd313a",
+        "path": "/maps/lobby/MapleMapLayer",
+        "componentNames": "MOD.Core.MapLayerComponent",
+        "jsonString": {
+          "name": "MapleMapLayer",
+          "path": "/maps/lobby/MapleMapLayer",
+          "nameEditable": false,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 1,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "maplemaplayer",
+            "sub_entity_id": null,
+            "root_entity_id": null,
+            "replaced_model_id": null
+          },
+          "modelId": "maplemaplayer",
+          "@components": [
+            {
+              "@type": "MOD.Core.MapLayerComponent",
+              "IsVisible": true,
+              "LayerSortOrder": 0,
+              "Locked": false,
+              "MapLayerName": "Layer1",
+              "Thumbnail": "",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+        "path": "/maps/lobby/TileMap",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.TileMapComponent",
+        "jsonString": {
+          "name": "TileMap",
+          "path": "/maps/lobby/TileMap",
+          "nameEditable": false,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 2,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "tilemap",
+            "sub_entity_id": null,
+            "root_entity_id": null,
+            "replaced_model_id": null
+          },
+          "modelId": "tilemap",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -0.225,
+                "y": -0.15,
+                "z": 1000.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.TileMapComponent",
+              "IsOddGridPosition": false,
+              "SortingLayer": "MapLayer0",
+              "TileMapVersion": 1,
+              "TileSetRUID": {
+                "DataId": "af2a321b445a44a691dadad38646d88b"
+              },
+              "Tiles": [],
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "8ecf5451-f243-493b-b90f-91ab674d2452",
+        "path": "/maps/lobby/item-728",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "item-728",
+          "path": "/maps/lobby/item-728",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 3,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "ItemAsset",
+            "sub_entity_id": null,
+            "root_entity_id": "8ecf5451-f243-493b-b90f-91ab674d2452",
+            "replaced_model_id": null
+          },
+          "modelId": "itemasset",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": 4.35409737,
+                "y": 1.56128168,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "f0a837e479104a488fa8c3003420b69d",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      }
+    ]
+  }
+}

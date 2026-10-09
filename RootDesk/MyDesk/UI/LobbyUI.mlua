@@ -22,7 +22,9 @@ script LobbyUI extends Component
     property TextGUIRendererComponent deckTitle = "1d5a7119-286c-47af-a77d-c5a07a6ce359"
     property Entity deckSlot = "0f34464a-cfcc-4a30-bf27-d6f1f91f3cb9"
     property Entity collectionTile = "05439b32-df4a-4a03-8a8f-fb3908c5ce15"
-    property Entity capButton = "978e0fec-922d-418a-a1d5-315320c528d0"
+    -- Deck screen sort buttons: the key (rarity / cost) and the direction (ascending / descending) of the card tiles.
+    property Entity sortKeyButton = "ad9135fd-cfc8-440b-995c-eb253782c88e"
+    property Entity sortDirButton = "d9aac3a0-f8b3-4422-b8c8-a3f189602473"
     property Entity shopRow = "5caa3dd8-5041-415b-a902-7436445522d6"
     property TextGUIRendererComponent ticketText = "6689281e-c16f-4cbb-be3d-1d6a382a9e7f"
     property Entity ticketButton = "7e088d7b-0575-4603-9c7f-e9f1381bc4f8"
@@ -46,6 +48,8 @@ script LobbyUI extends Component
     property Entity summonActionButton = "daecdeb7-8f16-4c66-be3d-fc46f1e11160"
     -- Summon reveal (modal): effect clip, then one screen per summoned card kind; its children are found by name.
     property Entity revealPanel = "306da072-cf77-4280-a82d-e875b4e0a741"
+    -- Development bar at the bottom of the lobby (test grants). Shown in Maker play only; its buttons are found by name.
+    property Entity devBar = "5c8e4f53-deec-42d8-9dab-07443bc32c6d"
     @HideFromInspector property string Screen = "main"
     @HideFromInspector property string SelectedStage = ""
     property table clickHandlers = {}
@@ -69,7 +73,8 @@ script LobbyUI extends Component
         self:Bind(self.shopButton, function() self:OnMenuClicked("shop") end)
         self:Bind(self.backButton, function() self:OnBackClicked() end)
         self:Bind(self.enterButton, function() self:OnEnterClicked() end)
-        self:Bind(self.capButton, function() self:OnCapClicked() end)
+        self:Bind(self.sortKeyButton, function() self:OnSortClicked(true) end)
+        self:Bind(self.sortDirButton, function() self:OnSortClicked(false) end)
         -- The top bar "+" buttons and the shop tabs open the currency shop / chest shop.
         self:Bind(self.ticketButton, function() self:OnMenuClicked("ticket") end)
         self:Bind(self.premiumButton, function() self:OnMenuClicked("ticket") end)
@@ -90,6 +95,7 @@ script LobbyUI extends Component
         end
         if isvalid(self.chestPanel) then self.chestPanel.Enable = false end
         if isvalid(self.unitInfoPanel) then self.unitInfoPanel.Enable = false end
+        self:SetupDevBar()
         log("[LobbyUI] initialized handlers=" .. tostring(#self.clickHandlers))
     end
 
@@ -114,6 +120,50 @@ script LobbyUI extends Component
         self.clickHandlers = {}
     end
 
+    -- ===== Development bar (Maker play only) =====
+
+    @ExecSpace("ClientOnly")
+    method void SetupDevBar()
+        -- Shows the development bar only while playing in Maker and wires its buttons to the server-side test grants
+        -- (PlayerData.RequestDevGrant, which refuses outside Maker play as well).
+        if not isvalid(self.devBar) then return end
+        local dev = Environment:IsMakerPlay()
+        self.devBar.Enable = dev
+        log("[VRF] [LobbyUI] dev bar shown=" .. tostring(dev))
+        if dev == false then return end
+        local actions = { StonesBtn = "stones", CardsBtn = "cards", MesoBtn = "meso", TicketsBtn = "tickets", StagesBtn = "stages", ResetBtn = "reset" }
+        for name, action in pairs(actions) do
+            local devAction = action
+            self:Bind(self.devBar:GetChildByName(name), function() self:OnDevClicked(devAction) end)
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnDevClicked(string action)
+        -- A development bar button: asks the server for that test grant. Reset wipes the save, so it needs a second
+        -- click within 3 seconds.
+        ---@type PlayerData
+        local data = self:GetData()
+        if data == nil then return end
+        _BattleSound:Play("click")
+        local resetButton = self.devBar:GetChildByName("ResetBtn")
+        if action == "reset" then
+            local now = _UtilLogic.ElapsedSeconds
+            if self._T.devResetAt == nil or now - self._T.devResetAt > 3 then
+                self._T.devResetAt = now
+                if isvalid(resetButton) then resetButton.TextGUIRendererComponent.Text = "한 번 더 누르면 초기화" end
+                _TimerService:SetTimerOnce(function()
+                    if isvalid(resetButton) then resetButton.TextGUIRendererComponent.Text = "초기화" end
+                end, 3)
+                return
+            end
+            self._T.devResetAt = nil
+            if isvalid(resetButton) then resetButton.TextGUIRendererComponent.Text = "초기화" end
+        end
+        log("[VRF] [LobbyUI] dev button " .. action)
+        data:RequestDevGrant(action)
+    end
+
     -- ===== Data access =====
 
     @ExecSpace("ClientOnly")
@@ -127,16 +177,56 @@ script LobbyUI extends Component
     @ExecSpace("ClientOnly")
     method table GetOwnableUnits()
         -- Returns every card unit definition (monster / build / skill) in table order; all of them come from chests.
+        -- Bases (except enemy-only ones) are listed too: they look like cards but fill the deck's separate base slot.
         local list = self._T.ownable
         if list ~= nil then return list end
         list = {}
         for _, unit in pairs(_BattleConfig:GetUnits()) do
-            local playable = unit.kind == "monster" or unit.kind == "build" or unit.kind == "skill"
+            local playable = unit.kind == "monster" or unit.kind == "build" or unit.kind == "skill" or (unit.kind == "base" and unit.enemyOnly == false)
             if playable then table.insert(list, unit) end
         end
         table.sort(list, function(a, b) return a.order < b.order end)
         self._T.ownable = list
         return list
+    end
+
+    @ExecSpace("ClientOnly")
+    method table GetSortedUnits()
+        -- Returns the card units ordered for the collection: by rarity (default) or by cost, ascending or descending.
+        -- Ties fall back to the other key, then to the table order.
+        local key = self._T.sortKey or "rarity"
+        local dir = self._T.sortDir or 1
+        local list = {}
+        for _, unit in ipairs(self:GetOwnableUnits()) do table.insert(list, unit) end
+        local function rank(unit) return _BattleConfig:GetRarityRank(unit.rarity) end
+        table.sort(list, function(a, b)
+            local first, second
+            if key == "cost" then
+                first, second = { a.cost, b.cost }, { rank(a), rank(b) }
+            else
+                first, second = { rank(a), rank(b) }, { a.cost, b.cost }
+            end
+            if first[1] ~= first[2] then
+                if dir > 0 then return first[1] < first[2] end
+                return first[1] > first[2]
+            end
+            if second[1] ~= second[2] then return second[1] < second[2] end
+            return a.order < b.order
+        end)
+        return list
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnSortClicked(boolean changeKey)
+        -- Sort button: the key button switches rarity / cost, the arrow button flips ascending / descending.
+        _BattleSound:Play("click")
+        if changeKey then
+            if (self._T.sortKey or "rarity") == "rarity" then self._T.sortKey = "cost" else self._T.sortKey = "rarity" end
+        else
+            self._T.sortDir = -(self._T.sortDir or 1)
+        end
+        log("[VRF] [LobbyUI] collection sort key=" .. tostring(self._T.sortKey or "rarity") .. " dir=" .. tostring(self._T.sortDir or 1))
+        self:Render()
     end
 
     @ExecSpace("ClientOnly")
@@ -171,7 +261,7 @@ script LobbyUI extends Component
         ---@type PlayerData
         local data = player:GetComponent("script.PlayerData")
         if data == nil then return end
-        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.StagesCsv .. "|" .. tostring(data.CostLevelCap) .. "|" .. data.WalletCsv .. "|" .. data.CardsCsv .. "|" .. data.StonesCsv
+        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.StagesCsv .. "|" .. data.WalletCsv .. "|" .. data.CardsCsv .. "|" .. data.StonesCsv
         if signature ~= view.signature then
             view.signature = signature
             log("[LobbyUI] data changed loaded=" .. tostring(data.Loaded) .. " meso=" .. tostring(data.Meso) .. " units=" .. data.UnitsCsv .. " deck=" .. data.DeckCsv .. " stages=" .. data.StagesCsv .. " wallet=" .. data.WalletCsv)
@@ -465,9 +555,40 @@ script LobbyUI extends Component
             self.deckTitle.Text = "내 덱 (" .. tostring(#deck) .. " / " .. tostring(deckSize) .. ")"
         end
         local inDeck = {}
-        local rows = self:SyncPool("slot", self.deckSlot, deckSize, "", function(item) self:SelectCard("slot", item.key) end)
+        -- The first row is the deck's base slot (not counted in the deck size); the card rows follow it.
+        local rows = self:SyncPool("slot", self.deckSlot, deckSize + 1, "", function(item) self:SelectCard("slot", item.key) end)
+        local baseItem = rows[1]
+        self:BindCardMenu(baseItem, "slot")
+        local baseId = data:GetSelectedBaseId()
+        local baseCfg = _BattleConfig:GetUnit(baseId)
+        if baseCfg ~= nil then
+            baseItem.key = baseId
+            self:SetChildText(baseItem.entity, "Name", "기지 · " .. baseCfg.name)
+            self:SetChildText(baseItem.entity, "Level", "Lv " .. tostring(levels[baseId] or 1))
+            self:SetChildIcon(baseItem.entity, baseId)
+            _BattleConfig:PaintRarityFrame(baseItem.entity, baseId)
+        else
+            baseItem.key = ""
+            self:SetChildText(baseItem.entity, "Name", "기지 없음")
+            self:SetChildText(baseItem.entity, "Level", "")
+            self:SetChildIcon(baseItem.entity, "")
+            _BattleConfig:PaintRarityFrame(baseItem.entity, "")
+        end
+        self:SetChildEnable(baseItem.entity, "Cost", false)
+        baseItem.entity.ButtonComponent.Enable = baseCfg ~= nil
+        local baseMenu = baseItem.entity:GetChildByName("Menu")
+        local baseOpen = baseCfg ~= nil and self:IsSelected("slot", baseItem.key)
+        if isvalid(baseMenu) then
+            if baseOpen then
+                self:PaintInfoButton(baseMenu:GetChildByName("InfoBtn"), self:GetUpgradeState(data, baseItem.key).ready)
+                -- The base slot cannot be emptied; a base is replaced by choosing another one in the collection.
+                local removeButton = baseMenu:GetChildByName("RemoveBtn")
+                if isvalid(removeButton) and removeButton.Enable then removeButton.Enable = false end
+            end
+            if baseMenu.Enable ~= baseOpen then baseMenu.Enable = baseOpen end
+        end
         for i = 1, deckSize do
-            local item = rows[i]
+            local item = rows[i + 1]
             self:BindCardMenu(item, "slot")
             local unitId = deck[i]
             local cfg = nil
@@ -505,7 +626,9 @@ script LobbyUI extends Component
         -- One tile per card unit: portrait, summon cost badge, level band, rarity frame, card progress towards the
         -- next level (green when it can level up now) and a deck mark. Units not owned yet are shaded; their menu
         -- only offers 정보.
-        local units = self:GetOwnableUnits()
+        local units = self:GetSortedUnits()
+        if isvalid(self.sortKeyButton) then self.sortKeyButton.TextGUIRendererComponent.Text = (self._T.sortKey or "rarity") == "cost" and "마나순" or "등급순" end
+        if isvalid(self.sortDirButton) then self.sortDirButton.TextGUIRendererComponent.Text = (self._T.sortDir or 1) > 0 and "오름" or "내림" end
         local tiles = self:SyncPool("collection", self.collectionTile, #units, "", function(item) self:SelectCard("collection", item.key) end)
         local summary = {}
         for i, unit in ipairs(units) do
@@ -515,9 +638,14 @@ script LobbyUI extends Component
             local state = self:GetUpgradeState(data, unit.id)
             self:SetChildIcon(item.entity, unit.id)
             _BattleConfig:PaintRarityFrame(item.entity, unit.id)
-            self:SetChildText(item.entity, "CostBadge", tostring(math.floor(unit.cost)))
+            local isBase = unit.kind == "base"
+            -- A base is "in the deck" when it is the one in the base slot.
+            local used = inDeck[unit.id] == true
+            if isBase then used = data:GetSelectedBaseId() == unit.id end
+            self:SetChildEnable(item.entity, "CostBadge", isBase == false)
+            if isBase == false then self:SetChildText(item.entity, "CostBadge", tostring(math.floor(unit.cost))) end
             self:SetChildEnable(item.entity, "Dim", state.owned == false)
-            self:SetChildEnable(item.entity, "InDeck", inDeck[unit.id] == true)
+            self:SetChildEnable(item.entity, "InDeck", used)
             local progress = item.entity:GetChildByName("Progress")
             local fill = nil
             if isvalid(progress) then
@@ -525,7 +653,29 @@ script LobbyUI extends Component
                 -- The count sits on a label above the fill bar; the bar panel's own text stays empty.
                 progress.TextGUIRendererComponent.Text = ""
             end
-            if state.owned == false then
+            if isBase then
+                -- Bases: "기지" level band, upgrade progress as level / top level, and what the player can do next.
+                if state.owned == false then
+                    self:SetChildText(item.entity, "Level", "미보유")
+                    if isvalid(progress) then self:SetChildText(progress, "Label", unit.productId ~= "" and "구매 가능" or "준비 중") end
+                    if isvalid(fill) then fill.SpriteGUIRendererComponent.FillAmount = 0 end
+                    table.insert(summary, unit.id .. "=none")
+                else
+                    self:SetChildText(item.entity, "Level", "기지 Lv " .. tostring(state.level))
+                    if isvalid(progress) then
+                        self:SetChildText(progress, "Label", state.maxed and "최대 강화" or ("강화 " .. tostring(state.cost) .. " 메소"))
+                    end
+                    if isvalid(fill) then
+                        fill.SpriteGUIRendererComponent.FillAmount = math.min(1, state.level / _BattleConfig:GetMaxBaseLevel())
+                        if state.ready then
+                            fill.SpriteGUIRendererComponent.Color = Color(0.36, 0.84, 0.4, 1)
+                        else
+                            fill.SpriteGUIRendererComponent.Color = Color(0.27, 0.6, 1, 1)
+                        end
+                    end
+                    table.insert(summary, unit.id .. "=B" .. tostring(state.level) .. (used and "*" or "") .. (state.ready and "+" or ""))
+                end
+            elseif state.owned == false then
                 self:SetChildText(item.entity, "Level", "미보유")
                 if isvalid(progress) then self:SetChildText(progress, "Label", "소환으로 획득") end
                 if isvalid(fill) then fill.SpriteGUIRendererComponent.FillAmount = 0 end
@@ -559,12 +709,17 @@ script LobbyUI extends Component
                     self:PaintInfoButton(menu:GetChildByName("InfoBtn"), state.ready)
                     local action = menu:GetChildByName("ActionBtn")
                     if isvalid(action) then
-                        if inDeck[unit.id] == true then
+                        local actionEnabled = state.owned
+                        if isBase then
+                            -- A base cannot be taken out of its slot, only replaced by another one.
+                            action.TextGUIRendererComponent.Text = used and "사용 중" or "사용"
+                            actionEnabled = state.owned and used == false
+                        elseif used then
                             action.TextGUIRendererComponent.Text = "제거"
                         else
                             action.TextGUIRendererComponent.Text = "사용"
                         end
-                        if action.Enable ~= state.owned then action.Enable = state.owned end
+                        if action.Enable ~= actionEnabled then action.Enable = actionEnabled end
                     end
                 end
                 if menu.Enable ~= open then menu.Enable = open end
@@ -577,6 +732,21 @@ script LobbyUI extends Component
     method table GetUpgradeState(PlayerData data, string unitId)
         -- Returns a unit's level progress: { owned, level, have, need, cost, maxed, ready }.
         -- ready = it can level up right now (enough cards and meso); the server checks again.
+        -- A base has no cards: it is upgraded with meso alone (BaseLevelTable), so need = 0 and ready = enough meso.
+        local unitCfg = _BattleConfig:GetUnit(unitId)
+        if unitCfg ~= nil and unitCfg.kind == "base" then
+            local baseLevel = data:GetUnitLevels()[unitId]
+            local baseState = { owned = baseLevel ~= nil, level = baseLevel or 1, have = 0, need = 0, cost = 0, maxed = false, ready = false }
+            if baseLevel == nil then return baseState end
+            local price = _BattleConfig:GetBaseLevel(baseLevel).upgradeCost
+            if baseLevel >= _BattleConfig:GetMaxBaseLevel() or price <= 0 then
+                baseState.maxed = true
+                return baseState
+            end
+            baseState.cost = price
+            baseState.ready = data.Meso >= price
+            return baseState
+        end
         local level = data:GetUnitLevels()[unitId]
         local state = { owned = level ~= nil, level = level or 1, have = data:GetCardCounts()[unitId] or 0, need = 0, cost = 0, maxed = false, ready = false }
         if level == nil then return state end
@@ -650,6 +820,11 @@ script LobbyUI extends Component
         ---@type PlayerData
         local data = self:GetData()
         if data == nil or unitId == "" then return end
+        local unitCfg = _BattleConfig:GetUnit(unitId)
+        if unitCfg ~= nil and unitCfg.kind == "base" then
+            self:SelectBaseCard(unitId)
+            return
+        end
         for _, id in ipairs(data:GetDeckIds()) do
             if id == unitId then
                 self:RemoveFromDeck(unitId)
@@ -660,11 +835,34 @@ script LobbyUI extends Component
     end
 
     @ExecSpace("ClientOnly")
+    method void SelectBaseCard(string baseId)
+        -- Collection menu 사용 on a base: puts that owned base into the deck's base slot.
+        ---@type PlayerData
+        local data = self:GetData()
+        if data == nil or baseId == "" then return end
+        if data:GetUnitLevels()[baseId] == nil then
+            log("[LobbyUI] base " .. baseId .. " is not owned, not selected")
+            return
+        end
+        if data:GetSelectedBaseId() == baseId then return end
+        _BattleSound:Play("click")
+        log("[VRF] LobbyUI base selected " .. baseId)
+        self._T.selection = nil
+        data:RequestSelectBase(baseId)
+        self:Render()
+    end
+
+    @ExecSpace("ClientOnly")
     method void AddToDeck(string unitId)
         -- Appends an owned unit that is not in the deck to the first empty slot and sends the new deck.
         ---@type PlayerData
         local data = self:GetData()
         if data == nil or unitId == "" then return end
+        local addCfg = _BattleConfig:GetUnit(unitId)
+        if addCfg ~= nil and addCfg.kind == "base" then
+            self:SelectBaseCard(unitId)
+            return
+        end
         if data:GetUnitLevels()[unitId] == nil then
             log("[LobbyUI] " .. unitId .. " is not owned, not added to the deck")
             return
@@ -721,6 +919,26 @@ script LobbyUI extends Component
         local data = self:GetData()
         if data == nil or unitId == "" then return end
         local state = self:GetUpgradeState(data, unitId)
+        local clickedCfg = _BattleConfig:GetUnit(unitId)
+        if clickedCfg ~= nil and clickedCfg.kind == "base" then
+            -- A base: buy it when it is not owned (World Shop), otherwise upgrade it with meso.
+            if state.owned == false then
+                if clickedCfg.productId ~= "" then
+                    _BattleSound:Play("click")
+                    log("[VRF] LobbyUI base purchase window requested " .. unitId .. " product=" .. clickedCfg.productId)
+                    _WorldShopService:PromptPurchase(clickedCfg.productId)
+                end
+                return
+            end
+            if state.ready == false then
+                log("[LobbyUI] base " .. unitId .. " cannot be upgraded yet meso=" .. tostring(data.Meso) .. " cost=" .. tostring(state.cost))
+                return
+            end
+            _BattleSound:Play("click")
+            log("[VRF] LobbyUI base upgrade requested " .. unitId .. " cost=" .. tostring(state.cost))
+            data:RequestUpgradeBase(unitId)
+            return
+        end
         if state.ready == false then
             log("[LobbyUI] " .. unitId .. " cannot level up yet cards=" .. tostring(state.have) .. "/" .. tostring(state.need) .. " meso=" .. tostring(data.Meso))
             return
@@ -763,23 +981,44 @@ script LobbyUI extends Component
         if base == nil then return end
         local state = self:GetUpgradeState(data, unitId)
         local unit = _BattleConfig:GetUnitAtLevel(unitId, state.level) or base
+        local isBase = base.kind == "base"
+        -- A base's stats come from its own upgrade table (BaseLevelTable), not the card level table.
+        if isBase then unit = _BattleConfig:GetBaseAtLevel(unitId, state.level) or base end
         local box = window:GetChildByName("IconBox")
         if isvalid(box) then
             self:SetChildIcon(box, unitId)
             _BattleConfig:PaintRarityFrame(box, unitId)
-            self:SetChildText(box, "CostBadge", tostring(math.floor(base.cost)))
+            self:SetChildEnable(box, "CostBadge", isBase == false)
+            if isBase == false then self:SetChildText(box, "CostBadge", tostring(math.floor(base.cost))) end
         end
         self:SetChildText(window, "Name", base.name)
         local sub = self:KindLabel(base.kind) .. " · " .. _BattleConfig:GetRarityLabel(base.rarity)
         if state.owned then
-            sub = sub .. " · 레벨 " .. tostring(state.level)
+            sub = sub .. (isBase and " · 강화 " or " · 레벨 ") .. tostring(state.level)
         else
             sub = sub .. " · 미보유"
         end
         self:SetChildText(window, "Sub", sub)
         local lines = {}
-        table.insert(lines, "소환 코스트  " .. self:FormatNumber(base.cost))
-        if base.kind == "skill" then
+        if isBase then
+            table.insert(lines, "HP  " .. self:FormatNumber(unit.maxHp))
+            table.insert(lines, "시작 마나  " .. self:FormatNumber(base.manaStart or _BattleConfig.CostStart))
+            table.insert(lines, "마나 최대  ×" .. self:FormatNumber(base.manaMaxRate) .. "     마나 회복  ×" .. self:FormatNumber(base.manaRegenRate))
+            -- The mana level cap grows with the base's upgrade level; show the next step while it can still be upgraded.
+            local capLine = "마나 적응 한도  Lv " .. tostring(unit.manaLevelCap)
+            if state.owned and state.maxed == false then
+                local following = _BattleConfig:GetBaseAtLevel(unitId, state.level + 1)
+                if following ~= nil and following.manaLevelCap > unit.manaLevelCap then capLine = capLine .. "  (강화 시 Lv " .. tostring(following.manaLevelCap) .. ")" end
+            end
+            table.insert(lines, capLine)
+            local discount = unit.manaDiscount or 0
+            if discount > 0 then table.insert(lines, "마나 적응 강화 비용  -" .. self:FormatNumber(discount * 100) .. "%") end
+        else
+            table.insert(lines, "소환 마나  " .. self:FormatNumber(base.cost))
+        end
+        if isBase then
+            -- (the base's lines are above)
+        elseif base.kind == "skill" then
             table.insert(lines, "피해  " .. self:FormatNumber(unit.damage))
             table.insert(lines, "범위  " .. self:FormatNumber(base.radius))
         else
@@ -793,9 +1032,24 @@ script LobbyUI extends Component
             if attribute ~= "" then table.insert(lines, "속성  " .. attribute) end
         end
         self:SetChildText(window, "Stats", table.concat(lines, "\n"))
-        self:SetChildText(window, "Effect", self:DescribeEffect(base))
+        if isBase then
+            self:SetChildText(window, "Effect", self:DescribeBaseSkill(base))
+        else
+            self:SetChildText(window, "Effect", self:DescribeEffect(base))
+        end
         local progress = ""
-        if state.owned == false then
+        if isBase and state.owned == false then
+            if base.productId ~= "" then
+                progress = "Worldcoin으로 구매하면\n사용할 수 있습니다."
+            else
+                progress = "아직 판매 준비 중입니다."
+            end
+        elseif isBase and state.maxed then
+            progress = "최대 강화입니다."
+        elseif isBase then
+            progress = "강화 비용 메소 " .. tostring(state.cost)
+            if data.Meso < state.cost then progress = progress .. "\n메소가 부족합니다." end
+        elseif state.owned == false then
             progress = "소환의 돌로 카드를 얻으면\n사용할 수 있습니다."
         elseif state.maxed then
             progress = "최대 레벨입니다."
@@ -810,10 +1064,27 @@ script LobbyUI extends Component
         self:SetChildText(window, "Progress", progress)
         local upgrade = window:GetChildByName("UpgradeBtn")
         if isvalid(upgrade) then
+            local actionEnabled = state.ready
             if state.ready then upgrade.TextGUIRendererComponent.Text = "강화 " .. tostring(state.cost) end
-            if upgrade.Enable ~= state.ready then upgrade.Enable = state.ready end
+            if isBase and state.owned == false then
+                -- An unowned base offers the World Shop purchase when it has a product.
+                actionEnabled = base.productId ~= ""
+                if actionEnabled then upgrade.TextGUIRendererComponent.Text = "구매" end
+            end
+            if upgrade.Enable ~= actionEnabled then upgrade.Enable = actionEnabled end
         end
         log("[LobbyUI] unit info rendered " .. unitId .. " level=" .. tostring(state.level) .. " owned=" .. tostring(state.owned) .. " ready=" .. tostring(state.ready) .. " cost=" .. tostring(state.cost))
+    end
+
+    @ExecSpace("ClientOnly")
+    method string DescribeBaseSkill(table base)
+        -- Describes a base's skill for the info popup: active (cooldown, used from the battle HUD) or passive (automatic).
+        if base.baseSkill == "" then return "기지 스킬  없음" end
+        local skill = _BattleConfig:GetUnit(base.baseSkill)
+        if skill == nil then return "기지 스킬  없음" end
+        local kind = "능동 · 쿨타임 " .. self:FormatNumber(base.baseSkillCooldown) .. "초"
+        if base.baseSkillType == "passive" then kind = "패시브 · " .. self:FormatNumber(base.baseSkillCooldown) .. "초마다 자동" end
+        return "기지 스킬  " .. skill.name .. " (" .. kind .. ", 피해 " .. self:FormatNumber(skill.damage) .. ", 범위 " .. self:FormatNumber(skill.radius) .. ")"
     end
 
     @ExecSpace("ClientOnly")
@@ -831,11 +1102,16 @@ script LobbyUI extends Component
                 if rule.trigger == "on_hit" then
                     table.insert(parts, "공격 시 " .. self:FormatNumber(rule.chance) .. "%")
                     if duration > 0 then table.insert(parts, "지속 " .. self:FormatNumber(duration) .. "초") end
+                elseif effect.type == "might" then
+                    table.insert(parts, "공격마다 " .. self:FormatNumber(rule.chance) .. "%")
                 else
                     table.insert(parts, "항상 자신에게")
                 end
                 if (effect.type == "warp" or effect.type == "blow") and power > 0 then table.insert(parts, "거리 " .. self:FormatNumber(power)) end
                 if effect.type == "curse" and power > 0 then table.insert(parts, "공격력 -" .. self:FormatNumber(power) .. "%") end
+                if effect.type == "poison" and power > 0 then table.insert(parts, "초당 피해 " .. self:FormatNumber(power)) end
+                if effect.type == "might" and power > 0 then table.insert(parts, "피해 +" .. self:FormatNumber(power) .. "%") end
+                if effect.type == "tough" and power > 0 then table.insert(parts, "받는 피해 -" .. self:FormatNumber(power) .. "%") end
                 table.insert(lines, "효과  " .. effect.name .. " — " .. self:EffectTypeDescription(effect.type) .. " (" .. table.concat(parts, ", ") .. ")")
             end
         end
@@ -845,11 +1121,17 @@ script LobbyUI extends Component
 
     @ExecSpace("ClientOnly")
     method string EffectTypeDescription(string effectType)
-        -- One-line description of an effect behavior (see BattleUnit:ReceiveEffect).
+        -- One-line description of an effect behavior (see BattleEffects:GetDefs).
         if effectType == "nullify" then return "맞은 몬스터의 공격이 이 유닛에게 통하지 않음" end
         if effectType == "curse" then return "맞은 몬스터의 공격력을 감소시킴" end
         if effectType == "warp" then return "맞은 몬스터를 즉시 뒤로 보내고 묶어 둠" end
         if effectType == "blow" then return "맞은 몬스터를 뒤로 날려버림" end
+        if effectType == "poison" then return "맞은 몬스터에게 지속 피해" end
+        if effectType == "might" then return "확률로 더 큰 피해를 입힘" end
+        if effectType == "titan" then return "넉백되지 않음" end
+        if effectType == "tough" then return "받는 피해가 줄어듦" end
+        if effectType == "siege" then return "몬스터를 무시하고 건물과 기지만 공격" end
+        if effectType == "swamp" then return "독 피해를 받지 않음" end
         return effectType
     end
 
@@ -860,7 +1142,7 @@ script LobbyUI extends Component
         return string.format("%.1f", value)
     end
 
-    -- ===== Shop (chests and cost level cap) =====
+    -- ===== Shop (chests) =====
 
     @ExecSpace("ClientOnly")
     method void RenderShop(PlayerData data)
@@ -868,20 +1150,6 @@ script LobbyUI extends Component
         local ids = _BattleConfig:GetChestIds()
         -- Remember what is owned before a chest is opened, so the result can mark newly unlocked units.
         self._T.ownedBefore = data:GetUnitLevels()
-        -- In-battle cost level cap: one button that unlocks the next level with meso.
-        if isvalid(self.capButton) then
-            local nextLevel = _BattleConfig:GetCostLevels()[data.CostLevelCap + 1]
-            local capLabel = "코스트 레벨 한도 Lv " .. tostring(data.CostLevelCap)
-            local capEnabled = false
-            if nextLevel == nil then
-                capLabel = capLabel .. " (최대)"
-            else
-                capLabel = capLabel .. " → " .. tostring(data.CostLevelCap + 1) .. " · " .. tostring(math.floor(nextLevel.unlockMeso)) .. " 메소"
-                capEnabled = data.Meso >= nextLevel.unlockMeso
-            end
-            self.capButton.TextGUIRendererComponent.Text = capLabel
-            self:SetButtonEnabled(self.capButton, capEnabled)
-        end
         local rows = self:SyncPool("shop", self.shopRow, #ids, "Action", function(item) self:OnShopActionClicked(item.key) end)
         local summary = {}
         local held = data:GetStoneCounts()
@@ -911,17 +1179,6 @@ script LobbyUI extends Component
             table.insert(summary, id .. "=" .. tostring(chest.priceMeso) .. (enabled and "+" or "-"))
         end
         log("[LobbyUI] shop rendered stones=" .. tostring(#ids) .. " meso=" .. tostring(data.Meso) .. " held=" .. data.StonesCsv .. " [" .. table.concat(summary, " ") .. "]")
-    end
-
-    @ExecSpace("ClientOnly")
-    method void OnCapClicked()
-        -- Sends a request to raise the in-battle cost level cap with meso.
-        ---@type PlayerData
-        local data = self:GetData()
-        if data == nil then return end
-        _BattleSound:Play("click")
-        log("[LobbyUI] cost cap unlock requested")
-        data:RequestUnlockCostLevel()
     end
 
     @ExecSpace("ClientOnly")

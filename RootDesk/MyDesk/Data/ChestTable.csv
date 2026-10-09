@@ -1,5 +1,5 @@
 ﻿ChestId,Name,Cards,ChanceNormal,ChanceRare,ChanceEpic,ChanceUnique,ChanceLegendary,Guarantee,PriceMeso,Rarity,IconRuid,#Memo
-normal,노말 소환의 돌,5,70,25,5,0,0,,300,normal,,"소환의 돌(등급별 뽑기). Cards = 돌 하나당 카드 수. Chance* = 카드 한 장의 등급 확률(%). Guarantee = 이 등급 이상이 최소 1장 보장(빈칸 = 없음). PriceMeso = 상점 가격(0 = 판매 안 함). Rarity = 돌의 등급(테두리 색). IconRuid = 이 등급만 쓸 아이콘(빈칸 = BattleConfig 기본 소환의 돌 아이콘). 수치는 전부 잠정값"
+normal,노말 소환의 돌,5,70,25,5,0,0,,300,normal,,"""소환의 돌(등급별 뽑기). Cards = 돌 하나당 카드 수. Chance* = 카드 한 장의 등급 확률(%). Guarantee = 이 등급 이상이 최소 1장 보장(빈칸 = 없음). PriceMeso = 상점 가격(0 = 판매 안 함). Rarity = 돌의 등급(테두리 색). IconRuid = 이 등급만 쓸 아이콘(빈칸 = BattleConfig 기본 소환의 돌 아이콘). 수치는 전부 잠정값"""
 rare,레어 소환의 돌,6,45,40,13,2,0,rare,800,rare,,
 epic,에픽 소환의 돌,8,20,40,30,9,1,epic,2000,epic,,
 unique,유니크 소환의 돌,10,5,25,40,25,5,unique,5000,unique,,

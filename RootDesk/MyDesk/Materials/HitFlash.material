@@ -1,0 +1,33 @@
+{
+  "Id": "",
+  "GameId": "",
+  "EntryKey": "material://1a2a6fc6-88a4-4bc5-96fc-a54e24ac588f",
+  "ContentType": "x-mod/material",
+  "Content": "",
+  "Usage": 0,
+  "UsePublish": 1,
+  "UseService": 0,
+  "CoreVersion": "26.10.0.0",
+  "StudioVersion": "0.1.0.0",
+  "DynamicLoading": 0,
+  "ContentProto": {
+    "Use": "Json",
+    "Json": {
+      "name": "HitFlash",
+      "id": "1a2a6fc6-88a4-4bc5-96fc-a54e24ac588f",
+      "shadertype": "ColorOverride",
+      "BlendColor": {
+        "r": 1.0,
+        "g": 1.0,
+        "b": 1.0,
+        "a": 1.0
+      },
+      "BlendIntensity": 1.0,
+      "LitMode": 0,
+      "TimeOffset": 0.0,
+      "TimeScale": 0.0,
+      "IsUIMaterial": false,
+      "RequiresUIStencilStateChange": false
+    }
+  }
+}

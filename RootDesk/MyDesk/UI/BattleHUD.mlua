@@ -10,10 +10,6 @@ script BattleHUD extends Component
     property Entity nextCard = "a5d88760-570a-4549-ae6d-4064dabd9a45"
     property TextGUIRendererComponent costText = "72569f18-c8ed-4434-a834-15eecbc46c00"
     property Entity hintText = "f91a8765-50c0-45b7-aaa1-4958e8617766"
-    property TextGUIRendererComponent allyHpText = "7500f34a-4dbf-454b-a622-bbed41c9c0db"
-    property TextGUIRendererComponent enemyHpText = "09161ae3-a861-4ae2-8704-115070d396af"
-    property UITransformComponent allyHpFill = "f4a07fbe-c85a-4d22-a639-1d17a629f942"
-    property UITransformComponent enemyHpFill = "c7249ef5-e749-4c15-9f87-eb41e6c590a3"
     property Entity resultPanel = "7dbea0c5-0735-4c23-91be-a514da25bba0"
     property TextGUIRendererComponent resultTitle = "9a5c134a-9e8a-48db-8a8c-2b9b91a04a42"
     property Entity restartButton = "5f7e38cf-9da6-47a9-ab56-153cefc9653f"
@@ -22,8 +18,10 @@ script BattleHUD extends Component
     property Entity lobbyButton = "177bfba2-0e4e-4206-97f5-2d4e28890fea"
     property Entity leaveButton = "d2dd96f0-9b59-4e54-a4a6-264ae4c6a6dd"
     property Entity costUpButton = "47981bee-9856-4688-bb7d-1f67bf65d72e"
+    -- Base skill button (bottom right): shows the skill and its cooldown; pressing it starts aiming (an active base skill only).
+    property Entity baseSkillButton = "f845c541-f689-4534-b291-ee82be67df62"
+    property any baseSkillHandler = nil
     property any costUpHandler = nil
-    property number HpBarWidth = 400
     -- Highlight when a new card arrives in a hand slot: it swells by ReadyPulseScale and settles over ReadyPulseSeconds.
     property number ReadyPulseSeconds = 0.3
     property number ReadyPulseScale = 0.18
@@ -78,6 +76,10 @@ script BattleHUD extends Component
         if isvalid(self.costUpButton) then
             self.costUpHandler = self.costUpButton:ConnectEvent(ButtonClickEvent, self.OnCostUpClicked)
             self.costUpButton.Enable = false
+        end
+        if isvalid(self.baseSkillButton) then
+            self.baseSkillHandler = self.baseSkillButton:ConnectEvent(ButtonClickEvent, self.OnBaseSkillClicked)
+            self.baseSkillButton.Enable = false
         end
         if isvalid(self.hintText) then self.hintText.Enable = false end
         if isvalid(self.resultPanel) then self.resultPanel.Enable = false end
@@ -163,9 +165,9 @@ script BattleHUD extends Component
         -- Shows or hides the battle panels; the hint and result panel stay hidden until the battle state turns them on.
         if isvalid(self.slot1) then self.slot1.Parent:SetEnable(visible) end
         if isvalid(self.costText) then self.costText.Entity:SetEnable(visible) end
-        if isvalid(self.allyHpText) then self.allyHpText.Entity.Parent.Parent:SetEnable(visible) end
         if isvalid(self.leaveButton) then self.leaveButton:SetEnable(visible) end
         if isvalid(self.costUpButton) then self.costUpButton:SetEnable(visible) end
+        if isvalid(self.baseSkillButton) then self.baseSkillButton:SetEnable(visible) end
         if isvalid(self.hintText) then self.hintText.Enable = false end
         if isvalid(self.resultPanel) then self.resultPanel.Enable = false end
     end
@@ -179,6 +181,17 @@ script BattleHUD extends Component
         _BattleSound:Play("click")
         log("[BattleHUD] slot clicked " .. tostring(slot))
         commander:SelectSlot(slot)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnBaseSkillClicked()
+        -- Starts aiming the base skill through the Commander (the cooldown is checked there and again on the server).
+        ---@type Commander
+        local commander = self:GetCommander()
+        if commander == nil then return end
+        _BattleSound:Play("click")
+        log("[VRF] BattleHUD base skill clicked")
+        commander:SelectBaseSkill()
     end
 
     @ExecSpace("ClientOnly")
@@ -216,15 +229,42 @@ script BattleHUD extends Component
     end
 
     @ExecSpace("ClientOnly")
-    method void SetBaseHp(TextGUIRendererComponent label, UITransformComponent fill, string title, number hp, number maxHp)
-        -- Writes one base HP readout and resizes its fill bar.
-        if isvalid(label) then
-            label.Text = title .. " " .. tostring(math.floor(hp)) .. " / " .. tostring(math.floor(maxHp))
+    method void UpdateBaseSkillButton(any side, string state)
+        -- Shows the base skill on its button: nothing when the base has no skill, "패시브" for an automatic one, otherwise
+        -- the skill name with the seconds left, and the button is usable only when the cooldown is over.
+        ---@type BattleSide
+        local s = side
+        local button = self.baseSkillButton
+        if not isvalid(button) then return end
+        local view = self._T.view
+        local hasSkill = s.BaseSkillId ~= ""
+        if button.Enable ~= hasSkill then button.Enable = hasSkill end
+        if hasSkill == false then return end
+        local skill = _BattleConfig:GetUnit(s.BaseSkillId)
+        local name = skill ~= nil and skill.name or s.BaseSkillId
+        local label = ""
+        local usable = false
+        if s.BaseSkillType == "active" then
+            local left = s.BaseSkillReadyAt - _UtilLogic.ServerElapsedSeconds
+            if left > 0 then
+                label = "기지 스킬\n" .. name .. "\n" .. tostring(math.ceil(left)) .. "초"
+            else
+                label = "기지 스킬\n" .. name .. "\n사용 가능"
+                usable = state == "PLAYING"
+            end
+        else
+            label = "패시브\n" .. name
         end
-        if isvalid(fill) then
-            local ratio = 0
-            if maxHp > 0 then ratio = math.max(0, math.min(1, hp / maxHp)) end
-            fill.RectSize = Vector2(self.HpBarWidth * ratio, fill.RectSize.y)
+        if label ~= view.baseSkillLabel then
+            view.baseSkillLabel = label
+            button.TextGUIRendererComponent.Text = label
+        end
+        if usable ~= view.baseSkillUsable then
+            view.baseSkillUsable = usable
+            button.ButtonComponent.Enable = usable
+            local dim = button:GetChildByName("Dim")
+            if isvalid(dim) then dim.Enable = usable == false end
+            log("[VRF] BattleHUD base skill usable=" .. tostring(usable))
         end
     end
 
@@ -274,19 +314,21 @@ script BattleHUD extends Component
         if cost ~= view.cost then
             view.cost = cost
             if isvalid(self.costText) then
-                self.costText.Text = "코스트 " .. tostring(cost) .. " / " .. tostring(math.floor(mySide.CostMax))
+                self.costText.Text = "마나 " .. tostring(cost) .. " / " .. tostring(math.floor(mySide.CostMax))
             end
             -- Cost level button: shows the level and the price of the next one; dimmed when it cannot be bought now.
             if isvalid(self.costUpButton) then
                 local current = _BattleConfig:GetCostLevels()[mySide.CostLevel]
-                local atCap = mySide.CostLevel >= mySide.CostLevelCap or current == nil or current.upgradeCost <= 0
-                local label = "코스트 Lv " .. tostring(mySide.CostLevel)
+                -- The price already includes the base's upgrade discount (BattleSide.UpgradeCost).
+                local upgradePrice = mySide.UpgradeCost
+                local atCap = mySide.CostLevel >= mySide.CostLevelCap or current == nil or upgradePrice <= 0
+                local label = "마나 Lv " .. tostring(mySide.CostLevel)
                 local usable = false
                 if atCap then
                     label = label .. "\n최대"
                 else
-                    label = label .. "\n강화 " .. tostring(math.floor(current.upgradeCost))
-                    usable = cost >= current.upgradeCost and state == "PLAYING"
+                    label = label .. "\n강화 " .. tostring(math.floor(upgradePrice))
+                    usable = cost >= upgradePrice and state == "PLAYING"
                 end
                 if label ~= view.costUpLabel then
                     view.costUpLabel = label
@@ -307,20 +349,6 @@ script BattleHUD extends Component
             end
         end
 
-        ---@type BattleUnit
-        local myBase = mySide.Entity:GetComponent("script.BattleUnit")
-        ---@type BattleUnit
-        local otherBase = otherSide.Entity:GetComponent("script.BattleUnit")
-        local maxHp = myBase.MaxHp
-        if myBase.Hp ~= view.allyHp or maxHp ~= view.maxHp then
-            view.allyHp = myBase.Hp
-            self:SetBaseHp(self.allyHpText, self.allyHpFill, "아군 기지", view.allyHp, maxHp)
-        end
-        if otherBase.Hp ~= view.enemyHp or maxHp ~= view.maxHp then
-            view.enemyHp = otherBase.Hp
-            self:SetBaseHp(self.enemyHpText, self.enemyHpFill, "적 기지", view.enemyHp, maxHp)
-        end
-        view.maxHp = maxHp
 
         for _, slot in ipairs(slots) do
             if slot.cfg ~= nil then
@@ -340,6 +368,8 @@ script BattleHUD extends Component
                 end
             end
         end
+
+        self:UpdateBaseSkillButton(mySide, state)
 
         local pending = commander.PendingSlot
         if pending ~= view.pending then
@@ -440,6 +470,10 @@ script BattleHUD extends Component
             self.costUpButton:DisconnectEvent(ButtonClickEvent, self.costUpHandler)
         end
         self.costUpHandler = nil
+        if self.baseSkillHandler ~= nil and isvalid(self.baseSkillButton) then
+            self.baseSkillButton:DisconnectEvent(ButtonClickEvent, self.baseSkillHandler)
+        end
+        self.baseSkillHandler = nil
     end
 
 end

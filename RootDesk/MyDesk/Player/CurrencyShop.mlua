@@ -2,7 +2,8 @@
 script CurrencyShop extends Logic
 
     -- Server: delivers what a World Shop purchase (Worldcoin) bought. Products are the rows of
-    -- ShopProductTable; each gives an amount of one wallet currency to the buyer's PlayerData.
+    -- ShopProductTable; each gives an amount of one wallet currency to the buyer's PlayerData. A product id that is a
+    -- base's ProductId (UnitTable, Kind = base) gives that base instead.
     -- How long a delivery waits for the buyer's saved data to finish loading before it gives up
     -- (the platform then offers the purchase again the next time the buyer enters the world).
     property number LoadWaitSeconds = 5
@@ -21,8 +22,10 @@ script CurrencyShop extends Logic
         local userId = purchaseInfo.UserId
         local purchaseId = purchaseInfo.PurchaseId
         local product = _BattleConfig:GetShopProduct(productId)
-        if product == nil then
-            log_error("[CurrencyShop] delivery failed: product " .. tostring(productId) .. " is not in ShopProductTable. purchase=" .. tostring(purchaseId))
+        local baseProduct = nil
+        if product == nil then baseProduct = _BattleConfig:GetBaseByProduct(productId) end
+        if product == nil and baseProduct == nil then
+            log_error("[CurrencyShop] delivery failed: product " .. tostring(productId) .. " is neither in ShopProductTable nor a base's ProductId. purchase=" .. tostring(purchaseId))
             return false
         end
         local user = _UserService:GetUserEntityByUserId(userId)
@@ -39,6 +42,15 @@ script CurrencyShop extends Logic
             wait(0.2)
             waited = waited + 0.2
             if not isvalid(user) then return false end
+        end
+        if baseProduct ~= nil then
+            if data:GrantBasePurchase(purchaseId, baseProduct.id) == false then
+                log_error("[CurrencyShop] delivery failed: player data not ready. user=" .. tostring(userId) .. " purchase=" .. tostring(purchaseId))
+                return false
+            end
+            _LogStorageService:LogPurchaseInfo(purchaseInfo, "base " .. baseProduct.id)
+            log("[CurrencyShop] delivered product=" .. productId .. " user=" .. userId .. " purchase=" .. tostring(purchaseId) .. " base " .. baseProduct.id)
+            return true
         end
         if data:GrantPurchase(purchaseId, product.currencyId, product.amount) == false then
             log_error("[CurrencyShop] delivery failed: player data not ready. user=" .. tostring(userId) .. " purchase=" .. tostring(purchaseId))

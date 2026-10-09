@@ -104,8 +104,8 @@ button { white-space: nowrap; }
 .drop-preview .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 
 /* 유닛 요약 표 */
-main.table-view { padding: 0; }
-.table-view .tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 54px; z-index: 1; }
+main.table-view { padding: 0; overflow: visible; }   /* overflow가 있으면 main이 sticky 기준이 되어 도구줄이 어긋난다 */
+.table-view .tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: var(--header-h, 54px); z-index: 1; }
 table.units { border-collapse: collapse; width: 100%; background: var(--panel); }
 table.units th, table.units td { padding: 4px 8px; text-align: left; border-bottom: 1px solid var(--line); }
 table.units th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
@@ -113,3 +113,19 @@ table.units td input[type=text], table.units td select { padding: 3px 6px; }
 table.units td input.num { max-width: 90px; }
 table.units td.changed { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 table.units .thumb { width: 36px; height: 36px; }
+
+/* 등급별 배경색 (인게임 등급 테두리 색과 같은 계열) */
+:root {
+  --r-normal: 150 150 150; --r-rare: 64 140 255; --r-epic: 168 84 247; --r-unique: 255 217 51; --r-legendary: 153 242 64;
+}
+.row.r-normal, table.units tr.r-normal { --r: var(--r-normal); }
+.row.r-rare, table.units tr.r-rare { --r: var(--r-rare); }
+.row.r-epic, table.units tr.r-epic { --r: var(--r-epic); }
+.row.r-unique, table.units tr.r-unique { --r: var(--r-unique); }
+.row.r-legendary, table.units tr.r-legendary { --r: var(--r-legendary); }
+.row[class*="r-"] { background: rgb(var(--r) / .16); box-shadow: inset 4px 0 0 rgb(var(--r)); }
+.row[class*="r-"]:hover { background: rgb(var(--r) / .28); }
+.row[class*="r-"].on { background: rgb(var(--r) / .42); }
+table.units tr[class*="r-"] > td { background: rgb(var(--r) / .14); }
+table.units tr[class*="r-"] > td:first-child { box-shadow: inset 4px 0 0 rgb(var(--r)); }
+table.units tr[class*="r-"] > td.changed { background: color-mix(in srgb, var(--accent) 30%, rgb(var(--r) / .14)); }

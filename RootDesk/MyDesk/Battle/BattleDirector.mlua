@@ -12,6 +12,12 @@ script BattleDirector extends Component
     @Sync property string RewardCardsCsv = ""
     @Sync property number AllyBaseX = 0
     @Sync property number EnemyBaseX = 0
+    -- Where each side's units appear. Read from the map's portal entities (AllyPortal / EnemyPortal), so a portal moved
+    -- in Maker moves the spawn point with it; a map without them spawns SpawnOffsetX in front of the tower.
+    @Sync property number AllySpawnX = 0
+    @Sync property number EnemySpawnX = 0
+    property string AllyPortalName = "AllyPortal"
+    property string EnemyPortalName = "EnemyPortal"
     @Sync property number GroundY = -1.36
     property string UnitModelId = "battleunit"
     -- Unit entities come from the map's EntityPool (script.EntityPool on this same map entity): taken out on spawn,
@@ -145,12 +151,30 @@ script BattleDirector extends Component
         self.StageId = stageId
         local stage = _BattleConfig:GetStage(stageId)
         if stage ~= nil then self.GroundY = stage.groundY end
-        self.AllyBaseX = self._T.bases[1].Entity.TransformComponent.WorldPosition.x
-        self.EnemyBaseX = self._T.bases[2].Entity.TransformComponent.WorldPosition.x
+        self:ReadFieldPositions()
         self._T.prepared = true
         self._T.ready = false
         self._T.waitTime = 0
         log("[BattleDirector] prepared user=" .. userId .. " stage=" .. stageId .. ", waiting for client ready")
+    end
+
+    @ExecSpace("ServerOnly")
+    method void ReadFieldPositions()
+        -- Reads the tower positions and the spawn points from the map entities and publishes them to the clients.
+        self.AllyBaseX = self._T.bases[1].Entity.TransformComponent.WorldPosition.x
+        self.EnemyBaseX = self._T.bases[2].Entity.TransformComponent.WorldPosition.x
+        self.AllySpawnX = self:ReadSpawnX(self.AllyPortalName, self.AllyBaseX + _BattleConfig.SpawnOffsetX)
+        self.EnemySpawnX = self:ReadSpawnX(self.EnemyPortalName, self.EnemyBaseX - _BattleConfig.SpawnOffsetX)
+        log("[VRF] BattleDirector field allyBaseX=" .. string.format("%.2f", self.AllyBaseX) .. " enemyBaseX=" .. string.format("%.2f", self.EnemyBaseX) .. " allySpawnX=" .. string.format("%.2f", self.AllySpawnX) .. " enemySpawnX=" .. string.format("%.2f", self.EnemySpawnX))
+    end
+
+    @ExecSpace("ServerOnly")
+    method number ReadSpawnX(string portalName, number fallbackX)
+        -- Returns the x of the map's portal entity of that name, or fallbackX when the map has none.
+        local portal = self.Entity:GetChildByName(portalName, false)
+        if isvalid(portal) then return portal.TransformComponent.WorldPosition.x end
+        log_warning("[BattleDirector] no " .. portalName .. " on " .. self.Entity.Name .. ", spawning in front of the tower")
+        return fallbackX
     end
 
     @ExecSpace("ServerOnly")
@@ -180,36 +204,51 @@ script BattleDirector extends Component
         self.StageId = stageId
         self.PlayerUserId = userId
 
-        -- Base HP comes from the stage definition.
-        local baseCfg = _BattleConfig:GetUnitAtLevel("base", 1)
+        -- The player brings the base in the deck's base slot (HP scaled by its upgrade level); the enemy uses the base the
+        -- stage names (EnemyBase), whose HP is the stage's BaseHp.
+        ---@type PlayerData
+        local data = self:GetPlayerData(userId)
+        local playerBaseId = _BattleConfig.DefaultBaseId
+        local playerBaseLevel = 1
+        if data ~= nil then
+            playerBaseId = data:GetSelectedBaseId()
+            playerBaseLevel = data:GetBaseUpgradeLevel(playerBaseId)
+        end
+        local baseCfgs = {}
+        baseCfgs[1] = _BattleConfig:GetBaseAtLevel(playerBaseId, playerBaseLevel)
         local stage = _BattleConfig:GetStage(stageId)
+        local enemyBaseId = _BattleConfig.DefaultBaseId
+        if stage ~= nil then enemyBaseId = stage.enemyBase end
+        baseCfgs[2] = _BattleConfig:GetBaseAtLevel(enemyBaseId, 1)
         if stage ~= nil then
-            baseCfg.maxHp = stage.baseHp
+            baseCfgs[2].maxHp = stage.baseHp
             -- Each stage map has its own ground height (tile sets differ).
             self.GroundY = stage.groundY
         else
             log_error("[BattleDirector] unknown stage " .. stageId)
         end
+        if baseCfgs[1] == nil or baseCfgs[2] == nil then
+            log_error("[BattleDirector] no base definition (default base " .. _BattleConfig.DefaultBaseId .. ")")
+            return
+        end
         for team = 1, 2 do
             local base = self._T.bases[team]
             if base ~= nil then
-                base:Setup(team, "base", baseCfg, self, 0)
+                base:Setup(team, baseCfgs[team].id, baseCfgs[team], self, 0)
                 table.insert(self._T.units, base)
             end
         end
-        -- Tower positions come from the map, so towers can be moved in Maker without code changes.
-        self.AllyBaseX = self._T.bases[1].Entity.TransformComponent.WorldPosition.x
-        self.EnemyBaseX = self._T.bases[2].Entity.TransformComponent.WorldPosition.x
+        log("[VRF] BattleDirector bases player=" .. baseCfgs[1].id .. " hp=" .. string.format("%.0f", baseCfgs[1].maxHp) .. " enemy=" .. baseCfgs[2].id .. " hp=" .. string.format("%.0f", baseCfgs[2].maxHp))
+        -- Tower and portal positions come from the map, so they can be moved in Maker without code changes.
+        self:ReadFieldPositions()
 
         -- The player's side plays the deck and unit levels from their saved data.
-        ---@type PlayerData
-        local data = self:GetPlayerData(userId)
         if data == nil then
             log_error("[BattleDirector] player data missing for " .. userId)
             return
         end
-        self._T.sides[1]:Reset(1, data:GetDeckIds(), data:GetUnitLevels(), userId, false, data.CostLevelCap)
-        self._T.sides[2]:Reset(2, {}, {}, "", true, 1)
+        self._T.sides[1]:Reset(1, data:GetDeckIds(), data:GetUnitLevels(), userId, false, baseCfgs[1].manaLevelCap, baseCfgs[1])
+        self._T.sides[2]:Reset(2, {}, {}, "", true, baseCfgs[2].manaLevelCap, baseCfgs[2])
 
         ---@type StageAI
         local ai = self.Entity:GetComponent("script.StageAI")
@@ -243,7 +282,84 @@ script BattleDirector extends Component
         end
         if self.State ~= "PLAYING" then return end
         self.Elapsed = self.Elapsed + delta
-        for _, side in pairs(self._T.sides) do side:Tick(delta) end
+        for _, side in pairs(self._T.sides) do
+            side:Tick(delta)
+            self:TickBaseSkill(side)
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void TickBaseSkill(any side)
+        -- Fires a side's base skill by itself when it is automatic: a passive skill, or any skill of the stage AI's side.
+        -- A player's active skill waits for UseBaseSkill. Nothing is cast while no enemy is on the field.
+        ---@type BattleSide
+        local s = side
+        if s.BaseSkillId == "" or s:IsBaseSkillReady() == false then return end
+        if s.BaseSkillType ~= "passive" and s.FreePlay == false then return end
+        local targetX = self:FindNearestEnemyX(s.Team)
+        if targetX == nil then return end
+        self:CastBaseSkill(s, targetX)
+    end
+
+    @ExecSpace("ServerOnly")
+    method any FindNearestEnemyX(integer team)
+        -- Returns the x of the living enemy monster / build closest to this team's base, or nil when there is none.
+        local baseX = self:GetBaseX(team)
+        local bestX = nil
+        local bestDist = nil
+        for _, unit in ipairs(self._T.units) do
+            if unit.Team ~= team and unit.Kind ~= "base" and unit.IsDead == false and isvalid(unit.Entity) then
+                local x = unit.Entity.TransformComponent.WorldPosition.x
+                local dist = math.abs(x - baseX)
+                if bestDist == nil or dist < bestDist then
+                    bestDist = dist
+                    bestX = x
+                end
+            end
+        end
+        return bestX
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean UseBaseSkill(integer team, number targetX)
+        -- Player path: uses the side's active base skill at targetX when its cooldown is over (no mana cost).
+        if self.State ~= "PLAYING" then return false end
+        ---@type BattleSide
+        local side = self._T.sides[team]
+        if side == nil or side.BaseSkillId == "" or side.BaseSkillType ~= "active" then return false end
+        if side:IsBaseSkillReady() == false then
+            log("[BattleDirector] team " .. tostring(team) .. " base skill not ready")
+            return false
+        end
+        self:CastBaseSkill(side, targetX)
+        return true
+    end
+
+    @ExecSpace("ServerOnly")
+    method void CastBaseSkill(any side, number targetX)
+        -- Runs the base's skill exactly like a skill card played for free: the skill unit's area damage, plus the effect
+        -- on every client. Then the base skill's cooldown starts.
+        ---@type BattleSide
+        local s = side
+        if self:PlayUnit(s.Team, s.BaseSkillId, targetX, 1) == false then return end
+        s:StartBaseSkillCooldown()
+        self:NotifySkillCast(s.BaseSkillId, targetX)
+        log("[VRF] BattleDirector base skill team=" .. tostring(s.Team) .. " " .. s.BaseSkillId .. " x=" .. string.format("%.1f", targetX))
+    end
+
+    @ExecSpace("Multicast")
+    method void NotifySkillCast(string unitId, number targetX)
+        -- Clients: show a skill's effect at targetX (base skills have no hand card to trigger it).
+        local cfg = _BattleConfig:GetUnit(unitId)
+        if cfg == nil then return end
+        _FieldFx:PlaySkillEffect(cfg, targetX)
+    end
+
+    @ExecSpace("ServerOnly")
+    method number GetSpawnX(integer team)
+        -- Returns the x where a team's units appear (its portal).
+        if team == 1 then return self.AllySpawnX end
+        return self.EnemySpawnX
     end
 
     @ExecSpace("ServerOnly")
@@ -299,7 +415,7 @@ script BattleDirector extends Component
             return false
         end
         local dir = self:GetDirection(team)
-        local spawnX = self:GetBaseX(team) + dir * _BattleConfig.SpawnOffsetX
+        local spawnX = self:GetSpawnX(team)
         if cfg.kind == "monster" then
             -- One card can bring several copies (SpawnCount): the first at once, the rest MultiSpawnInterval apart,
             -- each at the card's level.
@@ -321,20 +437,9 @@ script BattleDirector extends Component
             local x = math.max(math.min(spawnX, middle), math.min(math.max(spawnX, middle), targetX))
             return self:SpawnUnit(team, unitId, x, cfg)
         elseif cfg.kind == "skill" then
-            -- The effect starts on the clients right away; the damage lands hitDelay seconds later,
-            -- at the moment the effect visually hits (SkillHitDelay in UnitTable).
-            local enemyTeam = 3 - team
-            local radius = cfg.radius * _BattleConfig.RangeScale
-            local damage = cfg.damage
-            if cfg.hitDelay > 0 then
-                _TimerService:SetTimerOnce(function()
-                    if isvalid(self.Entity) and self.State == "PLAYING" then
-                        self:CastAreaDamage(enemyTeam, targetX, radius, damage)
-                    end
-                end, cfg.hitDelay)
-            else
-                self:CastAreaDamage(enemyTeam, targetX, radius, damage)
-            end
+            -- The effect starts on the clients right away; the skill's actions (SkillActionTable) land SkillHitDelay
+            -- seconds later, at the moment the effect visually hits. _BattleSkills runs them.
+            _BattleSkills:Cast(self, team, cfg, targetX)
             return true
         end
         return false

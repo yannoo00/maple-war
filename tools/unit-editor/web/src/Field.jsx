@@ -66,6 +66,14 @@ function Input({ f, value, onChange, schema, data, selfId }) {
       </select>
     );
   }
+  if (f.type === 'baseunit') {
+    return (
+      <select value={value} onChange={set}>
+        <Options items={data.units.filter((u) => u.Kind === 'base')} empty="(기본 기지)"
+          getValue={(u) => u.UnitId} getLabel={(u) => `${u.Name} (${u.UnitId})`} />
+      </select>
+    );
+  }
   if (f.type === 'bool') {
     return (
       <select value={value === '1' ? '1' : '0'} onChange={set}>

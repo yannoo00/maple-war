@@ -34,7 +34,7 @@ node tools/unit-editor/cli.cjs remove <unitId> [--force]     # 삭제 (--force: 
 ## 절차
 
 1. **종류 결정**: 몬스터(전진·교전) / 설치물(제자리, `Speed=0`) / 스킬(범위 피해 한 번). 군단(한 장에 여러 마리)은 별도 종류가 아니라 몬스터 행에 `SpawnCount`를 2 이상으로 둔 것이다(간격은 게임에서 0.25초 고정, 마리당 능력치는 그 행의 값). 사용자가 말한 역할에서 정한다.
-2. **틀 받기**: `template <kind>`로 JSON 틀, 모르는 칸은 `schema <kind>`의 `help`를 본다. 비슷한 기존 유닛을 `show`로 열어 수치 감을 잡는다(근접 노멀 코스트 40~60 / HP 35~75 / 공격 9~15, 원거리 Range 3~3.5, 탱커 HP 220~340).
+2. **틀 받기**: `template <kind>`로 JSON 틀, 모르는 칸은 `schema <kind>`의 `help`를 본다. 비슷한 기존 유닛을 `show`로 열어 수치 감을 잡는다(근접 노멀 마나 40~60 / HP 35~75 / 공격 9~15, 원거리 Range 3~3.5, 탱커 HP 220~340).
 3. **RUID 찾기**: 클립 4종(`StandRuid` `MoveRuid` `AttackRuid` `DieRuid`)은 필수. `msw-search` 스킬로 몬스터 리소스 팩을 찾아 `stand` / `move` / `attack1` / `die1`을 넣고, 있으면 `hit1`→`HitRuid`, `attack1/info/ball`→`ProjectileRuid`, `attack1/info/effect`→`AttackEffectRuid`, `attack1/info/hit`→`HitEffectRuid`(맞은 대상에게 재생, 없으면 빈칸), `audio/Attack1·Damage·Die`→`*SoundRuid`. 사용자가 팩 목록 JSON(`action`→`ruid`)을 주면 그대로 옮긴다. **RUID를 지어내지 말 것.**
 4. **적/아군은 입력 칸이 아니다.** 카드 유닛은 `Starter=1`이면 처음부터 갖고, 아니어도 상자에서 나온다(직접 구매·쿨타임 없음). 적 = `waves` / `loopPool`에 들어간다. 사용자가 "적으로"라고 하면 스테이지와 등장 시각을 정해 `waves`에 넣는다(기존 시간표는 `show`의 `_status.waves` 참고, 보통 4~6초 간격).
 5. **화면 보고 맞추는 값**(`AttackPlayRate` `AttackHitDelay` `BarY` `ProjectileScale`, 이펙트 위치 `AttackEffectOffsetX/Y` `AttackEffectScale` `EffectOffsetX/Y`, 스킬 효과음 `SkillSoundRuid` `SkillSoundDelay`)은 비슷한 유닛 값을 복사해 넣고, 사용자에게 플레이 후 확인을 부탁한다.
@@ -75,7 +75,7 @@ node tools/unit-editor/cli.cjs effect remove <id> [--force] # --force: 쓰는 �
 **사용자가 편집기에서 미구현 타입의 효과를 저장한 뒤 "구현해줘"라고 요청하는 흐름**이 기본이다. 그때 절차:
 
 1. `effect show <id>`로 행을 읽는다. `#Memo`가 구현 스펙이다(누구에게, 얼마 동안, 무엇이 일어나는지). 모호하면 사용자에게 한 번만 묻는다.
-2. `RootDesk/MyDesk/Battle/BattleUnit.mlua`의 `ReceiveEffect`에 `elseif effect.type == "<type>" then` 분기를 추가한다. 상태가 필요하면 `property`를 선언하고(`_T` 외 미선언 필드 금지), `OnUpdate`에서 시간을 줄이고, `Setup`에서 초기화한다. 기존 4종(nullify / curse / warp / blow)의 구조를 따른다. 자신에게 쓰는 특성(`Applies=self`/`always` 규칙)은 `ApplyAlwaysRules`가 `Setup` 끝에서 `ReceiveEffect`로 적용하고 `effect.permanent`가 참이므로 지속 시간 대신 사는 동안 유지하면 된다. `log()`로 걸림·해제를 남긴다.
+2. `RootDesk/MyDesk/Battle/BattleEffects.mlua`의 `GetDefs`에 `defs["<type>"] = { group = ..., ... }` 항목 하나를 추가한다(분기를 BattleUnit에 쓰지 않는다). 항목 필드: `blocks`(공격 무효) / `outgoing`(주는 피해 배율) / `incoming`(받는 피해 배율) / `immune`·`tag`(면역) / `flag`(no_knockback, siege 같은 예/아니오 질문) / `onApply` / `onTick`. 상태는 유닛의 `_T.effects`에 들어가므로 `property`를 새로 만들지 않는다. 피해는 반드시 `_BattleEffects:DealHit(공격자 또는 nil, 대상, 양, "attack"|"skill"|"poison")`로 준다. 상태가 필요하면 `property`를 선언하고(`_T` 외 미선언 필드 금지), `OnUpdate`에서 시간을 줄이고, `Setup`에서 초기화한다. 기존 4종(nullify / curse / warp / blow)의 구조를 따른다. 자신에게 쓰는 특성(`Applies=self`/`always` 규칙)은 `ApplyAlwaysRules`가 `Setup` 끝에서 `ReceiveEffect`로 적용하고 `effect.permanent`가 참이므로 지속 시간 대신 사는 동안 유지하면 된다. `log()`로 걸림·해제를 남긴다.
 3. 연출(클라이언트)이 필요하면 `BattleFx` 쪽에 두고 서버 로직과 섞지 않는다.
 4. `effect types`로 새 타입이 잡히는지 확인 → Maker refresh → 플레이 로그로 `[BattleUnit] effect <id> (<type>) ...` 확인. 서버에서 직접 거는 테스트는 `maker_execute_script`로 `ReceiveEffect`를 호출하면 된다.
 5. GDD(`Docs/MapleWar-M3-GDD.md`) §4 효과 동작 목록에 한 줄 추가한다.
@@ -102,3 +102,11 @@ node tools/unit-editor/cli.cjs effect remove <id> [--force] # --force: 쓰는 �
 - `base` 행 수정.
 - `UnitLevelTable` / `CostLevelTable` 손대기 — 유닛별이 아니라 공용 표다.
 - 브라우저 편집기(`node tools/unit-editor/server.cjs`)를 Claude가 켜서 쓰기 — 그건 사람용 입구다. Claude는 CLI를 쓴다.
+
+## 스킬 동작(SkillActionTable)
+
+스킬 카드가 무엇을 하는지는 `SkillActionTable.csv`(스킬 하나에 여러 줄)가 정한다. 유닛 JSON의 `skillActions` 배열로 넣는다: `{ action: damage|heal|effect, team: enemy|ally|all, kinds: "monster;build", attribute, excludeAttribute, maxTargets, power, effectId, delay, repeat, interval }`. power를 비우면 그 스킬의 SkillDamage(레벨 배율 적용), 숫자를 적으면 그 값 × 레벨 배율. 반복마다 범위 안 대상을 다시 찾는다. 동작 줄이 없는 스킬은 예전처럼 적 몬스터·설치물에게 SkillDamage 1회. 실행 코드는 `Battle/BattleSkills.mlua`.
+
+## 속성 상성
+
+공격(평타)에만 적용: 빛↔어둠은 서로, 바람→물→화염→땅→바람은 화살표 방향으로 `BattleConfig.AttributeBonus`(0.2 = +20%) 추가 피해. 반대 방향 감소는 없다. 스킬과 독 피해에는 적용하지 않는다.

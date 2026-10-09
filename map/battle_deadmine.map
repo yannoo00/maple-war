@@ -1,10 +1,10 @@
 {
   "Id": "",
   "GameId": "",
-  "EntryKey": "map://map01",
+  "EntryKey": "map://battle_deadmine",
   "ContentType": "x-mod/map",
   "Content": "",
-  "Usage": 0,
+  "Usage": 1,
   "UsePublish": 1,
   "UseService": 0,
   "CoreVersion": "26.10.0.0",
@@ -14,12 +14,12 @@
     "Use": "Binary",
     "Entities": [
       {
-        "id": "b60b28e2-8d98-4bf1-90c9-cf43c1ac92ec",
-        "path": "/maps/map01",
-        "componentNames": "MOD.Core.MapComponent,MOD.Core.FootholdComponent",
+        "id": "71f8ebb0-3c04-46c7-ab02-76344eedea6e",
+        "path": "/maps/battle_deadmine",
+        "componentNames": "MOD.Core.MapComponent,MOD.Core.FootholdComponent,script.BattleDirector,script.StageAI,script.EntityPool",
         "jsonString": {
-          "name": "map01",
-          "path": "/maps/map01",
+          "name": "battle_deadmine",
+          "path": "/maps/battle_deadmine",
           "nameEditable": false,
           "enable": true,
           "visible": true,
@@ -31,7 +31,7 @@
           "@components": [
             {
               "@type": "MOD.Core.MapComponent",
-              "IsInstanceMap": false,
+              "IsInstanceMap": true,
               "TileMapMode": 0,
               "Enable": true
             },
@@ -40,7 +40,7 @@
               "FootholdsByLayer": {
                 "1": [
                   {
-                    "Length": 0.3599987,
+                    "Length": 0.239999771,
                     "NextFootholdId": 45,
                     "PreviousFootholdId": 46,
                     "groupID": 1,
@@ -55,15 +55,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 1,
                     "StartPoint": {
-                      "x": -17.2799988,
-                      "y": -2.56
+                      "x": -17.22,
+                      "y": -2.28
                     },
                     "EndPoint": {
-                      "x": -16.92,
-                      "y": -2.56
+                      "x": -16.98,
+                      "y": -2.28
                     },
                     "Variance": {
                       "x": 1.0,
@@ -71,7 +71,7 @@
                     }
                   },
                   {
-                    "Length": 1.17000008,
+                    "Length": 1.22999954,
                     "NextFootholdId": 3,
                     "PreviousFootholdId": 51,
                     "groupID": 2,
@@ -86,15 +86,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 2,
                     "StartPoint": {
-                      "x": -23.22,
-                      "y": -1.36
+                      "x": -23.2799988,
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -22.05,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -117,15 +117,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 3,
                     "StartPoint": {
                       "x": -22.05,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -21.1499977,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -148,15 +148,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 4,
                     "StartPoint": {
                       "x": -21.15,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -20.2499981,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -179,15 +179,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 5,
                     "StartPoint": {
                       "x": -20.25,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -19.3499985,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -210,15 +210,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 6,
                     "StartPoint": {
                       "x": -19.35,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -18.4499989,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -241,15 +241,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 7,
                     "StartPoint": {
                       "x": -18.45,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -17.55,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -272,15 +272,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 8,
                     "StartPoint": {
                       "x": -17.5500011,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -16.65,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -303,15 +303,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 9,
                     "StartPoint": {
                       "x": -16.65,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -15.749999,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -334,15 +334,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 10,
                     "StartPoint": {
                       "x": -15.749999,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -14.8499994,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -365,15 +365,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 11,
                     "StartPoint": {
                       "x": -14.8499994,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -13.95,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -396,15 +396,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 12,
                     "StartPoint": {
                       "x": -13.95,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -13.05,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -427,15 +427,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 13,
                     "StartPoint": {
                       "x": -13.0499992,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -12.15,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -458,15 +458,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 14,
                     "StartPoint": {
                       "x": -12.15,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -11.25,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -489,15 +489,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 15,
                     "StartPoint": {
                       "x": -11.249999,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -10.3499994,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -520,15 +520,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 16,
                     "StartPoint": {
                       "x": -10.3499994,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -9.45,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -551,15 +551,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 17,
                     "StartPoint": {
                       "x": -9.45,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -8.55,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -582,15 +582,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 18,
                     "StartPoint": {
                       "x": -8.55,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -7.64999962,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -613,15 +613,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 19,
                     "StartPoint": {
                       "x": -7.64999962,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -6.75,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -644,15 +644,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 20,
                     "StartPoint": {
                       "x": -6.74999952,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -5.85,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -675,15 +675,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 21,
                     "StartPoint": {
                       "x": -5.84999943,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -4.95,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -706,15 +706,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 22,
                     "StartPoint": {
                       "x": -4.95,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -4.05,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -737,15 +737,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 23,
                     "StartPoint": {
                       "x": -4.05,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -3.14999986,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -768,15 +768,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 24,
                     "StartPoint": {
                       "x": -3.14999986,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -2.24999976,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -799,15 +799,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 25,
                     "StartPoint": {
                       "x": -2.24999976,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -1.34999979,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -830,15 +830,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 26,
                     "StartPoint": {
                       "x": -1.35,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": -0.449999958,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -861,15 +861,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 27,
                     "StartPoint": {
                       "x": -0.45,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": 0.449999958,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -892,15 +892,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 28,
                     "StartPoint": {
                       "x": 0.450000018,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": 1.35,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -923,15 +923,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 29,
                     "StartPoint": {
                       "x": 1.34999979,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": 2.25,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -954,15 +954,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 30,
                     "StartPoint": {
                       "x": 2.24999976,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": 3.14999986,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -985,15 +985,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 31,
                     "StartPoint": {
                       "x": 3.14999986,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": 4.04999971,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -1016,15 +1016,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 32,
                     "StartPoint": {
                       "x": 4.05,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": 4.95,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -1047,15 +1047,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 33,
                     "StartPoint": {
                       "x": 4.95,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
                       "x": 5.84999943,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -1063,7 +1063,7 @@
                     }
                   },
                   {
-                    "Length": 1.17000008,
+                    "Length": 1.23,
                     "NextFootholdId": 36,
                     "PreviousFootholdId": 33,
                     "groupID": 2,
@@ -1078,15 +1078,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 34,
                     "StartPoint": {
                       "x": 5.85,
-                      "y": -1.36
+                      "y": -1.08
                     },
                     "EndPoint": {
-                      "x": 7.02,
-                      "y": -1.36
+                      "x": 7.08,
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 1.0,
@@ -1094,7 +1094,7 @@
                     }
                   },
                   {
-                    "Length": 0.359999657,
+                    "Length": 0.240000725,
                     "NextFootholdId": 41,
                     "PreviousFootholdId": 44,
                     "groupID": 3,
@@ -1109,15 +1109,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 35,
                     "StartPoint": {
-                      "x": -13.6799994,
-                      "y": -3.16
+                      "x": -13.62,
+                      "y": -2.88
                     },
                     "EndPoint": {
-                      "x": -13.32,
-                      "y": -3.16
+                      "x": -13.3799992,
+                      "y": -2.88
                     },
                     "Variance": {
                       "x": 1.0,
@@ -1125,7 +1125,7 @@
                     }
                   },
                   {
-                    "Length": 0.7400001,
+                    "Length": 1.0200001,
                     "NextFootholdId": 37,
                     "PreviousFootholdId": 34,
                     "groupID": 2,
@@ -1140,14 +1140,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 36,
                     "StartPoint": {
-                      "x": 7.02,
-                      "y": -1.36
+                      "x": 7.08,
+                      "y": -1.08
                     },
                     "EndPoint": {
-                      "x": 7.02,
+                      "x": 7.08,
                       "y": -2.10000014
                     },
                     "Variance": {
@@ -1171,14 +1171,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 37,
                     "StartPoint": {
-                      "x": 7.02,
+                      "x": 7.08,
                       "y": -2.10000014
                     },
                     "EndPoint": {
-                      "x": 7.02,
+                      "x": 7.08,
                       "y": -2.7
                     },
                     "Variance": {
@@ -1202,14 +1202,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 38,
                     "StartPoint": {
-                      "x": 7.02,
+                      "x": 7.08,
                       "y": -2.7
                     },
                     "EndPoint": {
-                      "x": 7.02,
+                      "x": 7.08,
                       "y": -3.3
                     },
                     "Variance": {
@@ -1233,14 +1233,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 39,
                     "StartPoint": {
-                      "x": 7.02,
+                      "x": 7.08,
                       "y": -3.30000019
                     },
                     "EndPoint": {
-                      "x": 7.02,
+                      "x": 7.08,
                       "y": -3.9
                     },
                     "Variance": {
@@ -1264,14 +1264,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 40,
                     "StartPoint": {
-                      "x": 7.02,
+                      "x": 7.08,
                       "y": -3.90000033
                     },
                     "EndPoint": {
-                      "x": 7.02,
+                      "x": 7.08,
                       "y": -4.50000048
                     },
                     "Variance": {
@@ -1280,7 +1280,7 @@
                     }
                   },
                   {
-                    "Length": 0.460000038,
+                    "Length": 0.180000067,
                     "NextFootholdId": 0,
                     "PreviousFootholdId": 35,
                     "groupID": 3,
@@ -1295,14 +1295,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 41,
                     "StartPoint": {
-                      "x": -13.32,
-                      "y": -3.16
+                      "x": -13.3799992,
+                      "y": -2.88
                     },
                     "EndPoint": {
-                      "x": -13.32,
+                      "x": -13.3799992,
                       "y": -2.7
                     },
                     "Variance": {
@@ -1326,14 +1326,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 42,
                     "StartPoint": {
-                      "x": -13.32,
+                      "x": -13.3799992,
                       "y": -3.9
                     },
                     "EndPoint": {
-                      "x": -13.32,
+                      "x": -13.3799992,
                       "y": -3.30000019
                     },
                     "Variance": {
@@ -1357,14 +1357,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 43,
                     "StartPoint": {
-                      "x": -13.32,
+                      "x": -13.3799992,
                       "y": -4.50000048
                     },
                     "EndPoint": {
-                      "x": -13.32,
+                      "x": -13.3799992,
                       "y": -3.90000033
                     },
                     "Variance": {
@@ -1373,7 +1373,7 @@
                     }
                   },
                   {
-                    "Length": 0.460000038,
+                    "Length": 0.180000067,
                     "NextFootholdId": 35,
                     "PreviousFootholdId": 0,
                     "groupID": 3,
@@ -1388,15 +1388,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 44,
                     "StartPoint": {
-                      "x": -13.6799994,
+                      "x": -13.62,
                       "y": -2.7
                     },
                     "EndPoint": {
-                      "x": -13.6799994,
-                      "y": -3.16
+                      "x": -13.62,
+                      "y": -2.88
                     },
                     "Variance": {
                       "x": 0.0,
@@ -1404,7 +1404,7 @@
                     }
                   },
                   {
-                    "Length": 0.4599998,
+                    "Length": 0.179999828,
                     "NextFootholdId": 0,
                     "PreviousFootholdId": 1,
                     "groupID": 1,
@@ -1419,14 +1419,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 45,
                     "StartPoint": {
-                      "x": -16.92,
-                      "y": -2.56
+                      "x": -16.98,
+                      "y": -2.28
                     },
                     "EndPoint": {
-                      "x": -16.92,
+                      "x": -16.98,
                       "y": -2.10000014
                     },
                     "Variance": {
@@ -1435,7 +1435,7 @@
                     }
                   },
                   {
-                    "Length": 0.4599998,
+                    "Length": 0.179999828,
                     "NextFootholdId": 1,
                     "PreviousFootholdId": 0,
                     "groupID": 1,
@@ -1450,15 +1450,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 46,
                     "StartPoint": {
-                      "x": -17.2799988,
+                      "x": -17.22,
                       "y": -2.10000014
                     },
                     "EndPoint": {
-                      "x": -17.2799988,
-                      "y": -2.56
+                      "x": -17.22,
+                      "y": -2.28
                     },
                     "Variance": {
                       "x": 0.0,
@@ -1481,14 +1481,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 47,
                     "StartPoint": {
-                      "x": -19.08,
+                      "x": -19.02,
                       "y": -3.30000019
                     },
                     "EndPoint": {
-                      "x": -19.08,
+                      "x": -19.02,
                       "y": -3.9
                     },
                     "Variance": {
@@ -1512,14 +1512,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 48,
                     "StartPoint": {
-                      "x": -20.52,
+                      "x": -20.58,
                       "y": -3.3
                     },
                     "EndPoint": {
-                      "x": -20.52,
+                      "x": -20.58,
                       "y": -2.7
                     },
                     "Variance": {
@@ -1543,14 +1543,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 49,
                     "StartPoint": {
-                      "x": -20.52,
+                      "x": -20.58,
                       "y": -3.9
                     },
                     "EndPoint": {
-                      "x": -20.52,
+                      "x": -20.58,
                       "y": -3.30000019
                     },
                     "Variance": {
@@ -1574,14 +1574,14 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 50,
                     "StartPoint": {
-                      "x": -21.42,
+                      "x": -21.48,
                       "y": -2.7
                     },
                     "EndPoint": {
-                      "x": -21.42,
+                      "x": -21.48,
                       "y": -2.10000014
                     },
                     "Variance": {
@@ -1590,7 +1590,7 @@
                     }
                   },
                   {
-                    "Length": 0.7400001,
+                    "Length": 1.0200001,
                     "NextFootholdId": 2,
                     "PreviousFootholdId": 0,
                     "groupID": 2,
@@ -1605,15 +1605,15 @@
                       "isCustomFoothold": false,
                       "inertiaOption": 0
                     },
-                    "OwnerId": "fccd0cb6-ba3b-4557-b239-164da923b99a",
+                    "OwnerId": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
                     "Id": 51,
                     "StartPoint": {
-                      "x": -23.22,
+                      "x": -23.2799988,
                       "y": -2.10000014
                     },
                     "EndPoint": {
-                      "x": -23.22,
-                      "y": -1.36
+                      "x": -23.2799988,
+                      "y": -1.08
                     },
                     "Variance": {
                       "x": 0.0,
@@ -1623,18 +1623,39 @@
                 ]
               },
               "Enable": true
+            },
+            {
+              "@type": "script.BattleDirector",
+              "Enable": true,
+              "Elapsed": 0.0,
+              "StageId": "",
+              "PlayerUserId": ""
+            },
+            {
+              "@type": "script.StageAI",
+              "Enable": true,
+              "Running": false,
+              "Elapsed": 0.0,
+              "WaveIndex": 1,
+              "LoopTimer": 0.0,
+              "LoopInterval": 6.0,
+              "LoopMinInterval": 3.0
+            },
+            {
+              "@type": "script.EntityPool",
+              "Enable": true
             }
           ],
           "@version": 1
         }
       },
       {
-        "id": "b8116127-da3a-4ac3-979c-d23df2c07447",
-        "path": "/maps/map01/Background",
+        "id": "921ed1f8-dce9-45bc-b989-f7d2a9d1b344",
+        "path": "/maps/battle_deadmine/Background",
         "componentNames": "MOD.Core.BackgroundComponent",
         "jsonString": {
           "name": "Background",
-          "path": "/maps/map01/Background",
+          "path": "/maps/battle_deadmine/Background",
           "nameEditable": false,
           "enable": true,
           "visible": true,
@@ -1646,7 +1667,7 @@
           "@components": [
             {
               "@type": "MOD.Core.BackgroundComponent",
-              "TemplateRUID": "794ad8421e2543d8a6d2c70307637450",
+              "TemplateRUID": "4cd4e0467206480eb7a11fe471a95e1a",
               "Type": 1,
               "Enable": true
             }
@@ -1655,12 +1676,12 @@
         }
       },
       {
-        "id": "53ca3819-9c01-44a5-977a-25eacefd313a",
-        "path": "/maps/map01/MapleMapLayer",
+        "id": "5bc79856-d935-46e0-9235-765cbc2241aa",
+        "path": "/maps/battle_deadmine/MapleMapLayer",
         "componentNames": "MOD.Core.MapLayerComponent",
         "jsonString": {
           "name": "MapleMapLayer",
-          "path": "/maps/map01/MapleMapLayer",
+          "path": "/maps/battle_deadmine/MapleMapLayer",
           "nameEditable": false,
           "enable": true,
           "visible": true,
@@ -1691,12 +1712,12 @@
         }
       },
       {
-        "id": "fccd0cb6-ba3b-4557-b239-164da923b99a",
-        "path": "/maps/map01/TileMap",
+        "id": "e1ad5bda-ab01-4fe6-ac97-1130d0a84306",
+        "path": "/maps/battle_deadmine/TileMap",
         "componentNames": "MOD.Core.TransformComponent,MOD.Core.TileMapComponent",
         "jsonString": {
           "name": "TileMap",
-          "path": "/maps/map01/TileMap",
+          "path": "/maps/battle_deadmine/TileMap",
           "nameEditable": false,
           "enable": true,
           "visible": true,
@@ -1740,7 +1761,7 @@
               "SortingLayer": "MapLayer0",
               "TileMapVersion": 1,
               "TileSetRUID": {
-                "DataId": "af2a321b445a44a691dadad38646d88b"
+                "DataId": "b269e45b10264f1682fc108d72284da8"
               },
               "Tiles": [
                 {
@@ -1765,7 +1786,7 @@
                     "x": -11,
                     "y": -9
                   },
-                  "tileIndex": 0
+                  "tileIndex": 1
                 },
                 {
                   "type": 0,
@@ -1901,7 +1922,7 @@
                     "x": -4,
                     "y": -10
                   },
-                  "tileIndex": 5
+                  "tileIndex": 6
                 },
                 {
                   "type": 0,
@@ -3253,7 +3274,7 @@
                     "x": -13,
                     "y": -7
                   },
-                  "tileIndex": -1
+                  "tileIndex": 5
                 },
                 {
                   "type": 5,
@@ -3325,7 +3346,7 @@
                     "x": -7,
                     "y": -7
                   },
-                  "tileIndex": -1
+                  "tileIndex": 0
                 },
                 {
                   "type": 5,
@@ -3333,7 +3354,7 @@
                     "x": -8,
                     "y": -6
                   },
-                  "tileIndex": 0
+                  "tileIndex": 3
                 },
                 {
                   "type": 0,
@@ -3373,7 +3394,7 @@
                     "x": -12,
                     "y": -8
                   },
-                  "tileIndex": 0
+                  "tileIndex": 3
                 },
                 {
                   "type": 0,
@@ -3381,7 +3402,7 @@
                     "x": -8,
                     "y": -7
                   },
-                  "tileIndex": 1
+                  "tileIndex": 6
                 },
                 {
                   "type": 0,
@@ -3589,7 +3610,7 @@
                     "x": -12,
                     "y": -11
                   },
-                  "tileIndex": 0
+                  "tileIndex": 1
                 },
                 {
                   "type": 5,
@@ -4157,7 +4178,7 @@
                     "x": -18,
                     "y": -6
                   },
-                  "tileIndex": 0
+                  "tileIndex": 2
                 },
                 {
                   "type": 0,
@@ -4189,7 +4210,7 @@
                     "x": -20,
                     "y": -6
                   },
-                  "tileIndex": 0
+                  "tileIndex": 3
                 },
                 {
                   "type": 5,
@@ -4333,7 +4354,7 @@
                     "x": -21,
                     "y": -6
                   },
-                  "tileIndex": -1
+                  "tileIndex": 2
                 },
                 {
                   "type": 0,
@@ -6808,6 +6829,354 @@
                   "tileIndex": 3
                 }
               ],
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "3ea37589-7fd7-4a4b-9248-f2a5ec2013eb",
+        "path": "/maps/battle_deadmine/AllyBase",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,script.BattleUnit,script.BattleSide",
+        "jsonString": {
+          "name": "AllyBase",
+          "path": "/maps/battle_deadmine/AllyBase",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 3,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "basetower",
+            "sub_entity_id": null,
+            "root_entity_id": "3ea37589-7fd7-4a4b-9248-f2a5ec2013eb",
+            "replaced_model_id": null
+          },
+          "modelId": "basetower",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -13.4,
+                "y": -0.6735,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 0.65,
+                "y": 0.65,
+                "z": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 0,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "781d0548d4434877a044f77db08e2ffe",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "script.BattleUnit",
+              "Enable": true,
+              "KnockCount": 0,
+              "KnockRemain": 0.0,
+              "KnockSpeed": 0.0,
+              "KnockStartX": 0.0,
+              "KnockTarget": 0.0,
+              "WalkSpeed": 0.0,
+              "CurseRemain": 0.0,
+              "CurseRate": 1.0,
+              "NullifyRemain": 0.0,
+              "NullifyLife": 0,
+              "Ready": false,
+              "IsDead": false,
+              "Mode": "",
+              "AttackTimer": 0.0,
+              "HitTimer": 0.0,
+              "PendingLife": 0,
+              "HasProjectile": false,
+              "HasHitEffect": false
+            },
+            {
+              "@type": "script.BattleSide",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "6367ce74-895c-460e-9fa9-506d55064c30",
+        "path": "/maps/battle_deadmine/EnemyBase",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,script.BattleUnit,script.BattleSide",
+        "jsonString": {
+          "name": "EnemyBase",
+          "path": "/maps/battle_deadmine/EnemyBase",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 4,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "basetower",
+            "sub_entity_id": null,
+            "root_entity_id": "6367ce74-895c-460e-9fa9-506d55064c30",
+            "replaced_model_id": null
+          },
+          "modelId": "basetower",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -2.800655,
+                "y": -1.09840834,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 0.756704569,
+                "y": 0.7567045,
+                "z": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 0,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "44743784590645c39efe1932fbf0905b",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "script.BattleUnit",
+              "Enable": true,
+              "KnockCount": 0,
+              "KnockRemain": 0.0,
+              "KnockSpeed": 0.0,
+              "KnockStartX": 0.0,
+              "KnockTarget": 0.0,
+              "WalkSpeed": 0.0,
+              "CurseRemain": 0.0,
+              "CurseRate": 1.0,
+              "NullifyRemain": 0.0,
+              "NullifyLife": 0,
+              "Ready": false,
+              "IsDead": false,
+              "Mode": "",
+              "AttackTimer": 0.0,
+              "HitTimer": 0.0,
+              "PendingLife": 0,
+              "HasProjectile": false,
+              "HasHitEffect": false
+            },
+            {
+              "@type": "script.BattleSide",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "05620344-a955-45a7-a0e5-ab363013c980",
+        "path": "/maps/battle_deadmine/AllyPortal",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "AllyPortal",
+          "path": "/maps/battle_deadmine/AllyPortal",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 5,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "mapobject",
+            "sub_entity_id": null,
+            "root_entity_id": "05620344-a955-45a7-a0e5-ab363013c980",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -13.3830147,
+                "y": -0.9680002,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 0.4,
+                "y": 0.4,
+                "z": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 1,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+              },
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "19dbf63c-a7b7-4048-abe4-3f655e51050b",
+        "path": "/maps/battle_deadmine/EnemyPortal",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "EnemyPortal",
+          "path": "/maps/battle_deadmine/EnemyPortal",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 6,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "mapobject",
+            "sub_entity_id": null,
+            "root_entity_id": "19dbf63c-a7b7-4048-abe4-3f655e51050b",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -3.05258512,
+                "y": -0.839031935,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 0.4,
+                "y": 0.4,
+                "z": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 1,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+              },
               "Enable": true
             }
           ],

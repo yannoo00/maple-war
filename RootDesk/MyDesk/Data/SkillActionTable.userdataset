@@ -1,7 +1,7 @@
 {
   "Id": "",
   "GameId": "",
-  "EntryKey": "userdataset://395d0f54-a2c6-4d39-a27d-2cf745089989",
+  "EntryKey": "userdataset://7758b713-e261-4a71-91fe-7508c402993d",
   "ContentType": "x-mod/userdataset",
   "Content": "",
   "Usage": 0,
@@ -13,8 +13,8 @@
   "ContentProto": {
     "Use": "Json",
     "Json": {
-      "name": "StageWaveTable",
-      "id": "395d0f54-a2c6-4d39-a27d-2cf745089989",
+      "name": "SkillActionTable",
+      "id": "7758b713-e261-4a71-91fe-7508c402993d",
       "serveronly": false,
       "syncDataSetWebUrl": "",
       "dynamicloading": 0
