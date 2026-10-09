@@ -8,7 +8,17 @@ script BattleHUD extends Component
     property Entity slot5 = "bc2f845e-6b01-4693-9a4a-fa32b1d49cf6"
     -- Small preview of the next queued card (the one that fills the next played slot).
     property Entity nextCard = "a5d88760-570a-4549-ae6d-4064dabd9a45"
-    property TextGUIRendererComponent costText = "72569f18-c8ed-4434-a834-15eecbc46c00"
+    -- Mana bar above the hand: a track that widens with the mana level, its fill (current / max), the "current / max"
+    -- text on it, and the mana upgrade button right after the track's end. The track plus the button never get wider
+    -- than the five hand slots (ManaBarSpan).
+    property TextGUIRendererComponent costText = "b92d3aba-b29d-4ec9-8adf-65da42154e40"
+    property Entity manaBar = "34f25da6-2ff1-46e9-80ff-95bd4eb21611"
+    property Entity manaTrack = "96b8354c-93ec-4b43-a7d6-ac12c6d72303"
+    property Entity manaFill = "8f4ca85f-cb77-4d68-8871-c5a1c9b39c35"
+    property number ManaBarSpan = 964
+    property number ManaBarMinWidth = 320
+    property number ManaButtonGap = 8
+    property number ManaFillInset = 4
     property Entity hintText = "f91a8765-50c0-45b7-aaa1-4958e8617766"
     property Entity resultPanel = "7dbea0c5-0735-4c23-91be-a514da25bba0"
     property TextGUIRendererComponent resultTitle = "9a5c134a-9e8a-48db-8a8c-2b9b91a04a42"
@@ -17,7 +27,7 @@ script BattleHUD extends Component
     property TextGUIRendererComponent cardsText = "b78ce39a-906e-46f4-8ab3-5e486d318f9f"
     property Entity lobbyButton = "177bfba2-0e4e-4206-97f5-2d4e28890fea"
     property Entity leaveButton = "d2dd96f0-9b59-4e54-a4a6-264ae4c6a6dd"
-    property Entity costUpButton = "47981bee-9856-4688-bb7d-1f67bf65d72e"
+    property Entity costUpButton = "4a9f0d6a-4976-4ed4-bd97-0f528cb31862"
     -- Base skill button (bottom right): shows the skill and its cooldown; pressing it starts aiming (an active base skill only).
     property Entity baseSkillButton = "f845c541-f689-4534-b291-ee82be67df62"
     property any baseSkillHandler = nil
@@ -164,12 +174,52 @@ script BattleHUD extends Component
     method void SetHudVisible(boolean visible)
         -- Shows or hides the battle panels; the hint and result panel stay hidden until the battle state turns them on.
         if isvalid(self.slot1) then self.slot1.Parent:SetEnable(visible) end
-        if isvalid(self.costText) then self.costText.Entity:SetEnable(visible) end
+        if isvalid(self.manaBar) then self.manaBar:SetEnable(visible) end
         if isvalid(self.leaveButton) then self.leaveButton:SetEnable(visible) end
         if isvalid(self.costUpButton) then self.costUpButton:SetEnable(visible) end
         if isvalid(self.baseSkillButton) then self.baseSkillButton:SetEnable(visible) end
         if isvalid(self.hintText) then self.hintText.Enable = false end
         if isvalid(self.resultPanel) then self.resultPanel.Enable = false end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void LayoutManaBar(number cost, number costMax, integer level)
+        -- Sizes the mana bar: the track widens with the mana level's cap (CostLevelTable CostMax, relative to the top
+        -- level's), from ManaBarMinWidth up to the hand width minus the upgrade button; the fill shows cost / costMax;
+        -- the upgrade button sits right after the track's end.
+        if not isvalid(self.manaTrack) then return end
+        local levels = _BattleConfig:GetCostLevels()
+        local top = levels[#levels]
+        local current = levels[level]
+        local buttonWidth = 0
+        if isvalid(self.costUpButton) then buttonWidth = self.costUpButton.UITransformComponent.RectSize.x end
+        local maxWidth = self.ManaBarSpan - buttonWidth - self.ManaButtonGap
+        local ratio = 1
+        if top ~= nil and current ~= nil and top.costMax > 0 then ratio = math.min(1, current.costMax / top.costMax) end
+        local width = math.floor(self.ManaBarMinWidth + (maxWidth - self.ManaBarMinWidth) * ratio)
+        local view = self._T.view
+        local track = self.manaTrack.UITransformComponent
+        local height = track.RectSize.y
+        if width ~= view.manaWidth then
+            view.manaWidth = width
+            track.RectSize = Vector2(width, height)
+            if isvalid(self.costText) then
+                local textTransform = self.costText.Entity.UITransformComponent
+                textTransform.RectSize = Vector2(width, textTransform.RectSize.y)
+            end
+            if isvalid(self.costUpButton) then
+                local pos = self.costUpButton.UITransformComponent.anchoredPosition
+                self.costUpButton.UITransformComponent.anchoredPosition = Vector2(width + self.ManaButtonGap, pos.y)
+            end
+            log("[VRF] BattleHUD mana bar width=" .. tostring(width) .. " level=" .. tostring(level) .. " max=" .. tostring(math.floor(costMax)))
+        end
+        if isvalid(self.manaFill) then
+            local inner = width - self.ManaFillInset * 2
+            local fill = 0
+            if costMax > 0 then fill = math.max(0, math.min(1, cost / costMax)) end
+            local fillTransform = self.manaFill.UITransformComponent
+            fillTransform.RectSize = Vector2(math.max(0, inner * fill), fillTransform.RectSize.y)
+        end
     end
 
     @ExecSpace("ClientOnly")
@@ -314,20 +364,21 @@ script BattleHUD extends Component
         if cost ~= view.cost then
             view.cost = cost
             if isvalid(self.costText) then
-                self.costText.Text = "마나 " .. tostring(cost) .. " / " .. tostring(math.floor(mySide.CostMax))
+                self.costText.Text = tostring(cost) .. " / " .. tostring(math.floor(mySide.CostMax))
             end
+            self:LayoutManaBar(mySide.Cost, mySide.CostMax, mySide.CostLevel)
             -- Cost level button: shows the level and the price of the next one; dimmed when it cannot be bought now.
             if isvalid(self.costUpButton) then
                 local current = _BattleConfig:GetCostLevels()[mySide.CostLevel]
                 -- The price already includes the base's upgrade discount (BattleSide.UpgradeCost).
                 local upgradePrice = mySide.UpgradeCost
                 local atCap = mySide.CostLevel >= mySide.CostLevelCap or current == nil or upgradePrice <= 0
-                local label = "마나 Lv " .. tostring(mySide.CostLevel)
+                local label = "Lv " .. tostring(mySide.CostLevel)
                 local usable = false
                 if atCap then
-                    label = label .. "\n최대"
+                    label = label .. "  최대"
                 else
-                    label = label .. "\n강화 " .. tostring(math.floor(upgradePrice))
+                    label = label .. "  " .. tostring(math.floor(upgradePrice))
                     usable = cost >= upgradePrice and state == "PLAYING"
                 end
                 if label ~= view.costUpLabel then
