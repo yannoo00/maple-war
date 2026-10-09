@@ -125,7 +125,6 @@ script BattleConfig extends Logic
                     attackRuid = ds:GetCell(i, "AttackRuid") or "",
                     dieRuid = ds:GetCell(i, "DieRuid") or "",
                     attackPlayRate = self:Num(ds:GetCell(i, "AttackPlayRate"), 1),
-                    attackPose = self:Num(ds:GetCell(i, "AttackPose"), 0),
                     attackHitDelay = self:Num(ds:GetCell(i, "AttackHitDelay"), 0),
                     projectileRuid = projectileRuid,
                     -- Presentation of an attack (client only): effect clip played on the attacker when it attacks,
@@ -152,6 +151,9 @@ script BattleConfig extends Logic
                     -- Skill effect position added to the default (frame bottom on the ground, centred on the area), world units.
                     effectOffsetX = self:Num(ds:GetCell(i, "EffectOffsetX"), 0),
                     effectOffsetY = self:Num(ds:GetCell(i, "EffectOffsetY"), 0),
+                    -- Skill sound (client only): played when the skill is cast, skillSoundDelay seconds after the effect starts.
+                    skillSoundRuid = self:OptText(ds:GetCell(i, "SkillSoundRuid")),
+                    skillSoundDelay = self:Num(ds:GetCell(i, "SkillSoundDelay"), 0),
                     -- Monsters: how many copies one card puts on the field (blank = 1); copies come MultiSpawnInterval apart.
                     -- iconRuid (optional, skills): the card picture; blank = the effect clip's thumbnail.
                     spawnCount = math.max(1, math.floor(self:Num(ds:GetCell(i, "SpawnCount"), 1))),

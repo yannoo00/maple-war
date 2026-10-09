@@ -65,9 +65,8 @@ const FIELDS = [
   { key: 'Scale', group: 'combat', type: 'number', label: '크기 배율', kinds: ['monster', 'build'], default: '1',
     help: '실제 = 값 × UnitScale(0.65)' },
 
-  { key: 'AttackPlayRate', group: 'timing', type: 'number', label: '공격 클립 재생 속도', kinds: ['monster', 'build'], default: '1' },
-  { key: 'AttackPose', group: 'timing', type: 'number', label: '공격 자세 유지(초)', kinds: ['monster', 'build'], default: '0',
-    help: '이 시간이 지나면 stand 클립으로 복귀' },
+  { key: 'AttackPlayRate', group: 'timing', type: 'number', label: '공격 클립 재생 속도', kinds: ['monster', 'build'], default: '1',
+    help: '공격 모션은 한 번 재생되고 끝나면 알아서 stand로 돌아감. 이 값은 그 모션의 빠르기' },
   { key: 'AttackHitDelay', group: 'timing', type: 'number', label: '타격 시점(초)', kinds: ['monster', 'build'], default: '0',
     help: '공격 시작부터 피해까지. 투사체 비행 시간도 이 값' },
 
@@ -119,6 +118,10 @@ const FIELDS = [
     help: '범위 중심 기준 오른쪽이 +. 월드 유닛(1 = 100px). 빈칸 = 0' },
   { key: 'EffectOffsetY', group: 'skill', type: 'number', label: '이펙트 위치 Y', kinds: ['skill'],
     help: '지면 기준 위가 +. 기본 위치(이펙트 프레임의 맨 아래가 지면)에 더해짐. 빈칸 = 0. 미리보기의 맞춤 버튼으로 내용물을 맞출 수 있음' },
+  { key: 'SkillSoundRuid', group: 'skill', type: 'ruid', label: '스킬 효과음', kinds: ['skill'],
+    help: '스킬을 쓸 때 재생되는 소리. 칸 아래에서 미리 들어 볼 수 있음. 빈칸 = 소리 없음' },
+  { key: 'SkillSoundDelay', group: 'skill', type: 'number', label: '효과음 재생 시점(초)', kinds: ['skill'],
+    help: '시전 후 몇 초에 재생할지. 빈칸 = 이펙트와 동시. 보통 피해 시점(SkillHitDelay)에 맞춤' },
 
   { key: '#Memo', group: 'memo', type: 'memo', label: '메모', kinds: KINDS, help: '코드가 읽지 않음. 적은 메모가 아니라 스테이지 등장(시간표·반복 풀)으로 정해짐' },
 ];

@@ -192,6 +192,8 @@ function validateUnit(unit, data, opts = {}) {
     if (!schema.FIELD_BY_KEY[k] && !data.units.header.includes(k)) errors.push(`"${k}"는 UnitTable에 없는 열입니다`);
   }
 
+  if (kind === 'skill' && unit.SkillSoundDelay != null && String(unit.SkillSoundDelay) !== '' && isNumeric(String(unit.SkillSoundDelay)) && Number(unit.SkillSoundDelay) < 0) errors.push('SkillSoundDelay는 0 이상이어야 합니다');
+  if (kind === 'skill' && !unit.SkillSoundRuid && unit.SkillSoundDelay != null && String(unit.SkillSoundDelay) !== '') warnings.push('스킬 효과음(SkillSoundRuid)이 없어 재생 시점 칸이 쓰이지 않습니다');
   if (kind === 'skill' && !unit.EffectRuid && ['EffectOffsetX', 'EffectOffsetY'].some((k) => unit[k] != null && String(unit[k]) !== '')) warnings.push('범위 이펙트(EffectRuid)가 없어 위치 칸이 쓰이지 않습니다');
 
   if (kind === 'monster' && unit.SpawnCount != null && String(unit.SpawnCount) !== '') {
@@ -752,6 +754,7 @@ async function lookupResource(ruid) {
       const name = (names.ko && names.ko[0]) || (names.en && names.en[0]) || r.dname || '';
       out = { ok: true, ruid, type: r.type || '', category: r.category || '', name, thumbnail: p.thumbnail || '', width: p.width, height: p.height, frameCount: Array.isArray(p.frames) ? p.frames.length : 0,
         // 프레임별 크기와 피벗(px, 왼쪽 아래 기준). 이펙트가 실제로 어디에 놓이는지 미리보기가 계산하는 데 쓴다.
+        audio: p.format ? { length: p.length, format: p.format, description: p.description || '' } : null,
         frames: Array.isArray(p.frames) ? p.frames.map((f) => ({ spriteRuid: f.spriteRuid, width: f.width, height: f.height, px: f.pivot ? f.pivot.x : 0, py: f.pivot ? f.pivot.y : 0 })) : [] };
     }
   } catch (e) {
@@ -778,6 +781,27 @@ async function fetchSprite(ruid) {
     const buf = Buffer.from(await res.arrayBuffer());
     if (spriteCache.size >= 600) spriteCache.delete(spriteCache.keys().next().value);
     spriteCache.set(ruid, buf);
+    return buf;
+  } catch {
+    return null;
+  }
+}
+
+// 소리 파일(ogg). 같은 출처로 줘야 브라우저 <audio>가 바로 재생한다.
+const audioCache = new Map();
+
+async function fetchAudio(ruid) {
+  if (!/^[0-9a-f]{32}$/.test(ruid)) return null;
+  if (audioCache.has(ruid)) return audioCache.get(ruid);
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(`${SPRITE_CDN}${ruid}.ogg`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (audioCache.size >= 100) audioCache.delete(audioCache.keys().next().value);
+    audioCache.set(ruid, buf);
     return buf;
   } catch {
     return null;
@@ -858,5 +882,5 @@ module.exports = {
   normalizeUnit, validateUnit, previewValidate, saveUnit, removeUnit,
   implementedEffectTypes, listEffects, effectTemplate, previewValidateEffect, saveEffect, removeEffect,
   mapNames, listStages, stageTemplate, previewValidateStage, saveStage, removeStage,
-  lookupResource, fetchSprite,
+  lookupResource, fetchSprite, fetchAudio,
 };

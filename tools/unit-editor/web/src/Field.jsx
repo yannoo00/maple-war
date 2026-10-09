@@ -7,6 +7,15 @@ function RuidPreview({ value }) {
   if (!isRuid(ruid)) return <div className="preview"><span className="bad">32자리 16진수가 아님</span></div>;
   if (!r) return <div className="preview"><span>불러오는 중…</span></div>;
   if (!r.ok) return <div className="preview"><span className="bad">{r.error || '조회 실패'}</span></div>;
+  if (r.audio) {
+    // 소리 리소스: 길이와 설명, 바로 들어 볼 수 있는 재생기
+    return (
+      <div className="preview" style={{ flexWrap: 'wrap' }}>
+        <audio controls preload="none" src={`/api/audio/${ruid.toLowerCase()}`} style={{ height: 32 }} />
+        <span>{[`${Number(r.audio.length).toFixed(2)}초`, r.audio.format, r.audio.description].filter(Boolean).join(' · ')}</span>
+      </div>
+    );
+  }
   const meta = [r.name, r.type, r.frameCount && `${r.frameCount}프레임`, r.width && `${r.width}×${r.height}`].filter(Boolean).join(' · ');
   return <div className="preview">{r.thumbnail && <img src={r.thumbnail} alt="" />}<span>{meta}</span></div>;
 }

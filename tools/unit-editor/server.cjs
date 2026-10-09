@@ -117,6 +117,12 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' });
       return res.end(png);
     }
+    if (req.method === 'GET' && url.pathname.startsWith('/api/audio/')) {
+      const ogg = await data.fetchAudio(url.pathname.slice('/api/audio/'.length).toLowerCase());
+      if (!ogg) return send(res, 404, { error: 'audio not found' });
+      res.writeHead(200, { 'Content-Type': 'audio/ogg', 'Content-Length': ogg.length, 'Cache-Control': 'public, max-age=86400' });
+      return res.end(ogg);
+    }
     if (req.method === 'GET' && !url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
     return send(res, 404, { error: 'not found' });
   } catch (e) {

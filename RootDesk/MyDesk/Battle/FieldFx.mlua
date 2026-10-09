@@ -14,6 +14,8 @@ script FieldFx extends Logic
     property number PixelUnit = 0.01
     property number ShadeHeight = 4.0
     property number SkillBoxHeight = 1.2
+    -- Volume of a skill's own cast sound (UnitTable SkillSoundRuid).
+    property number SkillSoundVolume = 0.6
 
     @ExecSpace("ClientOnly")
     method Entity SpawnSprite(Entity map, string name, string ruid, integer order)
@@ -60,10 +62,25 @@ script FieldFx extends Logic
     end
 
     @ExecSpace("ClientOnly")
+    method void PlaySkillSound(table cfg)
+        -- Plays a skill's own cast sound (SkillSoundRuid) at once, or skillSoundDelay seconds later. No sound when blank.
+        local ruid = cfg.skillSoundRuid
+        if ruid == nil or ruid == "" then return end
+        if cfg.skillSoundDelay <= 0 then
+            _BattleSound:PlayRuid(ruid, self.SkillSoundVolume)
+            return
+        end
+        _TimerService:SetTimerOnce(function()
+            if isvalid(_UserService.LocalPlayer) then _BattleSound:PlayRuid(ruid, self.SkillSoundVolume) end
+        end, cfg.skillSoundDelay)
+    end
+
+    @ExecSpace("ClientOnly")
     method void PlaySkillEffect(table cfg, number centerX)
         -- Plays a skill's effect so that it visually covers the damage area: centred on centerX,
         -- as wide as the area (2 x radius), standing on the ground. Effect clips keep their pivot wherever the
         -- original skill needed it (often far to one side), so the offset is computed from the clip's largest frame.
+        self:PlaySkillSound(cfg)
         local ruid = cfg.effectRuid
         if ruid == nil or ruid == "" then return end
         local player = _UserService.LocalPlayer

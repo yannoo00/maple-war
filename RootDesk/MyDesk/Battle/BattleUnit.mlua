@@ -220,7 +220,7 @@ script BattleUnit extends Component
             self.AttackTimer = self.AttackTimer - delta
             if self.AttackTimer <= 0 then
                 self.AttackTimer = self.AttackInterval
-                -- Clients play the attack clip and return to the stand clip after AttackPose on their own.
+                -- Clients play the attack clip once and return to the stand clip when it ends, on their own.
                 self:SetAnim("attack")
                 self.PendingTarget = target
                 self.PendingLife = target.Life
@@ -521,6 +521,9 @@ script BattleUnit extends Component
         if self._T.clipEndHandler == nil then
             self._T.clipEndHandler = self.Entity:ConnectEvent(SpriteAnimPlayerEndFrameEvent, function(event) self:OnClipEnd() end)
         end
+        if self._T.clipStartHandler == nil then
+            self._T.clipStartHandler = self.Entity:ConnectEvent(SpriteAnimPlayerStartFrameEvent, function(event) self:OnClipRestart() end)
+        end
         if self._T.enableHandler == nil then
             self._T.enableHandler = self.Entity:ConnectEvent(EntityEnabledInHierarchyChangedEvent, function(event)
                 if event.EnabledInHierarchy then self:SyncPresentation() end
@@ -561,6 +564,10 @@ script BattleUnit extends Component
             self.Entity:DisconnectEvent(SpriteAnimPlayerEndFrameEvent, self._T.clipEndHandler)
             self._T.clipEndHandler = nil
         end
+        if self._T.clipStartHandler ~= nil then
+            self.Entity:DisconnectEvent(SpriteAnimPlayerStartFrameEvent, self._T.clipStartHandler)
+            self._T.clipStartHandler = nil
+        end
         if self._T.enableHandler ~= nil then
             self.Entity:DisconnectEvent(EntityEnabledInHierarchyChangedEvent, self._T.enableHandler)
             self._T.enableHandler = nil
@@ -577,7 +584,8 @@ script BattleUnit extends Component
     @ExecSpace("ClientOnly")
     method void ApplyAnim()
         -- Turns the synced state into this unit's clip, from its UnitTable row:
-        -- move = move clip, stand = stand clip, attack = attack clip at AttackPlayRate (back to stand after AttackPose),
+        -- move = move clip, stand = stand clip, attack = attack clip at AttackPlayRate, played once and then back to
+        -- the stand clip (see OnClipEnd / FinishAttackClip),
         -- hit = hit clip (stand clip when it has none), die = die clip (the unit is hidden when it ends, see OnClipEnd).
         local anim = self.Anim
         if anim == "" then return end
@@ -609,12 +617,10 @@ script BattleUnit extends Component
         if isvalid(sprite) then sprite:SetAlpha(1) end
         self:ShowSprite(true)
         self:PlayClip(ruid, rate)
-        if state == "attack" and cfg.attackPose > 0 then
-            -- Back to the stand clip after the attack pose, unless another state arrived in the meantime.
-            _TimerService:SetTimerOnce(function()
-                if isvalid(self.Entity) and self._T.shownAnim == shownKey then self:PlayClip(cfg.standRuid, 1) end
-            end, cfg.attackPose)
-        end
+        -- An attack clip plays once: attackClip names the attack being shown until its clip has ended.
+        self._T.attackClip = nil
+        self._T.attackEnding = nil
+        if state == "attack" then self._T.attackClip = shownKey end
         if state == "die" and (ruid == nil or ruid == "") then self:FinishDeath("no die clip") end
     end
 
@@ -637,8 +643,43 @@ script BattleUnit extends Component
 
     @ExecSpace("ClientOnly")
     method void OnClipEnd()
-        -- A clip reached its last frame. Only the die clip matters: the death is finished at that moment.
-        if self._T.animState == "die" then self:FinishDeath("die clip ended") end
+        -- A clip reached its last frame. The die clip finishes the death at that moment. An attack clip is marked as
+        -- ending: it goes back to the stand clip when it wraps around to its first frame (OnClipRestart), so its
+        -- last frame is still shown in full. The 0.5 s timer covers a clip that never reports the wrap.
+        if self._T.animState == "die" then
+            self:FinishDeath("die clip ended")
+            return
+        end
+        local key = self._T.attackClip
+        if key == nil or key ~= self._T.shownAnim or self._T.attackEnding == key then return end
+        self._T.attackEnding = key
+        _TimerService:SetTimerOnce(function()
+            if isvalid(self.Entity) and self._T.attackEnding == key then self:FinishAttackClip("fallback") end
+        end, 0.5)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnClipRestart()
+        -- A clip started its first frame. For an attack clip that already showed its last frame this is the wrap
+        -- around: the attack motion is over.
+        local key = self._T.attackEnding
+        if key ~= nil and key == self._T.shownAnim then self:FinishAttackClip("clip ended") end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void FinishAttackClip(string reason)
+        -- The attack clip played once: back to the stand clip until the next state (the next attack, moving, ...).
+        local key = self._T.attackClip
+        self._T.attackClip = nil
+        self._T.attackEnding = nil
+        if key == nil or key ~= self._T.shownAnim then return end
+        local cfg = _BattleConfig:GetUnit(self.UnitId)
+        if cfg == nil then return end
+        self:PlayClip(cfg.standRuid, 1)
+        if self._T.attackEndLogged ~= true then
+            self._T.attackEndLogged = true
+            log("[VRF] BattleUnit " .. self.Entity.Name .. " attack clip finished (" .. reason .. "), back to stand")
+        end
     end
 
     @ExecSpace("ClientOnly")
