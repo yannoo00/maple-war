@@ -396,6 +396,19 @@ script LobbyUI extends Component
     end
 
     @ExecSpace("ClientOnly")
+    method void SetBarFill(Entity bar, Entity fill, number ratio)
+        -- Fills a progress bar by width: the fill (a sliced bar sprite, left-anchored) gets ratio of the bar's width, so its
+        -- edges stay crisp at every value. An empty bar hides the fill (a sliced sprite still draws its borders at 0).
+        if not isvalid(bar) or not isvalid(fill) then return end
+        local k = math.max(0, math.min(1, ratio))
+        local width = bar.UITransformComponent.RectSize.x * k
+        local fillTransform = fill.UITransformComponent
+        fillTransform.RectSize = Vector2(width, fillTransform.RectSize.y)
+        local shown = width >= 1
+        if fill.Enable ~= shown then fill.Enable = shown end
+    end
+
+    @ExecSpace("ClientOnly")
     method void SetChildText(Entity parent, string childName, string text)
         -- Writes the text of a named child label.
         local child = parent:GetChildByName(childName)
@@ -697,7 +710,7 @@ script LobbyUI extends Component
                 if state.owned == false then
                     self:SetChildText(item.entity, "Level", "미보유")
                     if isvalid(progress) then self:SetChildText(progress, "Label", unit.productId ~= "" and "구매 가능" or "준비 중") end
-                    if isvalid(fill) then fill.SpriteGUIRendererComponent.FillAmount = 0 end
+                    self:SetBarFill(progress, fill, 0)
                     table.insert(summary, unit.id .. "=none")
                 else
                     self:SetChildText(item.entity, "Level", "기지 Lv " .. tostring(state.level))
@@ -705,7 +718,7 @@ script LobbyUI extends Component
                         self:SetChildText(progress, "Label", state.maxed and "최대 강화" or ("강화 " .. tostring(state.cost) .. " 메소"))
                     end
                     if isvalid(fill) then
-                        fill.SpriteGUIRendererComponent.FillAmount = math.min(1, state.level / _BattleConfig:GetMaxBaseLevel())
+                        self:SetBarFill(progress, fill, math.min(1, state.level / _BattleConfig:GetMaxBaseLevel()))
                         if state.ready then
                             fill.SpriteGUIRendererComponent.Color = Color(0.36, 0.84, 0.4, 1)
                         else
@@ -717,7 +730,7 @@ script LobbyUI extends Component
             elseif state.owned == false then
                 self:SetChildText(item.entity, "Level", "미보유")
                 if isvalid(progress) then self:SetChildText(progress, "Label", "소환으로 획득") end
-                if isvalid(fill) then fill.SpriteGUIRendererComponent.FillAmount = 0 end
+                self:SetBarFill(progress, fill, 0)
                 table.insert(summary, unit.id .. "=none")
             else
                 self:SetChildText(item.entity, "Level", "레벨 " .. tostring(state.level))
@@ -729,7 +742,7 @@ script LobbyUI extends Component
                 end
                 if isvalid(progress) then self:SetChildText(progress, "Label", text) end
                 if isvalid(fill) then
-                    fill.SpriteGUIRendererComponent.FillAmount = ratio
+                    self:SetBarFill(progress, fill, ratio)
                     if state.ready then
                         fill.SpriteGUIRendererComponent.Color = Color(0.36, 0.84, 0.4, 1)
                     else

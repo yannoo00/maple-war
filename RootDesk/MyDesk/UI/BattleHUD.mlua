@@ -8,17 +8,24 @@ script BattleHUD extends Component
     property Entity slot5 = "bc2f845e-6b01-4693-9a4a-fa32b1d49cf6"
     -- Small preview of the next queued card (the one that fills the next played slot).
     property Entity nextCard = "a5d88760-570a-4549-ae6d-4064dabd9a45"
-    -- Mana bar above the hand: a track that widens with the mana level, its fill (current / max), the "current / max"
-    -- text on it, and the mana upgrade button right after the track's end. The track plus the button never get wider
-    -- than the five hand slots (ManaBarSpan).
+    -- Mana bar above the hand, always as wide as the five hand slots (ManaBarSpan) with the mana upgrade button at its
+    -- end. The gray track stands for the top mana level's cap (the most mana a battle can ever hold); the blue capacity
+    -- band over it is the current level's cap, and the bright fill is the current mana. Each upgrade turns more of the
+    -- gray into blue. When the upgrade can be bought, the button turns gold and pulses with a glow behind it.
     property TextGUIRendererComponent costText = "b92d3aba-b29d-4ec9-8adf-65da42154e40"
     property Entity manaBar = "34f25da6-2ff1-46e9-80ff-95bd4eb21611"
     property Entity manaTrack = "96b8354c-93ec-4b43-a7d6-ac12c6d72303"
+    property Entity manaCap = "4a0eff02-4110-4f6c-a9e2-61ff78920254"
     property Entity manaFill = "8f4ca85f-cb77-4d68-8871-c5a1c9b39c35"
+    property Entity costUpGlow = "920ac2d9-4785-48a3-a61a-8b7f37866d06"
     property number ManaBarSpan = 964
-    property number ManaBarMinWidth = 320
     property number ManaButtonGap = 8
     property number ManaFillInset = 4
+    -- Upgrade-ready highlight: glow alpha and button scale pulse UpgradePulseSpeed radians per second.
+    property number UpgradePulseSpeed = 6
+    property number UpgradePulseScale = 0.06
+    property Color UpgradeReadyColor = Color(1, 0.76, 0.18, 1)
+    property Color UpgradeReadyTextColor = Color(0.18, 0.1, 0, 1)
     property Entity hintText = "f91a8765-50c0-45b7-aaa1-4958e8617766"
     property Entity resultPanel = "7dbea0c5-0735-4c23-91be-a514da25bba0"
     property TextGUIRendererComponent resultTitle = "9a5c134a-9e8a-48db-8a8c-2b9b91a04a42"
@@ -177,6 +184,7 @@ script BattleHUD extends Component
         if isvalid(self.manaBar) then self.manaBar:SetEnable(visible) end
         if isvalid(self.leaveButton) then self.leaveButton:SetEnable(visible) end
         if isvalid(self.costUpButton) then self.costUpButton:SetEnable(visible) end
+        if isvalid(self.costUpGlow) then self.costUpGlow.Enable = false end
         if isvalid(self.baseSkillButton) then self.baseSkillButton:SetEnable(visible) end
         if isvalid(self.hintText) then self.hintText.Enable = false end
         if isvalid(self.resultPanel) then self.resultPanel.Enable = false end
@@ -184,25 +192,22 @@ script BattleHUD extends Component
 
     @ExecSpace("ClientOnly")
     method void LayoutManaBar(number cost, number costMax, integer level)
-        -- Sizes the mana bar: the track widens with the mana level's cap (CostLevelTable CostMax, relative to the top
-        -- level's), from ManaBarMinWidth up to the hand width minus the upgrade button; the fill shows cost / costMax;
-        -- the upgrade button sits right after the track's end.
+        -- Sizes the mana bar. The track is fixed (hand width minus the upgrade button) and is scaled to the top mana
+        -- level's cap (CostLevelTable CostMax), so one pixel always means the same mana: the capacity band is
+        -- costMax wide, the fill cost wide (never past the band). The upgrade button and its glow sit after the track.
         if not isvalid(self.manaTrack) then return end
         local levels = _BattleConfig:GetCostLevels()
         local top = levels[#levels]
-        local current = levels[level]
+        local topMax = costMax
+        if top ~= nil and top.costMax > topMax then topMax = top.costMax end
         local buttonWidth = 0
         if isvalid(self.costUpButton) then buttonWidth = self.costUpButton.UITransformComponent.RectSize.x end
-        local maxWidth = self.ManaBarSpan - buttonWidth - self.ManaButtonGap
-        local ratio = 1
-        if top ~= nil and current ~= nil and top.costMax > 0 then ratio = math.min(1, current.costMax / top.costMax) end
-        local width = math.floor(self.ManaBarMinWidth + (maxWidth - self.ManaBarMinWidth) * ratio)
+        local width = math.floor(self.ManaBarSpan - buttonWidth - self.ManaButtonGap)
         local view = self._T.view
-        local track = self.manaTrack.UITransformComponent
-        local height = track.RectSize.y
         if width ~= view.manaWidth then
             view.manaWidth = width
-            track.RectSize = Vector2(width, height)
+            local track = self.manaTrack.UITransformComponent
+            track.RectSize = Vector2(width, track.RectSize.y)
             if isvalid(self.costText) then
                 local textTransform = self.costText.Entity.UITransformComponent
                 textTransform.RectSize = Vector2(width, textTransform.RectSize.y)
@@ -211,14 +216,72 @@ script BattleHUD extends Component
                 local pos = self.costUpButton.UITransformComponent.anchoredPosition
                 self.costUpButton.UITransformComponent.anchoredPosition = Vector2(width + self.ManaButtonGap, pos.y)
             end
-            log("[VRF] BattleHUD mana bar width=" .. tostring(width) .. " level=" .. tostring(level) .. " max=" .. tostring(math.floor(costMax)))
+            if isvalid(self.costUpGlow) then
+                -- Centered on the button: the glow is a few pixels larger on every side.
+                local glow = self.costUpGlow.UITransformComponent
+                local pad = (glow.RectSize.x - buttonWidth) * 0.5
+                glow.anchoredPosition = Vector2(width + self.ManaButtonGap - pad, glow.anchoredPosition.y)
+            end
+        end
+        local inner = width - self.ManaFillInset * 2
+        local capRatio = 0
+        if topMax > 0 then capRatio = math.max(0, math.min(1, costMax / topMax)) end
+        local capWidth = inner * capRatio
+        if isvalid(self.manaCap) then
+            local capTransform = self.manaCap.UITransformComponent
+            capTransform.RectSize = Vector2(capWidth, capTransform.RectSize.y)
         end
         if isvalid(self.manaFill) then
-            local inner = width - self.ManaFillInset * 2
-            local fill = 0
-            if costMax > 0 then fill = math.max(0, math.min(1, cost / costMax)) end
+            local fillWidth = 0
+            if topMax > 0 then fillWidth = math.min(capWidth, inner * math.max(0, cost) / topMax) end
             local fillTransform = self.manaFill.UITransformComponent
-            fillTransform.RectSize = Vector2(math.max(0, inner * fill), fillTransform.RectSize.y)
+            fillTransform.RectSize = Vector2(fillWidth, fillTransform.RectSize.y)
+            -- A sliced sprite still draws its borders at width 0, so an empty bar hides the fill.
+            local shown = fillWidth >= 1
+            if self.manaFill.Enable ~= shown then self.manaFill.Enable = shown end
+        end
+        if math.floor(costMax) ~= view.manaCapLogged then
+            view.manaCapLogged = math.floor(costMax)
+            log("[VRF] BattleHUD mana bar level=" .. tostring(level) .. " max=" .. tostring(math.floor(costMax)) .. "/" .. tostring(math.floor(topMax)) .. " capWidth=" .. tostring(math.floor(capWidth)) .. "/" .. tostring(inner))
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void SetUpgradeReady(boolean ready)
+        -- Switches the mana upgrade button between its normal look and the gold "ready to buy" look; the pulse itself
+        -- runs in UpdateUpgradePulse.
+        local button = self.costUpButton
+        if not isvalid(button) then return end
+        local view = self._T.view
+        if view.upgradeNormalColor == nil then
+            view.upgradeNormalColor = button.SpriteGUIRendererComponent.Color
+            view.upgradeNormalTextColor = button.TextGUIRendererComponent.FontColor
+        end
+        if ready then
+            button.SpriteGUIRendererComponent.Color = self.UpgradeReadyColor
+            button.TextGUIRendererComponent.FontColor = self.UpgradeReadyTextColor
+        else
+            button.SpriteGUIRendererComponent.Color = view.upgradeNormalColor
+            button.TextGUIRendererComponent.FontColor = view.upgradeNormalTextColor
+            button.UITransformComponent.UIScale = Vector3(1, 1, 1)
+        end
+        if isvalid(self.costUpGlow) and self.costUpGlow.Enable ~= ready then self.costUpGlow.Enable = ready end
+        view.upgradePulse = 0
+        log("[VRF] BattleHUD mana upgrade ready=" .. tostring(ready))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void UpdateUpgradePulse(number delta)
+        -- While the upgrade can be bought: the glow behind the button breathes and the button gently swells.
+        local view = self._T.view
+        if view.costUpUsable ~= true or not isvalid(self.costUpButton) then return end
+        view.upgradePulse = (view.upgradePulse or 0) + delta * self.UpgradePulseSpeed
+        local wave = (math.sin(view.upgradePulse) + 1) * 0.5
+        local s = 1 + self.UpgradePulseScale * wave
+        self.costUpButton.UITransformComponent.UIScale = Vector3(s, s, 1)
+        if isvalid(self.costUpGlow) then
+            local c = self.UpgradeReadyColor
+            self.costUpGlow.SpriteGUIRendererComponent.Color = Color(c.r, c.g, c.b, 0.25 + 0.5 * wave)
         end
     end
 
@@ -391,6 +454,7 @@ script BattleHUD extends Component
                     self.costUpButton.ButtonComponent.Enable = usable
                     local dim = self.costUpButton:GetChildByName("Dim")
                     if isvalid(dim) then dim.Enable = usable == false end
+                    self:SetUpgradeReady(usable)
                 end
             end
             local step = cost // 100
@@ -420,6 +484,7 @@ script BattleHUD extends Component
             end
         end
 
+        self:UpdateUpgradePulse(delta)
         self:UpdateBaseSkillButton(mySide, state)
 
         local pending = commander.PendingSlot
