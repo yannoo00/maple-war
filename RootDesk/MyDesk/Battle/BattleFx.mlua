@@ -495,11 +495,18 @@ script BattleFx extends Logic
         if cfg == nil or cfg.hitEffectRuid == nil or not isvalid(target) then return end
         local parentScale = target.TransformComponent.Scale
         if parentScale.x == 0 or parentScale.y == 0 then return end
-        local size = cfg.scale * _BattleConfig.UnitScale
+        local hitScale = cfg.hitEffectScale
+        if hitScale == nil or hitScale <= 0 then hitScale = 1 end
+        local size = cfg.scale * _BattleConfig.UnitScale * hitScale
         -- Clips face left by default, like the unit sprites: mirrored when the attacker advances to the right.
-        local localScale = Vector3(-attacker:GetDirection() * size / parentScale.x, size / parentScale.y, 1)
-        local localY = self.ProjectileAimY * _BattleConfig.UnitScale / parentScale.y
-        local serial = _EffectService:PlayEffectAttached(cfg.hitEffectRuid, target, Vector3(0, localY, 0), 0, localScale, false)
+        local dir = attacker:GetDirection()
+        local localScale = Vector3(-dir * size / parentScale.x, size / parentScale.y, 1)
+        -- Offset columns are world units on screen from the target's feet (X toward the attacker's facing, Y up); they are
+        -- divided by the target's own scale because the effect is attached to it. Blank Y = the projectile aim height.
+        local worldY = cfg.hitEffectOffsetY
+        if worldY == nil then worldY = self.ProjectileAimY * _BattleConfig.UnitScale end
+        local localOffset = Vector3(dir * (cfg.hitEffectOffsetX or 0) / parentScale.x, worldY / parentScale.y, 0)
+        local serial = _EffectService:PlayEffectAttached(cfg.hitEffectRuid, target, localOffset, 0, localScale, false)
         local fx = attacker._T.fx
         if fx ~= nil and fx.hitFxLogged ~= true then
             fx.hitFxLogged = true

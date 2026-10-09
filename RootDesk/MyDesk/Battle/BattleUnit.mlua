@@ -21,6 +21,10 @@ script BattleUnit extends Component
     property string AttackType = "melee"
     property boolean IsAreaAttack = false
     property number AttackRange = 0.7
+    -- ranged_area: radius (world units) around the attacked target within which every enemy is hit.
+    property number AreaRadius = 0
+    -- Area attacks: most units one attack can hit (0 = no limit).
+    property integer MaxTargets = 0
     property number AttackInterval = 1.0
     property number AttackHitDelay = 0
     property number MoveSpeed = 1.0
@@ -65,6 +69,8 @@ script BattleUnit extends Component
         self.AttackType = cfg.attackType or ""
         self.IsAreaAttack = cfg.areaAttack == true
         self.AttackRange = cfg.range * _BattleConfig.RangeScale
+        self.AreaRadius = (cfg.areaRadius or 1) * _BattleConfig.RangeScale
+        self.MaxTargets = math.max(0, cfg.maxTargets or 0)
         self.AttackInterval = cfg.attackInterval
         self.AttackHitDelay = cfg.attackHitDelay
         self.MoveSpeed = cfg.speed
@@ -215,6 +221,7 @@ script BattleUnit extends Component
                 -- Clients play the attack clip once and return to the stand clip when it ends, on their own.
                 self:SetAnim("attack")
                 self.PendingTarget = target
+                self._T.aimX = target.Entity.TransformComponent.WorldPosition.x
                 self.PendingLife = target.Life
                 self.HitTimer = self.AttackHitDelay
                 -- Every attack is announced: clients show the attack effect, play the attack sound and fly the projectile.
@@ -235,18 +242,36 @@ script BattleUnit extends Component
     @ExecSpace("ServerOnly")
     method void ApplyHit(any aimed, number x)
         -- The attack lands. A single-target attack damages the target it was aimed at when the attack started;
-        -- an area attack damages every enemy that is within attack range of this unit at this moment.
+        -- a melee_area attack damages every enemy within attack range of this unit, a ranged_area attack every enemy within AreaRadius of the attacked target.
         if self.IsAreaAttack then
             local siege = _BattleEffects:HasFlag(self, "siege")
-            local targets = self.Director:FindTargetsInRange(self.Team, x, self.AttackRange)
+            -- melee_area: everything within attack range of this unit. ranged_area: everything within AreaRadius of the
+            -- attacked target (its last known position if it died or left before the hit lands).
+            local centerX = x
+            local radius = self.AttackRange
+            if self.AttackType == "ranged_area" then
+                radius = self.AreaRadius
+                centerX = self._T.aimX or x
+                if aimed ~= nil and aimed.IsDead == false and aimed.Life == self.PendingLife and isvalid(aimed.Entity) then
+                    centerX = aimed.Entity.TransformComponent.WorldPosition.x
+                end
+            end
+            local targets = self.Director:FindTargetsInRange(self.Team, centerX, radius)
+            -- With a cap, the units nearest to the blast center are hit first (the aimed target is at distance ~0).
+            if self.MaxTargets > 0 and #targets > self.MaxTargets then
+                table.sort(targets, function(a, b)
+                    return math.abs(a.Entity.TransformComponent.WorldPosition.x - centerX) < math.abs(b.Entity.TransformComponent.WorldPosition.x - centerX)
+                end)
+            end
             local hits = 0
             for _, target in ipairs(targets) do
+                if self.MaxTargets > 0 and hits >= self.MaxTargets then break end
                 if siege == false or target.Kind ~= "monster" then
                     self:DealDamage(target)
                     hits = hits + 1
                 end
             end
-            log("[BattleUnit] " .. self.Entity.Name .. " area hit (" .. self.AttackType .. ") targets=" .. tostring(hits) .. " damage=" .. tostring(self.AttackPower))
+            log("[VRF] [BattleUnit] " .. self.Entity.Name .. " area hit (" .. self.AttackType .. ") centerX=" .. string.format("%.2f", centerX) .. " radius=" .. string.format("%.2f", radius) .. " targets=" .. tostring(hits) .. " max=" .. tostring(self.MaxTargets) .. " damage=" .. tostring(self.AttackPower))
             return
         end
         -- The aimed unit must still be in the life it was aimed at (its entity may have been reused since).

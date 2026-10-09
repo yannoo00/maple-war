@@ -126,6 +126,10 @@ script BattleConfig extends Logic
                     maxHp = self:Num(ds:GetCell(i, "MaxHp"), 1),
                     attack = self:Num(ds:GetCell(i, "Attack"), 0),
                     range = self:Num(ds:GetCell(i, "Range"), 0),
+                    -- ranged_area only: radius (authored units, scaled by RangeScale) of the blast around the attacked target.
+                    areaRadius = self:Num(ds:GetCell(i, "AttackAreaRadius"), 1),
+                    -- Area attacks: most units one attack can hit (nearest to the blast center first); 0 = no limit.
+                    maxTargets = math.floor(self:Num(ds:GetCell(i, "AttackMaxTargets"), 0)),
                     attackInterval = self:Num(ds:GetCell(i, "AttackInterval"), 1),
                     speed = self:Num(ds:GetCell(i, "Speed"), 0),
                     scale = self:Num(ds:GetCell(i, "Scale"), 1),
@@ -141,6 +145,12 @@ script BattleConfig extends Logic
                     -- and the unit's own sounds for attacking, being damaged and dying. Blank = none / shared sound.
                     attackEffectRuid = self:OptText(ds:GetCell(i, "AttackEffectRuid")),
                     hitEffectRuid = self:OptText(ds:GetCell(i, "HitEffectRuid")),
+                    -- Where / how large the hit effect plays on each damaged unit (world units as seen on screen, relative to
+                    -- the damaged unit's feet: X toward the attacker's facing, Y up). Blank offsets = nil (Y then defaults to
+                    -- the projectile aim height); blank scale = 1.
+                    hitEffectOffsetX = self:Num(ds:GetCell(i, "HitEffectOffsetX"), 0),
+                    hitEffectOffsetY = self:OptText(ds:GetCell(i, "HitEffectOffsetY")) ~= nil and self:Num(ds:GetCell(i, "HitEffectOffsetY"), 0) or nil,
+                    hitEffectScale = self:Num(ds:GetCell(i, "HitEffectScale"), 1),
                     -- Where and how large the attack effect plays (client only), in world units as seen on screen:
                     -- X forward (the way the unit faces), Y up from its feet, scale on top of the unit's size. Blank = 0 / 1.
                     attackEffectOffsetX = self:Num(ds:GetCell(i, "AttackEffectOffsetX"), 0),

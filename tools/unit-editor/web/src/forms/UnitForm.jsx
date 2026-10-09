@@ -1,6 +1,7 @@
 import Field, { ExtraFields } from '../Field.jsx';
 import SkillPreview from './SkillPreview.jsx';
 import AttackEffectPreview from './AttackEffectPreview.jsx';
+import AttackRangePreview from './AttackRangePreview.jsx';
 
 // 유닛 편집 상단 줄에는 이름 외에 배지를 두지 않는다(획득 방법·등장 스테이지는 목록과 스테이지 편집에서 본다).
 export function UnitBadges() {
@@ -88,6 +89,7 @@ export default function UnitForm({ draft, set, data }) {
           </div>
           {g.id === 'skill' && <div style={{ marginTop: 12 }}><SkillPreview draft={draft} set={set} data={data} /></div>}
           {g.id === 'fx' && <div style={{ marginTop: 12 }}><AttackEffectPreview draft={draft} set={set} data={data} /></div>}
+          {g.id === 'fx' && (kind === 'monster' || kind === 'build') && <div style={{ marginTop: 16 }}><AttackRangePreview draft={draft} set={set} data={data} /></div>}
           {g.id === 'card' && <SpawnHint draft={draft} battle={data.battle} />}
         </fieldset>
       ))}

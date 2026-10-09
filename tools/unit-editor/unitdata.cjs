@@ -231,6 +231,12 @@ function validateUnit(unit, data, opts = {}) {
     const type = unit.AttackType || (unit.ProjectileRuid ? 'ranged' : 'melee');
     if (type.startsWith('ranged') && !unit.ProjectileRuid) warnings.push('원거리인데 ProjectileRuid가 없어 투사체 없이 피해만 들어갑니다');
     if (type.startsWith('melee') && unit.ProjectileRuid) warnings.push('근거리인데 ProjectileRuid가 있어 공격 때 투사체가 날아갑니다');
+    const radius = unit.AttackAreaRadius;
+    if (radius !== '' && radius != null && isNumeric(String(radius)) && Number(radius) <= 0) errors.push('AttackAreaRadius는 0보다 커야 합니다 (빈칸 = 1)');
+    const maxT = unit.AttackMaxTargets;
+    if (maxT !== '' && maxT != null && isNumeric(String(maxT)) && Number(maxT) < 0) errors.push('AttackMaxTargets는 0 이상이어야 합니다 (0 = 무제한)');
+    if (maxT !== '' && maxT != null && Number(maxT) > 0 && !type.endsWith('_area')) warnings.push('AttackMaxTargets는 범위 공격(*_area)에서만 쓰입니다');
+    if (radius !== '' && radius != null && type !== 'ranged_area') warnings.push('AttackAreaRadius는 원거리 범위(ranged_area)에서만 쓰입니다');
     if (unit.AttackEffectScale !== '' && unit.AttackEffectScale != null && isNumeric(String(unit.AttackEffectScale)) && Number(unit.AttackEffectScale) <= 0) errors.push('AttackEffectScale은 0보다 커야 합니다 (빈칸 = 1)');
     const hasOffset = ['AttackEffectOffsetX', 'AttackEffectOffsetY', 'AttackEffectScale'].some((k) => unit[k] != null && String(unit[k]) !== '');
     if (hasOffset && !unit.AttackEffectRuid) warnings.push('공격 이펙트(AttackEffectRuid)가 없어 위치·크기 칸이 쓰이지 않습니다');
@@ -904,6 +910,7 @@ function stateForEditor() {
       rangeScale: readBattleNumber(path.join(BATTLE_DIR, 'BattleConfig.mlua'), 'RangeScale', 0.65),
       unitScale: readBattleNumber(path.join(BATTLE_DIR, 'BattleConfig.mlua'), 'UnitScale', 0.65),
       skillBoxHeight: readBattleNumber(path.join(BATTLE_DIR, 'FieldFx.mlua'), 'SkillBoxHeight', 1.2),
+      projectileAimY: readBattleNumber(path.join(BATTLE_DIR, 'BattleFx.mlua'), 'ProjectileAimY', 0.35),
       multiSpawnInterval: readBattleNumber(path.join(BATTLE_DIR, 'BattleConfig.mlua'), 'MultiSpawnInterval', 0.25),
     },
     files: FILES,
