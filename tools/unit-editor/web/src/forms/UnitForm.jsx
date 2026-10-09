@@ -1,5 +1,6 @@
 import Field, { ExtraFields } from '../Field.jsx';
 import { Badge } from '../ui.jsx';
+import SkillPreview from './SkillPreview.jsx';
 
 export function UnitBadges({ draft, enemyStages }) {
   const price = Number(draft.Price || 0);
@@ -27,6 +28,7 @@ export default function UnitForm({ draft, set, data }) {
               <Field key={f.key} field={f} kind={kind} value={draft[f.key]} onChange={(v) => set(f.key, v)} schema={schema} data={data} />
             ))}
           </div>
+          {g.id === 'skill' && <div style={{ marginTop: 12 }}><SkillPreview draft={draft} battle={data.battle} /></div>}
         </fieldset>
       ))}
       <ExtraFields header={schema.header} known={known} draft={draft} set={set} />

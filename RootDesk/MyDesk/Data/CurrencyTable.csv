@@ -1,2 +1,3 @@
-﻿CurrencyId,Name,Max,RegenSeconds,StartAmount,#Memo
-ticket,입장권,30,360,30,"캠페인 입장 재화. Max는 자동 충전 최대치(구매분은 넘겨 쌓임), RegenSeconds는 1 회복에 걸리는 초(0=자동 충전 없음), StartAmount는 신규 유저 시작량"
+﻿CurrencyId,Name,Max,RegenSeconds,StartAmount,Icon,#Memo
+ticket,메이플 코인,30,360,30,acbc2a04e46845f8b5b52aa4ff5704e4,"캠페인 입장 재화. Max는 자동 충전 최대치(구매분은 넘겨 쌓임), RegenSeconds는 1 회복에 걸리는 초(0=자동 충전 없음), StartAmount는 신규 유저 시작량, Icon은 재화 아이콘 sprite RUID"
+premium,골드리치 주화,0,0,0,4f1fb601ef3648fa93571fd7cf925b08,"유료 재화(월드코인으로 구매). 자동 충전 없음"

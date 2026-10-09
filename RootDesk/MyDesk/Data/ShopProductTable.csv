@@ -1,4 +1,7 @@
 ﻿ProductId,CurrencyId,Amount,Label,#Memo
-5JGW1T7EY,ticket,10,입장권 10장,ProductId는 월드 상품 ID(비어 있으면 상점에 준비 중으로 표시). 가격은 월드 상품에 등록된 값: 50 / 130 / 400 Worldcoin
-1SBJQIC89,ticket,30,입장권 30장,
-XVSUGEYAW,ticket,100,입장권 100장,
+5JGW1T7EY,ticket,10,메이플 코인 10개,ProductId는 월드 상품 ID(비어 있으면 상점에 준비 중으로 표시). 가격은 월드 상품에 등록된 값: 50 / 130 / 400 Worldcoin
+1SBJQIC89,ticket,30,메이플 코인 30개,
+XVSUGEYAW,ticket,100,메이플 코인 100개,
+,premium,100,골드리치 주화 100개,골드리치 주화 상품: 월드 상품 등록 후 ProductId 기입(수량은 잠정값)
+,premium,550,골드리치 주화 550개,
+,premium,1200,골드리치 주화 1200개,

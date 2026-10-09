@@ -37,6 +37,8 @@ script BattleConfig extends Logic
     property integer DeckSize = 10
     -- Currency (CurrencyTable id) paid to enter a campaign stage; the amount is the stage's EntryCost.
     property string EntryCurrencyId = "ticket"
+    -- Paid currency (CurrencyTable id, 골드리치 주화) bought with Worldcoin; shown in the lobby top bar.
+    property string PremiumCurrencyId = "premium"
 
     method number Num(string text, number fallback)
         -- Converts a dataset cell to a number; blank or invalid cells give the fallback.
@@ -424,7 +426,7 @@ script BattleConfig extends Logic
     end
 
     method table GetCurrencies()
-        -- Returns every currency definition keyed by currency id: { id, name, max, regenSeconds, startAmount },
+        -- Returns every currency definition keyed by currency id: { id, name, max, regenSeconds, startAmount, icon },
         -- loaded once from CurrencyTable. regenSeconds = seconds per +1 (0 = no automatic refill).
         local currencies = self._T.currencies
         if currencies ~= nil then return currencies end
@@ -441,6 +443,8 @@ script BattleConfig extends Logic
                     max = math.floor(self:Num(ds:GetCell(i, "Max"), 0)),
                     regenSeconds = math.floor(self:Num(ds:GetCell(i, "RegenSeconds"), 0)),
                     startAmount = math.floor(self:Num(ds:GetCell(i, "StartAmount"), 0)),
+                    -- Sprite RUID of the currency icon ("" = no icon).
+                    icon = self:OptText(ds:GetCell(i, "Icon")) or "",
                 }
             end
         end

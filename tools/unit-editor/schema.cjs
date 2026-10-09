@@ -116,6 +116,8 @@ const FIELDS = [
   { key: 'SkillHitDelay', group: 'skill', type: 'number', label: '피해 시점(초)', required: ['skill'], kinds: ['skill'], help: '이펙트 시작부터 피해까지' },
   { key: 'EffectRuid', group: 'skill', type: 'ruid', label: '범위 이펙트', required: ['skill'], kinds: ['skill'], help: '상점 아이콘 썸네일에도 사용' },
   { key: 'EffectScale', group: 'skill', type: 'number', label: '이펙트 크기', kinds: ['skill'], default: '1' },
+  { key: 'IconRuid', group: 'skill', type: 'ruid', label: '스킬 아이콘', kinds: ['skill'],
+    help: '카드·상점·덱에 보이는 그림. 빈칸 = 범위 이펙트의 썸네일을 대신 씀' },
 
   { key: '#Memo', group: 'memo', type: 'memo', label: '메모', kinds: KINDS, help: '코드가 읽지 않음. 적/아군은 메모가 아니라 Starter·Price·스테이지 등장으로 정해짐' },
 ];
@@ -149,6 +151,7 @@ const EFFECT_FIELDS = [
   { key: 'ChanceWind', type: 'number', label: '확률 · 바람(%) 기본값', default: '0' },
   { key: 'ChanceLight', type: 'number', label: '확률 · 빛(%) 기본값', default: '0' },
   { key: 'ChanceDark', type: 'number', label: '확률 · 어둠(%) 기본값', default: '0' },
+  { key: 'IconRuid', type: 'ruid', label: '아이콘', help: '효과에 걸린 유닛 머리 위에 뜨는 그림. 빈칸 = 코드의 기본 픽셀 아이콘' },
   { key: '#Memo', type: 'memo', label: '효과 설명 (구현 스펙)',
     help: '코드는 읽지 않음. 미구현 타입이면 이 설명이 Claude에게 넘길 구현 스펙이 됨: 누구에게, 얼마 동안, 무엇이 일어나는지' },
 ];

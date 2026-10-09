@@ -94,11 +94,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/core-version-check/core-version-check.cjs\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/skill-router-reminder/skill-router-reminder.cjs\"",
             "timeout": 5
           }

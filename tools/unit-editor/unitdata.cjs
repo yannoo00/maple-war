@@ -336,6 +336,15 @@ function removeUnit(unitId, opts = {}) {
 const BATTLE_UNIT_MLUA = path.join(ROOT, 'RootDesk', 'MyDesk', 'Battle', 'BattleUnit.mlua');
 const KNOWN_EFFECT_TYPES = ['nullify', 'curse', 'warp', 'blow'];
 
+// 게임 코드의 `property number <name> = <value>`를 읽는다 (툴 미리보기가 게임과 같은 배율을 쓰도록). 못 읽으면 fallback.
+function readBattleNumber(file, name, fallback) {
+  try {
+    const m = fs.readFileSync(file, 'utf8').match(new RegExp(`property number ${name}\\s*=\\s*([0-9.]+)`));
+    return m ? Number(m[1]) : fallback;
+  } catch { return fallback; }
+}
+const BATTLE_DIR = path.join(ROOT, 'RootDesk', 'MyDesk', 'Battle');
+
 function implementedEffectTypes() {
   // Effect types the game code actually handles: every `effect.type == "<type>"` branch in BattleUnit:ReceiveEffect.
   // Falls back to the known list when the script cannot be read.
@@ -708,6 +717,11 @@ function stateForEditor() {
     units: data.units.records.filter((r) => r.UnitId).map((r) => ({ ...r, _status: unitStatus(r, data) })),
     stages: data.stages.records.filter((s) => s.StageId).map((s) => ({ ...s, _status: stageStatus(s, data) })),
     effects: data.effects.records.filter((e) => e.EffectId).map((e) => ({ ...e, _status: effectStatus(e, data, implemented) })),
+    // 스킬 범위 미리보기용: 피해 폭 = SkillRadius × RangeScale × 2, 범위 박스 높이 = SkillBoxHeight
+    battle: {
+      rangeScale: readBattleNumber(path.join(BATTLE_DIR, 'BattleConfig.mlua'), 'RangeScale', 0.65),
+      skillBoxHeight: readBattleNumber(path.join(BATTLE_DIR, 'FieldFx.mlua'), 'SkillBoxHeight', 1.2),
+    },
     files: FILES,
   };
 }
