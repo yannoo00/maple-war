@@ -20,6 +20,8 @@ script LobbyUI extends Component
     property Entity stageCard = "02bc7b91-fea7-477e-96b4-140b8c9a7626"
     property Entity enterButton = "f4d775ac-a40c-4ab9-b8ef-c4635b630560"
     property TextGUIRendererComponent deckTitle = "1d5a7119-286c-47af-a77d-c5a07a6ce359"
+    -- Deck preset tabs above the deck list; its buttons are P1..P4 (found by name).
+    property Entity deckPresets = "f450785b-2f23-4448-9aac-90663c9aafdd"
     property Entity deckSlot = "0f34464a-cfcc-4a30-bf27-d6f1f91f3cb9"
     property Entity collectionTile = "05439b32-df4a-4a03-8a8f-fb3908c5ce15"
     -- Deck screen sort buttons: the key (rarity / cost) and the direction (ascending / descending) of the card tiles.
@@ -96,6 +98,12 @@ script LobbyUI extends Component
         if isvalid(self.chestPanel) then self.chestPanel.Enable = false end
         if isvalid(self.unitInfoPanel) then self.unitInfoPanel.Enable = false end
         self:SetupDevBar()
+        if isvalid(self.deckPresets) then
+            for i = 1, 4 do
+                local index = i
+                self:Bind(self.deckPresets:GetChildByName("P" .. tostring(i)), function() self:OnDeckPresetClicked(index) end)
+            end
+        end
         log("[LobbyUI] initialized handlers=" .. tostring(#self.clickHandlers))
     end
 
@@ -261,7 +269,7 @@ script LobbyUI extends Component
         ---@type PlayerData
         local data = player:GetComponent("script.PlayerData")
         if data == nil then return end
-        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.StagesCsv .. "|" .. data.WalletCsv .. "|" .. data.CardsCsv .. "|" .. data.StonesCsv
+        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.DeckPresetsCsv .. "|" .. tostring(data.DeckPreset) .. "|" .. data.StagesCsv .. "|" .. data.WalletCsv .. "|" .. data.CardsCsv .. "|" .. data.StonesCsv
         if signature ~= view.signature then
             view.signature = signature
             log("[LobbyUI] data changed loaded=" .. tostring(data.Loaded) .. " meso=" .. tostring(data.Meso) .. " units=" .. data.UnitsCsv .. " deck=" .. data.DeckCsv .. " stages=" .. data.StagesCsv .. " wallet=" .. data.WalletCsv)
@@ -544,6 +552,36 @@ script LobbyUI extends Component
     -- 강화 replaces 정보 when the unit can level up now; both open the info popup, which holds the upgrade button.
 
     @ExecSpace("ClientOnly")
+    method void PaintDeckPresets(PlayerData data)
+        -- Highlights the preset tab in use; tabs of empty presets are dimmed (choosing one copies the current deck).
+        if not isvalid(self.deckPresets) then return end
+        local presets = data:GetDeckPresets()
+        for i = 1, 4 do
+            local tab = self.deckPresets:GetChildByName("P" .. tostring(i))
+            if isvalid(tab) then
+                local color = Color(0.16, 0.18, 0.24, 0.95)
+                if i == data.DeckPreset then
+                    color = Color(0.2, 0.5, 0.95, 1)
+                elseif (presets[i] or "") == "" then
+                    color = Color(0.1, 0.1, 0.13, 0.8)
+                end
+                tab.SpriteGUIRendererComponent.Color = color
+            end
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnDeckPresetClicked(integer index)
+        -- A preset tab: switches the deck in use (the server copies the current deck into an empty preset).
+        ---@type PlayerData
+        local data = self:GetData()
+        if data == nil or index == data.DeckPreset then return end
+        _BattleSound:Play("click")
+        log("[VRF] [LobbyUI] deck preset clicked " .. tostring(index))
+        data:RequestSelectDeckPreset(index)
+    end
+
+    @ExecSpace("ClientOnly")
     method void RenderDeck(PlayerData data)
         -- Draws the deck list (one row per slot, in slot order) and the collection tiles beside it.
         local deck = data:GetDeckIds()
@@ -552,8 +590,9 @@ script LobbyUI extends Component
         -- Remember what is owned now, so a chest result arriving later can mark newly unlocked units.
         self._T.ownedBefore = levels
         if isvalid(self.deckTitle) then
-            self.deckTitle.Text = "내 덱 (" .. tostring(#deck) .. " / " .. tostring(deckSize) .. ")"
+            self.deckTitle.Text = "내 덱 " .. tostring(data.DeckPreset) .. " (" .. tostring(#deck) .. " / " .. tostring(deckSize) .. ")"
         end
+        self:PaintDeckPresets(data)
         local inDeck = {}
         -- The first row is the deck's base slot (not counted in the deck size); the card rows follow it.
         local rows = self:SyncPool("slot", self.deckSlot, deckSize + 1, "", function(item) self:SelectCard("slot", item.key) end)

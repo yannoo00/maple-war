@@ -10,6 +10,12 @@ script PlayerData extends Component
     @TargetUserSync property integer Meso = 0
     @TargetUserSync property string UnitsCsv = ""
     @TargetUserSync property string DeckCsv = ""
+    -- Deck presets: DeckPresetCount decks as "csv|csv|csv|csv"; DeckPreset is the one in use, and DeckCsv always mirrors
+    -- it (battles, the HUD and the lobby keep reading DeckCsv). Choosing an empty preset starts it as a copy of the
+    -- current deck, so the deck in use is never empty.
+    @TargetUserSync property string DeckPresetsCsv = ""
+    @TargetUserSync property integer DeckPreset = 1
+    property integer DeckPresetCount = 4
     -- The base in the deck's base slot (UnitTable id, Kind = base). Owned bases are listed in UnitsCsv with their upgrade level.
     @TargetUserSync property string SelectedBase = ""
     @TargetUserSync property string StagesCsv = ""
@@ -58,6 +64,16 @@ script PlayerData extends Component
         local ids = {}
         for id in string.gmatch(self.DeckCsv, "[^,]+") do table.insert(ids, id) end
         return ids
+    end
+
+    method table GetDeckPresets()
+        -- Returns the DeckPresetCount preset decks as csv strings ("" = empty preset).
+        local list = {}
+        local rest = self.DeckPresetsCsv .. "|"
+        for csv in string.gmatch(rest, "([^|]*)|") do table.insert(list, csv) end
+        for i = #list + 1, self.DeckPresetCount do list[i] = "" end
+        while #list > self.DeckPresetCount do table.remove(list) end
+        return list
     end
 
     method string GetSelectedBaseId()
@@ -109,6 +125,10 @@ script PlayerData extends Component
             self.Meso = math.floor(data.meso or 0)
             self.UnitsCsv = data.units or ""
             self.DeckCsv = data.deck or ""
+            -- Saves from before presets existed keep their deck as preset 1.
+            self.DeckPresetsCsv = data.decks or self.DeckCsv
+            self.DeckPreset = math.max(1, math.min(self.DeckPresetCount, math.floor(data.deckPreset or 1)))
+            self:StorePreset()
             self.StagesCsv = data.stages or ""
             self.CardsCsv = data.cards or ""
             self.StonesCsv = data.stones or ""
@@ -155,6 +175,9 @@ script PlayerData extends Component
         self.Meso = 0
         self.UnitsCsv = table.concat(units, ",")
         self.DeckCsv = table.concat(deck, ",")
+        self.DeckPreset = 1
+        self.DeckPresetsCsv = ""
+        self:StorePreset()
         self.StagesCsv = ""
         self.CardsCsv = ""
     end
@@ -233,7 +256,7 @@ script PlayerData extends Component
     method string BuildPayload()
         -- Serializes everything that is stored for this player.
         return _HttpService:JSONEncode({
-            meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, base = self.SelectedBase, stages = self.StagesCsv, cards = self.CardsCsv,
+            meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, decks = self.DeckPresetsCsv, deckPreset = self.DeckPreset, base = self.SelectedBase, stages = self.StagesCsv, cards = self.CardsCsv,
             stones = self.StonesCsv,
             wallet = self:ExportWallet(), purchases = table.concat(self._T.purchases or {}, ","),
         })
@@ -747,6 +770,48 @@ script PlayerData extends Component
         local csv = table.concat(deckIds, ",")
         if csv == self.DeckCsv then return "" end
         self.DeckCsv = csv
+        self:StorePreset()
+        self:MarkDirty()
+        if self.DeckTimerId ~= 0 then _TimerService:ClearTimer(self.DeckTimerId) end
+        self.DeckTimerId = _TimerService:SetTimerOnce(function()
+            self.DeckTimerId = 0
+            self:Save(false)
+        end, self.DeckSaveDelay)
+        return ""
+    end
+
+    @ExecSpace("ServerOnly")
+    method void StorePreset()
+        -- Writes the deck in use (DeckCsv) into its preset slot.
+        local list = self:GetDeckPresets()
+        list[self.DeckPreset] = self.DeckCsv
+        self.DeckPresetsCsv = table.concat(list, "|")
+    end
+
+    @ExecSpace("ServerOnly")
+    method string SelectDeckPreset(integer index)
+        -- Switches the deck in use to preset index (1..DeckPresetCount). An empty preset starts as a copy of the current
+        -- deck. Returns "" on success or the reason it was refused. Saved after the same debounce as a deck edit.
+        if self.Loaded == false then return "not loaded" end
+        if index < 1 or index > self.DeckPresetCount then return "no such preset" end
+        if index == self.DeckPreset then return "" end
+        self:StorePreset()
+        local list = self:GetDeckPresets()
+        if list[index] == "" then list[index] = self.DeckCsv end
+        -- Drop cards that are no longer owned (a reset account, a removed unit).
+        local levels = self:GetUnitLevels()
+        local kept = {}
+        for id in string.gmatch(list[index], "[^,]+") do
+            local unit = _BattleConfig:GetUnit(id)
+            if levels[id] ~= nil and unit ~= nil and unit.kind ~= "base" then table.insert(kept, id) end
+        end
+        if #kept == 0 then
+            for id in string.gmatch(self.DeckCsv, "[^,]+") do table.insert(kept, id) end
+        end
+        list[index] = table.concat(kept, ",")
+        self.DeckPresetsCsv = table.concat(list, "|")
+        self.DeckPreset = index
+        self.DeckCsv = list[index]
         self:MarkDirty()
         if self.DeckTimerId ~= 0 then _TimerService:ClearTimer(self.DeckTimerId) end
         self.DeckTimerId = _TimerService:SetTimerOnce(function()
@@ -780,6 +845,14 @@ script PlayerData extends Component
         if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
         local reason = self:UpgradeBase(baseId)
         log("[VRF] PlayerData upgrade base " .. baseId .. " -> " .. (reason == "" and "ok" or reason) .. " meso=" .. tostring(self.Meso) .. " units=" .. self.UnitsCsv)
+    end
+
+    @ExecSpace("Server")
+    method void RequestSelectDeckPreset(integer index)
+        -- Client request: switch the deck in use to another preset.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        local reason = self:SelectDeckPreset(index)
+        log("[VRF] PlayerData deck preset " .. tostring(index) .. " -> " .. (reason == "" and "ok" or reason) .. " deck=" .. self.DeckCsv .. " presets=" .. self.DeckPresetsCsv)
     end
 
     @ExecSpace("Server")
