@@ -1,0 +1,280 @@
+-- EntityPool: one reusable-entity manager for the battle map (units, projectiles, HP bars, effect icons ...).
+--
+-- Attach this component to the battle map entity (like BattleDirector). Every pool is addressed by a poolKey of your
+-- choice; the key is separate from the model id, so many keys may share one model.
+--
+-- Server pool (synced entities such as units)         Client pool (client-local entities: projectiles, bars, icons)
+--   Prewarm(poolKey, modelId, count)                    PrewarmLocal(poolKey, modelId, count)
+--   Acquire(poolKey, pos) -> Entity | nil               AcquireLocal(poolKey, pos) -> Entity | nil
+--   Release(entity) -> boolean                          ReleaseLocal(entity) -> boolean
+--
+-- Shared (call on the side that owns the pool):
+--   SetHooks(poolKey, { "script.BattleUnit", ... })  components that get OnPoolAcquire(Vector3 pos) / OnPoolRelease()
+--   SetMaxFree(poolKey, n)                           parked entities beyond n are destroyed on Release
+--   GetStats(poolKey) -> { created, reused, free, active }
+--   ClearAll()                                        destroys everything the manager made (also runs in OnEndPlay)
+--
+-- Contract for pooled scripts: every component named in SetHooks must implement both OnPoolAcquire(Vector3 pos) and
+-- OnPoolRelease() and must put ALL per-life state back to its start values there (hp, timers, alpha, material, mode ...).
+-- OnPoolAcquire runs before the entity is enabled again; the pool has already set TransformComponent.WorldPosition,
+-- but an entity with a Body may need to reposition itself with its movement component inside the hook.
+-- Prewarmed entities are only parked (disabled); OnPoolRelease is not called for them, OnPoolAcquire always is.
+
+@Component
+script EntityPool extends Component
+
+    -- Parked entities a pool keeps at most (a Release above this destroys the entity instead). SetMaxFree overrides it per pool.
+    property integer DefaultMaxFree = 64
+    -- Logs every acquire / release (off by default: units and projectiles would flood the log).
+    property boolean VerboseLog = false
+
+    -- ===== Shared core (runs on whichever side called it; _T is per side, so server and client pools never mix) =====
+
+    method table GetPools()
+        -- Returns this side's pool table, creating the bookkeeping on first use.
+        -- pools[poolKey] = { modelId, hooks, free = { {entity, id} }, active = { id -> entity }, activeCount, max, seq, created, reused }
+        local pools = self._T.pools
+        if pools == nil then
+            pools = {}
+            self._T.pools = pools
+            self._T.owner = {}
+            self._T.parked = {}
+        end
+        return pools
+    end
+
+    method boolean ConfigurePool(string poolKey, string modelId)
+        -- Registers a pool (idempotent). Returns false when the key is already bound to a different model.
+        local pools = self:GetPools()
+        local pool = pools[poolKey]
+        if pool == nil then
+            pools[poolKey] = {
+                modelId = modelId, hooks = {}, free = {}, active = {}, activeCount = 0,
+                max = self.DefaultMaxFree, seq = 0, created = 0, reused = 0,
+            }
+            return true
+        end
+        if pool.modelId ~= modelId then
+            log_error("[EntityPool] pool " .. poolKey .. " already uses model " .. pool.modelId .. ", not " .. modelId)
+            return false
+        end
+        return true
+    end
+
+    method void SetHooks(string poolKey, table componentTypeNames)
+        -- Lists the components (typename, e.g. "script.BattleUnit") that receive OnPoolAcquire / OnPoolRelease for this pool.
+        local pool = self:GetPools()[poolKey]
+        if pool == nil then
+            log_error("[EntityPool] SetHooks: unknown pool " .. poolKey .. " (Prewarm or PrewarmLocal it first)")
+            return
+        end
+        pool.hooks = componentTypeNames
+    end
+
+    method void SetMaxFree(string poolKey, integer maxFree)
+        -- Sets how many parked entities this pool keeps; extra released entities are destroyed.
+        local pool = self:GetPools()[poolKey]
+        if pool == nil then
+            log_error("[EntityPool] SetMaxFree: unknown pool " .. poolKey)
+            return
+        end
+        pool.max = math.max(0, maxFree)
+    end
+
+    method table GetStats(string poolKey)
+        -- Returns { created, reused, free, active } for a pool, or nil when the key is unknown.
+        local pool = self:GetPools()[poolKey]
+        if pool == nil then return nil end
+        return { created = pool.created, reused = pool.reused, free = #pool.free, active = pool.activeCount }
+    end
+
+    method Entity CreateEntity(table pool, string poolKey, Vector3 pos)
+        -- Spawns one new entity of the pool's model under the battle map. Returns nil when the spawn fails.
+        local map = self.Entity.CurrentMap
+        if isvalid(map) == false then map = self.Entity end
+        pool.seq = pool.seq + 1
+        local entity = _SpawnService:SpawnByModelId(pool.modelId, poolKey .. "_" .. tostring(pool.seq), pos, map)
+        if entity == nil then
+            log_error("[EntityPool] spawn failed key=" .. poolKey .. " model=" .. pool.modelId)
+            return nil
+        end
+        pool.created = pool.created + 1
+        self._T.owner[entity.Id] = poolKey
+        return entity
+    end
+
+    method void CallHooks(table pool, Entity entity, boolean acquiring, Vector3 pos)
+        -- Calls OnPoolAcquire(pos) or OnPoolRelease() on every component the pool lists in SetHooks.
+        for _, typeName in ipairs(pool.hooks) do
+            local comp = entity:GetComponent(typeName)
+            if comp == nil then
+                log_warning("[EntityPool] hook component " .. typeName .. " not found on " .. entity.Name)
+            elseif acquiring then
+                comp:OnPoolAcquire(pos)
+            else
+                comp:OnPoolRelease()
+            end
+        end
+    end
+
+    method void Park(table pool, Entity entity, boolean isLocal)
+        -- Disables the entity (synced on the server pool) and puts it in the pool's free list.
+        entity:SetEnable(false, false, isLocal == false)
+        local id = entity.Id
+        self._T.parked[id] = true
+        table.insert(pool.free, { entity = entity, id = id })
+    end
+
+    method void PoolPrewarm(string poolKey, string modelId, integer count, boolean isLocal)
+        -- Registers the pool and tops its free list up to count parked entities.
+        if self._T.ended == true then return end
+        if self:ConfigurePool(poolKey, modelId) == false then return end
+        local pool = self:GetPools()[poolKey]
+        local made = 0
+        while #pool.free < count do
+            local entity = self:CreateEntity(pool, poolKey, Vector3(0, 0, 0))
+            if entity == nil then break end
+            self:Park(pool, entity, isLocal)
+            made = made + 1
+        end
+        log("[VRF] EntityPool prewarm key=" .. poolKey .. " model=" .. modelId .. " made=" .. tostring(made) .. " free=" .. tostring(#pool.free) .. " local=" .. tostring(isLocal))
+    end
+
+    method Entity PoolAcquire(string poolKey, Vector3 pos, boolean isLocal)
+        -- Returns a ready entity: a parked one when available, a freshly spawned one otherwise. nil on failure.
+        if self._T.ended == true then return nil end
+        local pool = self:GetPools()[poolKey]
+        if pool == nil then
+            log_error("[EntityPool] acquire: unknown pool " .. poolKey .. " (Prewarm or PrewarmLocal it first)")
+            return nil
+        end
+        local entity = nil
+        local reused = false
+        while #pool.free > 0 do
+            local record = table.remove(pool.free)
+            self._T.parked[record.id] = nil
+            if isvalid(record.entity) then
+                entity = record.entity
+                reused = true
+                break
+            end
+            self._T.owner[record.id] = nil
+        end
+        if entity == nil then
+            entity = self:CreateEntity(pool, poolKey, pos)
+            if entity == nil then return nil end
+        else
+            entity.TransformComponent.WorldPosition = pos
+            pool.reused = pool.reused + 1
+        end
+        pool.active[entity.Id] = entity
+        pool.activeCount = pool.activeCount + 1
+        self:CallHooks(pool, entity, true, pos)
+        if reused then entity:SetEnable(true, false, isLocal == false) end
+        if self.VerboseLog then log("[EntityPool] acquire key=" .. poolKey .. " " .. entity.Name .. " reused=" .. tostring(reused)) end
+        return entity
+    end
+
+    method boolean PoolRelease(Entity entity, boolean isLocal)
+        -- Takes an entity back. Returns false for an entity this manager does not track or that is already parked,
+        -- so releasing twice (for example from two timers) is harmless.
+        if self._T.ended == true or self._T.owner == nil then return false end
+        if isvalid(entity) == false then return false end
+        local id = entity.Id
+        local poolKey = self._T.owner[id]
+        if poolKey == nil then
+            log_warning("[EntityPool] release of an entity this manager does not track: " .. entity.Name)
+            return false
+        end
+        if self._T.parked[id] == true then return false end
+        local pool = self:GetPools()[poolKey]
+        if pool == nil then return false end
+        if pool.active[id] ~= nil then
+            pool.active[id] = nil
+            pool.activeCount = pool.activeCount - 1
+        end
+        self:CallHooks(pool, entity, false, Vector3(0, 0, 0))
+        if #pool.free >= pool.max then
+            self._T.owner[id] = nil
+            entity:Destroy()
+            if self.VerboseLog then log("[EntityPool] release key=" .. poolKey .. " destroyed (pool full)") end
+            return true
+        end
+        self:Park(pool, entity, isLocal)
+        if self.VerboseLog then log("[EntityPool] release key=" .. poolKey .. " " .. entity.Name) end
+        return true
+    end
+
+    method void ClearAll()
+        -- Destroys every entity the manager made (parked and in use) and stops further use. Runs from OnEndPlay.
+        local pools = self._T.pools
+        self._T.ended = true
+        if pools == nil then return end
+        for poolKey, pool in pairs(pools) do
+            log("[VRF] EntityPool clear key=" .. poolKey .. " created=" .. tostring(pool.created) .. " reused=" .. tostring(pool.reused) .. " free=" .. tostring(#pool.free) .. " active=" .. tostring(pool.activeCount))
+            for _, record in ipairs(pool.free) do
+                if isvalid(record.entity) then record.entity:Destroy() end
+            end
+            for _, entity in pairs(pool.active) do
+                if isvalid(entity) then entity:Destroy() end
+            end
+        end
+        self._T.pools = nil
+        self._T.owner = nil
+        self._T.parked = nil
+    end
+
+    -- ===== Server pool: synced entities (units). Release parks with SetEnable(false), never Destroy. =====
+
+    @ExecSpace("ServerOnly")
+    method void Prewarm(string poolKey, string modelId, integer count)
+        -- Registers a server pool and creates count parked entities. Cheap to call again: it only tops the pool up.
+        self:PoolPrewarm(poolKey, modelId, count, false)
+    end
+
+    @ExecSpace("ServerOnly")
+    method Entity Acquire(string poolKey, Vector3 pos)
+        -- Returns a pooled (or new) entity placed at pos with OnPoolAcquire already called; nil on failure.
+        return self:PoolAcquire(poolKey, pos, false)
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean Release(Entity entity)
+        -- Returns an entity to its pool (OnPoolRelease, then SetEnable(false)); safe to call repeatedly.
+        return self:PoolRelease(entity, false)
+    end
+
+    -- ===== Client pool: client-local entities (projectiles, HP bars, effect icons) =====
+
+    @ExecSpace("ClientOnly")
+    method void PrewarmLocal(string poolKey, string modelId, integer count)
+        -- Registers a client-local pool and creates count parked local entities.
+        self:PoolPrewarm(poolKey, modelId, count, true)
+    end
+
+    @ExecSpace("ClientOnly")
+    method Entity AcquireLocal(string poolKey, Vector3 pos)
+        -- Returns a pooled (or new) client-local entity placed at pos with OnPoolAcquire already called; nil on failure.
+        return self:PoolAcquire(poolKey, pos, true)
+    end
+
+    @ExecSpace("ClientOnly")
+    method boolean ReleaseLocal(Entity entity)
+        -- Returns a client-local entity to its pool; safe to call repeatedly.
+        return self:PoolRelease(entity, true)
+    end
+
+    -- ===== Lifecycle =====
+
+    method void OnBeginPlay()
+        -- Marks this side's manager usable; pools themselves are created on first Prewarm.
+        self._T.ended = false
+        log("[VRF] EntityPool ready server=" .. tostring(self:IsServer()))
+    end
+
+    method void OnEndPlay()
+        -- The map is going away: destroy everything the pools made and refuse late timer calls.
+        self:ClearAll()
+    end
+
+end

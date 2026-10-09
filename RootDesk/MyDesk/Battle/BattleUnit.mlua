@@ -7,6 +7,14 @@ script BattleUnit extends Component
     @Sync property string UnitId = ""
     -- Effects currently shown on this unit, for the client icons: "type:endAt,..." (endAt in ServerElapsedSeconds).
     @Sync property string StatusCsv = ""
+    -- Presentation state for the clients, as "state:serial". The server only decides the state; each client picks
+    -- and plays the clip itself from the unit's UnitTable row (see ApplyAnim). States: move / stand / attack / hit /
+    -- die. The serial changes on every state change, so a repeated attack is still a new event.
+    @Sync property string Anim = ""
+    -- Generation of this entity. Unit entities are pooled and reused (EntityPool): every Setup starts a new life, and
+    -- clients rebuild their presentation of the unit when it changes. References held across time compare it too,
+    -- so an attack aimed at a previous life never lands on the next one.
+    @Sync property integer Life = 0
     property string Kind = "monster"
     property number AttackPower = 10
     -- melee / ranged hit one target; melee_area / ranged_area hit every enemy in range (UnitTable AttackType).
@@ -14,19 +22,11 @@ script BattleUnit extends Component
     property boolean IsAreaAttack = false
     property number AttackRange = 0.7
     property number AttackInterval = 1.0
-    property number AttackPlayRate = 1.0
-    property number AttackPose = 0.35
     property number AttackHitDelay = 0
     property number MoveSpeed = 1.0
     property number GoalX = 0
-    property string StandRUID = ""
-    property string MoveRUID = ""
-    property string AttackRUID = ""
-    property string DieRUID = ""
-    property string HitRUID = ""
-    -- UnitTable: attribute and knockback settings (monsters only); the effect this unit's attacks can apply (monsters and builds).
+    -- UnitTable: attribute and knockback settings (monsters only). The effects a unit uses are its UnitEffectTable rules.
     property string Attribute = ""
-    property string EffectId = ""
     -- HP lost per knockback (0 = never knocked back), push distance in world units and push time.
     property number KnockStep = 0
     property number KnockDistance = 0
@@ -37,24 +37,31 @@ script BattleUnit extends Component
     @HideFromInspector property number KnockStartX = 0
     @HideFromInspector property number KnockTarget = 0
     @HideFromInspector property number WalkSpeed = 0
-    -- Effects received: cursed = this unit's own effect is off; nullify = its attacks do nothing to NullifyTarget.
+    -- Effects received: cursed = while CurseRemain runs this unit's attack damage is multiplied by CurseRate
+    -- (1 - the curse's Power percent); nullify = its attacks do nothing to NullifyTarget.
     @HideFromInspector property number CurseRemain = 0
+    @HideFromInspector property number CurseRate = 1
     @HideFromInspector property number NullifyRemain = 0
     @HideFromInspector property any NullifyTarget = nil
+    @HideFromInspector property integer NullifyLife = 0
 
     @HideFromInspector property boolean Ready = false
     @HideFromInspector property boolean IsDead = false
     @HideFromInspector property string Mode = ""
     @HideFromInspector property number AttackTimer = 0
-    @HideFromInspector property number PoseTimer = 0
     @HideFromInspector property number HitTimer = 0
     @HideFromInspector property any PendingTarget = nil
+    @HideFromInspector property integer PendingLife = 0
     @HideFromInspector property any Director = nil
     @HideFromInspector property boolean HasProjectile = false
+    -- True when this unit's row has a HitEffectRuid: every unit its attack damages is announced to the clients.
+    @HideFromInspector property boolean HasHitEffect = false
 
     @ExecSpace("ServerOnly")
     method void Setup(integer team, string unitId, table cfg, any director, number goalX)
-        -- Applies a unit definition (monster / build / base) and starts its battle behavior.
+        -- Applies a unit definition (monster / build / base) and starts its battle behavior. Every call is a new life
+        -- of this entity (a fresh spawn or a pooled entity taken out again), so all per-life state is reset here.
+        self.Life = self.Life + 1
         self.Team = team
         self.UnitId = unitId
         self.Kind = cfg.kind
@@ -65,17 +72,9 @@ script BattleUnit extends Component
         self.IsAreaAttack = cfg.areaAttack == true
         self.AttackRange = cfg.range * _BattleConfig.RangeScale
         self.AttackInterval = cfg.attackInterval
-        self.AttackPlayRate = cfg.attackPlayRate
-        self.AttackPose = cfg.attackPose
         self.AttackHitDelay = cfg.attackHitDelay
         self.MoveSpeed = cfg.speed
-        self.StandRUID = cfg.standRuid
-        self.MoveRUID = cfg.moveRuid
-        self.AttackRUID = cfg.attackRuid
-        self.DieRUID = cfg.dieRuid
-        self.HitRUID = cfg.hitRuid or ""
         self.Attribute = ""
-        self.EffectId = ""
         self.KnockStep = 0
         if cfg.kind == "monster" then
             self.Attribute = cfg.attribute or ""
@@ -85,16 +84,16 @@ script BattleUnit extends Component
             self.KnockDistance = (cfg.knockbackDistance or 0) * _BattleConfig.RangeScale
             self.KnockSeconds = cfg.knockbackSeconds or 0
         end
-        -- Monsters and builds may carry an effect; the unit's own Duration / Power / Chance cells override the defaults.
+        -- Monsters and builds carry effect rules (UnitEffectTable): on_hit rules fire when this unit's attack damages an
+        -- enemy, always rules are applied to the unit itself at the end of Setup (so a pooled entity gets them again).
+        self._T.effectRules = nil
         if cfg.kind == "monster" or cfg.kind == "build" then
-            self.EffectId = cfg.effectId or ""
-            self._T.effectOverride = cfg.effectOverride
-        else
-            self._T.effectOverride = nil
+            self._T.effectRules = _BattleConfig:GetUnitEffects(unitId)
         end
         self.KnockCount = 0
         self.KnockRemain = 0
         self.CurseRemain = 0
+        self.CurseRate = 1
         self.NullifyRemain = 0
         self.NullifyTarget = nil
         self._T.statuses = {}
@@ -103,9 +102,9 @@ script BattleUnit extends Component
         self.GoalX = goalX
         self.Director = director
         self.HasProjectile = cfg.projectileRuid ~= nil
+        self.HasHitEffect = cfg.hitEffectRuid ~= nil
         self.IsDead = false
         self.PendingTarget = nil
-        self.PoseTimer = 0
         self.Mode = ""
 
         local movement = self.Entity.MovementComponent
@@ -124,7 +123,8 @@ script BattleUnit extends Component
         else
             self:SetMode("HOLD")
         end
-        log("[BattleUnit] setup " .. self.Entity.Name .. " kind=" .. cfg.kind .. " team=" .. tostring(team) .. " hp=" .. tostring(self.Hp) .. " attackType=" .. self.AttackType .. " area=" .. tostring(self.IsAreaAttack) .. " attribute=" .. self.Attribute .. " effect=" .. self.EffectId .. " knockStep=" .. string.format("%.1f", self.KnockStep))
+        log("[BattleUnit] setup " .. self.Entity.Name .. " kind=" .. cfg.kind .. " team=" .. tostring(team) .. " hp=" .. tostring(self.Hp) .. " attackType=" .. self.AttackType .. " area=" .. tostring(self.IsAreaAttack) .. " attribute=" .. self.Attribute .. " effectRules=" .. tostring(self._T.effectRules ~= nil and #self._T.effectRules or 0) .. " knockStep=" .. string.format("%.1f", self.KnockStep))
+        self:ApplyAlwaysRules()
     end
 
     method integer GetDirection()
@@ -134,13 +134,11 @@ script BattleUnit extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method void SetSprite(string ruid, number playRate)
-        -- Swaps the playing clip and its play rate.
-        local sprite = self.Entity.SpriteRendererComponent
-        if isvalid(sprite) and ruid ~= "" then
-            sprite.PlayRate = playRate
-            sprite.SpriteRUID = ruid
-        end
+    method void SetAnim(string state)
+        -- Publishes the presentation state (move / stand / attack / hit / die). Clients turn it into a clip.
+        local serial = (self._T.animSerial or 0) + 1
+        self._T.animSerial = serial
+        self.Anim = state .. ":" .. tostring(serial)
     end
 
     @ExecSpace("ServerOnly")
@@ -152,14 +150,14 @@ script BattleUnit extends Component
 
     @ExecSpace("ServerOnly")
     method void SetMode(string newMode)
-        -- Switches behavior mode (MOVE / ATTACK / HOLD) and its clip.
+        -- Switches behavior mode (MOVE / ATTACK / HOLD) and its presentation state.
         if self.Mode == newMode then return end
         self.Mode = newMode
         if newMode == "MOVE" then
-            self:SetSprite(self.MoveRUID, 1)
+            self:SetAnim("move")
         else
             self:StopMoving()
-            self:SetSprite(self.StandRUID, 1)
+            self:SetAnim("stand")
             if newMode == "ATTACK" then self.AttackTimer = 0.3 end
         end
     end
@@ -170,7 +168,7 @@ script BattleUnit extends Component
         self.Ready = false
         self.PendingTarget = nil
         self:StopMoving()
-        if self.IsDead == false then self:SetSprite(self.StandRUID, 1) end
+        if self.IsDead == false then self:SetAnim("stand") end
     end
 
     @ExecSpace("ServerOnly")
@@ -179,11 +177,6 @@ script BattleUnit extends Component
         if self.Ready == false or self.IsDead then return end
         local director = self.Director
         if director == nil then return end
-
-        if self.PoseTimer > 0 then
-            self.PoseTimer = self.PoseTimer - delta
-            if self.PoseTimer <= 0 and self.Mode ~= "MOVE" then self:SetSprite(self.StandRUID, 1) end
-        end
 
         if self.StatusCsv ~= "" then self:RefreshStatus(false) end
         if self.CurseRemain > 0 then self.CurseRemain = self.CurseRemain - delta end
@@ -227,9 +220,10 @@ script BattleUnit extends Component
             self.AttackTimer = self.AttackTimer - delta
             if self.AttackTimer <= 0 then
                 self.AttackTimer = self.AttackInterval
-                self.PoseTimer = self.AttackPose
-                self:SetSprite(self.AttackRUID, self.AttackPlayRate)
+                -- Clients play the attack clip and return to the stand clip after AttackPose on their own.
+                self:SetAnim("attack")
                 self.PendingTarget = target
+                self.PendingLife = target.Life
                 self.HitTimer = self.AttackHitDelay
                 -- Every attack is announced: clients show the attack effect, play the attack sound and fly the projectile.
                 self:NotifyAttack(target.Entity, self.AttackHitDelay)
@@ -249,63 +243,106 @@ script BattleUnit extends Component
         if self.IsAreaAttack then
             local targets = self.Director:FindTargetsInRange(self.Team, x, self.AttackRange)
             for _, target in ipairs(targets) do self:DealDamage(target) end
-            log("[BattleUnit] " .. self.Entity.Name .. " area hit (" .. self.AttackType .. ") targets=" .. tostring(#targets) .. " damage=" .. tostring(self.AttackPower))
+            log("[BattleUnit] " .. self.Entity.Name .. " area hit (" .. self.AttackType .. ") targets=" .. tostring(#targets) .. " damage=" .. tostring(self:GetAttackDamage()))
             return
         end
-        if aimed.IsDead == false and isvalid(aimed.Entity) then self:DealDamage(aimed) end
+        -- The aimed unit must still be in the life it was aimed at (its entity may have been reused since).
+        if aimed.IsDead == false and aimed.Life == self.PendingLife and isvalid(aimed.Entity) then self:DealDamage(aimed) end
+    end
+
+    @ExecSpace("ServerOnly")
+    method number GetAttackDamage()
+        -- Returns this unit's current attack damage: AttackPower, reduced by CurseRate while it is cursed.
+        if self.CurseRemain > 0 then return self.AttackPower * self.CurseRate end
+        return self.AttackPower
     end
 
     @ExecSpace("ServerOnly")
     method void DealDamage(any target)
-        -- Damages one unit with this unit's attack, then rolls this unit's effect on it.
-        if self.NullifyRemain > 0 and self.NullifyTarget == target then
+        -- Damages one unit with this unit's attack, then rolls this unit's on_hit effect rules on it.
+        if self.NullifyRemain > 0 and self.NullifyTarget == target and target.Life == self.NullifyLife then
             log("[BattleUnit] " .. self.Entity.Name .. " attack on " .. target.Entity.Name .. " nullified")
             return
         end
-        target:TakeDamage(self.AttackPower)
+        target:TakeDamage(self:GetAttackDamage())
+        -- Clients play this unit's hit effect on the unit that was just damaged (only units that have one announce it).
+        if self.HasHitEffect and isvalid(target.Entity) then self:NotifyHit(target.Entity) end
         self:TryApplyEffect(target)
     end
 
     @ExecSpace("ServerOnly")
     method void TryApplyEffect(any target)
-        -- A monster's or build's attack may apply its one effect to a monster it damaged. The chance is this unit's own
-        -- override for the target's attribute, else the effect's default in EffectTable. A cursed unit applies nothing.
-        if (self.Kind ~= "monster" and self.Kind ~= "build") or self.EffectId == "" or self.CurseRemain > 0 then return end
-        if target.Kind ~= "monster" or target.IsDead or target.Attribute == "" then return end
-        local effect = _BattleConfig:GetEffect(self.EffectId)
-        if effect == nil then return end
-        local override = self._T.effectOverride or { chance = {} }
-        local chance = override.chance[target.Attribute]
-        if chance == nil then chance = effect.chance[target.Attribute] or 0 end
-        if chance <= 0 or _UtilLogic:RandomDouble() * 100 >= chance then return end
-        -- Duration and power: this unit's override, else the effect's default.
-        local applied = {
+        -- Rolls this unit's on_hit effect rules on a monster it just damaged; every rule has its own chance (percent).
+        local rules = self._T.effectRules
+        if rules == nil or #rules == 0 then return end
+        if target.Kind ~= "monster" or target.IsDead then return end
+        for _, rule in ipairs(rules) do
+            if rule.trigger == "on_hit" and rule.chance > 0 and _UtilLogic:RandomDouble() * 100 < rule.chance then
+                self:ApplyEffectRule(rule, target)
+            end
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void ApplyEffectRule(table rule, any receiver)
+        -- Applies one rule's effect to receiver (the damaged enemy for on_hit, this unit itself for always). The rule's
+        -- duration / power override the effect's defaults; an always rule lasts as long as the unit lives.
+        local effect = _BattleConfig:GetEffect(rule.effectId)
+        if effect == nil then
+            log_warning("[BattleUnit] effect rule of " .. self.UnitId .. " names an unknown effect " .. rule.effectId)
+            return
+        end
+        if (rule.target == "self" and effect.applies == "target") or (rule.target == "target" and effect.applies == "self") then
+            log_warning("[BattleUnit] effect " .. effect.id .. " cannot be used with target=" .. rule.target .. " (EffectTable Applies=" .. effect.applies .. ")")
+            return
+        end
+        receiver:ReceiveEffect({
             id = effect.id,
             type = effect.type,
             name = effect.name,
-            duration = override.duration or effect.duration,
-            power = override.power or effect.power,
-        }
-        target:ReceiveEffect(applied, self)
+            duration = rule.duration or effect.duration,
+            power = rule.power or effect.power,
+            permanent = rule.trigger == "always",
+        }, self)
+    end
+
+    @ExecSpace("ServerOnly")
+    method void ApplyAlwaysRules()
+        -- Applies this unit's always rules to itself. Setup calls this at the end and runs for every life, so a pooled
+        -- entity that is taken out again gets its traits again.
+        local rules = self._T.effectRules
+        if rules == nil then return end
+        for _, rule in ipairs(rules) do
+            if rule.trigger == "always" then self:ApplyEffectRule(rule, self) end
+        end
     end
 
     @ExecSpace("ServerOnly")
     method void ReceiveEffect(table effect, any source)
         -- Applies an effect to this unit by its type:
         -- nullify = this unit's attacks do nothing to the source for the duration,
-        -- curse   = this unit's own effect is off for the duration,
+        -- curse   = this unit's attack damage is reduced by power percent for the duration,
         -- warp    = moved back by power at once and held for the duration,
         -- blow    = pushed back by power over the duration.
         log("[BattleUnit] effect " .. effect.id .. " (" .. effect.type .. ") " .. source.Entity.Name .. " -> " .. self.Entity.Name .. " attribute=" .. self.Attribute .. " duration=" .. tostring(effect.duration) .. " power=" .. tostring(effect.power))
         local distance = effect.power * _BattleConfig.RangeScale
         -- The icon stays at least IconMinSeconds so very short effects (a push) are still readable.
-        self._T.statuses[effect.type] = _UtilLogic.ServerElapsedSeconds + math.max(effect.duration, _BattleConfig.StatusIconMinSeconds)
+        -- An always rule (effect.permanent) lasts as long as the unit lives.
+        local seconds = effect.duration
+        local shown = math.max(seconds, _BattleConfig.StatusIconMinSeconds)
+        if effect.permanent == true then
+            seconds = 10000000
+            shown = seconds
+        end
+        self._T.statuses[effect.type] = _UtilLogic.ServerElapsedSeconds + shown
         self:RefreshStatus(true)
         if effect.type == "nullify" then
             self.NullifyTarget = source
-            self.NullifyRemain = effect.duration
+            self.NullifyLife = source.Life
+            self.NullifyRemain = seconds
         elseif effect.type == "curse" then
-            self.CurseRemain = effect.duration
+            self.CurseRemain = seconds
+            self.CurseRate = 1 - math.min(100, math.max(0, effect.power)) / 100
         elseif effect.type == "warp" then
             local pos = self.Entity.TransformComponent.WorldPosition
             local dir = self:GetDirection()
@@ -347,7 +384,6 @@ script BattleUnit extends Component
         -- unit neither attacks nor advances, and with useHitClip its hit clip plays.
         if self.Kind ~= "monster" or self.IsDead or seconds <= 0 then return end
         self.PendingTarget = nil
-        self.PoseTimer = 0
         self.Mode = "KNOCKBACK"
         self.KnockRemain = seconds
         self.KnockStartX = self.Entity.TransformComponent.WorldPosition.x
@@ -361,10 +397,11 @@ script BattleUnit extends Component
             local back = -self:GetDirection()
             body:SetForce(Vector2(back * distance * _BattleConfig.KnockbackForcePerUnit, _BattleConfig.KnockbackLift))
         end
-        if useHitClip and self.HitRUID ~= "" then
-            self:SetSprite(self.HitRUID, 1)
+        -- Clients play the hit clip (or the stand clip when the unit has none).
+        if useHitClip then
+            self:SetAnim("hit")
         else
-            self:SetSprite(self.StandRUID, 1)
+            self:SetAnim("stand")
         end
         log("[BattleUnit] " .. self.Entity.Name .. " knockback distance=" .. string.format("%.2f", distance) .. " seconds=" .. string.format("%.2f", seconds) .. " hp=" .. tostring(self.Hp) .. " count=" .. tostring(self.KnockCount) .. " x=" .. string.format("%.2f", self.Entity.TransformComponent.WorldPosition.x))
     end
@@ -418,12 +455,50 @@ script BattleUnit extends Component
             if director ~= nil then director:OnBaseDestroyed(self.Team) end
             return
         end
-        self:SetSprite(self.DieRUID, 1)
+        self:SetAnim("die")
         if director ~= nil then director:RemoveUnit(self) end
+        -- Clients play the die clip and hide the unit when it ends; the server never waits for them and simply takes
+        -- the entity away after DieReleaseSeconds (longer than any die clip).
+        -- The entity goes back to the unit pool (or is destroyed when the map has no pool) through the director.
         local entity = self.Entity
+        local life = self.Life
         _TimerService:SetTimerOnce(function()
-            if isvalid(entity) then entity:Destroy() end
-        end, 0.6)
+            -- Skip when a battle restart already took this entity back and gave it a new life.
+            if isvalid(entity) and self.Life == life and director ~= nil then director:ReleaseUnitEntity(entity) end
+        end, _BattleConfig.DieReleaseSeconds)
+    end
+
+    -- ===== EntityPool hooks (server). The pool calls these by name; Setup (called right after Acquire) does the
+    -- per-life reset, so these only handle what belongs to taking the entity out of / back into the pool. =====
+
+    @ExecSpace("ServerOnly")
+    method void OnPoolAcquire(Vector3 pos)
+        -- Taken out of the pool, before it is enabled again: place the body at the spawn point with no leftover push.
+        local body = self.Entity.RigidbodyComponent
+        if isvalid(body) then body:SetForce(Vector2(0, 0)) end
+        local movement = self.Entity.MovementComponent
+        if isvalid(movement) then
+            movement:Stop()
+            movement:SetWorldPosition(Vector2(pos.x, pos.y))
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void OnPoolRelease()
+        -- Going back to the pool: stop every behavior so nothing runs while it is parked.
+        self.Ready = false
+        self.PendingTarget = nil
+        self.NullifyTarget = nil
+        self.NullifyRemain = 0
+        self.CurseRemain = 0
+        self.CurseRate = 1
+        self._T.effectRules = nil
+        self.KnockRemain = 0
+        self._T.statuses = {}
+        self.StatusCsv = ""
+        self:StopMoving()
+        local body = self.Entity.RigidbodyComponent
+        if isvalid(body) then body:SetForce(Vector2(0, 0)) end
     end
 
     @ExecSpace("Multicast")
@@ -432,22 +507,179 @@ script BattleUnit extends Component
         _BattleFx:OnAttackFired(self, target, travelTime)
     end
 
+    @ExecSpace("Multicast")
+    method void NotifyHit(Entity target)
+        -- Tells every client that this unit's attack just damaged target, so it can play the hit effect on it (presentation only).
+        _BattleFx:OnAttackHit(self, target)
+    end
+
     @ExecSpace("ClientOnly")
     method void OnBeginPlay()
-        -- Registers this unit with the client presentation layer (HP bar, hit feedback).
-        _BattleFx:RegisterUnit(self)
+        -- Listens for the end of each clip (to finish the death) and for the entity being enabled again (a pooled
+        -- entity taken out for a new life), then builds this client's presentation of the state already synced.
+        -- Safe to run more than once: a re-enabled entity may or may not get OnBeginPlay again.
+        if self._T.clipEndHandler == nil then
+            self._T.clipEndHandler = self.Entity:ConnectEvent(SpriteAnimPlayerEndFrameEvent, function(event) self:OnClipEnd() end)
+        end
+        if self._T.enableHandler == nil then
+            self._T.enableHandler = self.Entity:ConnectEvent(EntityEnabledInHierarchyChangedEvent, function(event)
+                if event.EnabledInHierarchy then self:SyncPresentation() end
+            end)
+        end
+        self:SyncPresentation()
     end
 
     @ExecSpace("ClientOnly")
     method void OnSyncProperty(string name, any value)
-        -- Forwards synced HP changes to the client presentation layer.
+        -- Forwards synced HP changes to the client presentation layer and turns state changes into clips.
         if name == "Hp" or name == "MaxHp" then _BattleFx:OnUnitHpSync(self) end
+        -- UnitId and Life too: the clip RUIDs come from the unit's row, and a new life (a reused pooled entity) starts
+        -- its presentation over, so a state that arrived first is applied once those are known.
+        if name == "Anim" or name == "UnitId" or name == "Life" then self:SyncPresentation() end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void SyncPresentation()
+        -- Brings this client's presentation in line with the synced unit: a new life or a different unit id drops the
+        -- old BattleFx record (bar, effect icons, hit flash) and starts a fresh one; then the current state's clip shows.
+        local fxKey = tostring(self.Life) .. "|" .. self.UnitId
+        if fxKey ~= self._T.fxKey then
+            local reused = self._T.fxKey ~= nil
+            self._T.fxKey = fxKey
+            _BattleFx:UnregisterUnit(self)
+            _BattleFx:RegisterUnit(self)
+            if reused then log("[VRF] BattleUnit " .. self.Entity.Name .. " presentation reset for life " .. fxKey) end
+        end
+        self:ApplyAnim()
     end
 
     @ExecSpace("ClientOnly")
     method void OnEndPlay()
         -- Removes this unit's client presentation when it leaves play.
+        self:StopFade()
+        if self._T.clipEndHandler ~= nil then
+            self.Entity:DisconnectEvent(SpriteAnimPlayerEndFrameEvent, self._T.clipEndHandler)
+            self._T.clipEndHandler = nil
+        end
+        if self._T.enableHandler ~= nil then
+            self.Entity:DisconnectEvent(EntityEnabledInHierarchyChangedEvent, self._T.enableHandler)
+            self._T.enableHandler = nil
+        end
         _BattleFx:UnregisterUnit(self)
+        -- Forget what was shown, so a later OnBeginPlay (a re-enabled pooled entity) rebuilds everything.
+        self._T.fxKey = nil
+        self._T.shownAnim = nil
+    end
+
+    -- ===== Client presentation: clips =====
+    -- The server only publishes Anim ("state:serial"); everything visible is decided here, per client.
+
+    @ExecSpace("ClientOnly")
+    method void ApplyAnim()
+        -- Turns the synced state into this unit's clip, from its UnitTable row:
+        -- move = move clip, stand = stand clip, attack = attack clip at AttackPlayRate (back to stand after AttackPose),
+        -- hit = hit clip (stand clip when it has none), die = die clip (the unit is hidden when it ends, see OnClipEnd).
+        local anim = self.Anim
+        if anim == "" then return end
+        -- What is shown is keyed by state, unit id and life: a reused entity (another unit, a new life) applies again.
+        local shownKey = anim .. "|" .. self.UnitId .. "|" .. tostring(self.Life)
+        if shownKey == self._T.shownAnim then return end
+        local cfg = _BattleConfig:GetUnit(self.UnitId)
+        if cfg == nil then return end
+        self._T.shownAnim = shownKey
+        local state = anim
+        local colon, colonEnd = string.find(anim, ":", 1, true)
+        if colon ~= nil then state = string.sub(anim, 1, colon - 1) end
+        self._T.animState = state
+        local ruid = cfg.standRuid
+        local rate = 1
+        if state == "move" then
+            ruid = cfg.moveRuid
+        elseif state == "attack" then
+            ruid = cfg.attackRuid
+            rate = cfg.attackPlayRate
+        elseif state == "hit" then
+            if cfg.hitRuid ~= nil and cfg.hitRuid ~= "" then ruid = cfg.hitRuid end
+        elseif state == "die" then
+            ruid = cfg.dieRuid
+        end
+        -- Any new state shows the unit fully opaque again (a reused unit must not keep a previous death fade).
+        self:StopFade()
+        local sprite = self.Entity.SpriteRendererComponent
+        if isvalid(sprite) then sprite:SetAlpha(1) end
+        self:ShowSprite(true)
+        self:PlayClip(ruid, rate)
+        if state == "attack" and cfg.attackPose > 0 then
+            -- Back to the stand clip after the attack pose, unless another state arrived in the meantime.
+            _TimerService:SetTimerOnce(function()
+                if isvalid(self.Entity) and self._T.shownAnim == shownKey then self:PlayClip(cfg.standRuid, 1) end
+            end, cfg.attackPose)
+        end
+        if state == "die" and (ruid == nil or ruid == "") then self:FinishDeath("no die clip") end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PlayClip(string ruid, number playRate)
+        -- Swaps the playing clip and its play rate on this client only.
+        local sprite = self.Entity.SpriteRendererComponent
+        if isvalid(sprite) and ruid ~= nil and ruid ~= "" then
+            sprite.PlayRate = playRate
+            sprite.SpriteRUID = ruid
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void ShowSprite(boolean shown)
+        -- Shows or hides this unit's sprite on this client only.
+        local sprite = self.Entity.SpriteRendererComponent
+        if isvalid(sprite) and sprite.Enable ~= shown then sprite.Enable = shown end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnClipEnd()
+        -- A clip reached its last frame. Only the die clip matters: the death is finished at that moment.
+        if self._T.animState == "die" then self:FinishDeath("die clip ended") end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void FinishDeath(string reason)
+        -- The die clip is over on this client: the unit fades out over DeathFadeSeconds (same for every unit),
+        -- then is hidden. (The server takes the entity away on its own timer, DieReleaseSeconds after the death.)
+        if self._T.deathShown == self._T.shownAnim then return end
+        self._T.deathShown = self._T.shownAnim
+        self:StopFade()
+        local sprite = self.Entity.SpriteRendererComponent
+        local duration = _BattleConfig.DeathFadeSeconds
+        if not isvalid(sprite) or duration <= 0 then
+            self:ShowSprite(false)
+            return
+        end
+        local startAt = _UtilLogic.ElapsedSeconds
+        self._T.fadeTimer = _TimerService:SetTimerRepeat(function()
+            if not isvalid(self.Entity) then
+                self:StopFade()
+                return
+            end
+            local alpha = 1 - (_UtilLogic.ElapsedSeconds - startAt) / duration
+            if alpha <= 0 then
+                self:StopFade()
+                sprite:SetAlpha(0)
+                self:ShowSprite(false)
+                log("[BattleUnit] " .. self.Entity.Name .. " faded out")
+            else
+                sprite:SetAlpha(alpha)
+            end
+        end, 1 / 30)
+        log("[BattleUnit] " .. self.Entity.Name .. " death fade started (" .. reason .. ") over " .. tostring(duration) .. "s")
+    end
+
+    @ExecSpace("ClientOnly")
+    method void StopFade()
+        -- Stops a running death fade timer.
+        if self._T.fadeTimer ~= nil then
+            _TimerService:ClearTimer(self._T.fadeTimer)
+            self._T.fadeTimer = nil
+        end
     end
 
 end

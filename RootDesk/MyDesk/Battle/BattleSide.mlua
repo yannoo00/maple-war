@@ -2,10 +2,15 @@
 script BattleSide extends Component
 
     -- One side of a battle. Lives on that side's base entity next to its BattleUnit.
-    -- Holds everything a controller (a player or a stage AI) plays with: deck, cost and cooldowns.
+    -- Holds everything a controller (a player or a stage AI) plays with: deck, hand, card queue and cost.
+    -- Card cycle: at Reset the deck is shuffled into a queue and the front HandSize cards form the hand. Playing a
+    -- hand card pushes it to the back of the queue and the queue's front card takes the same hand slot.
     @Sync property integer Team = 0
     @Sync property string ControllerUserId = ""
     @Sync property string DeckCsv = ""
+    -- Hand cards in slot order ("" = empty slot when the deck is smaller than the hand) and the next queued card.
+    @Sync property string HandCsv = ""
+    @Sync property string NextCardId = ""
     @Sync property number Cost = 0
     @Sync property number CostMax = 0
     -- In-battle cost level: starts at 1 every battle, raised by paying cost, up to the player's unlocked cap.
@@ -18,6 +23,32 @@ script BattleSide extends Component
         local ids = {}
         for id in string.gmatch(self.DeckCsv, "[^,]+") do table.insert(ids, id) end
         return ids
+    end
+
+    method table GetHandIds()
+        -- Returns the hand as an array of HandSize unit ids in slot order ("" for an empty slot). Server and client.
+        local ids = {}
+        local start = 1
+        local csv = self.HandCsv
+        if csv == "" then return ids end
+        while true do
+            local comma, commaEnd = string.find(csv, ",", start, true)
+            if comma == nil then
+                table.insert(ids, string.sub(csv, start))
+                break
+            end
+            table.insert(ids, string.sub(csv, start, comma - 1))
+            start = comma + 1
+        end
+        return ids
+    end
+
+    @ExecSpace("ServerOnly")
+    method void PublishHand(table hand)
+        -- Writes the hand and the next queued card to their synced properties.
+        self.HandCsv = table.concat(hand, ",")
+        local queue = self._T.queue or {}
+        self.NextCardId = queue[1] or ""
     end
 
     @ExecSpace("ServerOnly")
@@ -34,9 +65,25 @@ script BattleSide extends Component
         self.CostLevelCap = math.max(1, math.min(#costLevels, costLevelCap))
         self.CostMax = costLevels[1].costMax
         self._T.regenRate = costLevels[1].regenRate
-        self._T.cooldowns = {}
         self._T.levels = unitLevels
-        log("[BattleSide] reset team=" .. tostring(team) .. " controller=" .. (controllerUserId ~= "" and controllerUserId or "AI") .. " deck=" .. self.DeckCsv)
+        -- Shuffle the deck into the card queue, then deal the front cards into the hand.
+        local queue = {}
+        for _, id in ipairs(deckIds) do table.insert(queue, id) end
+        for i = #queue, 2, -1 do
+            local j = _UtilLogic:RandomIntegerRange(1, i)
+            queue[i], queue[j] = queue[j], queue[i]
+        end
+        local hand = {}
+        for i = 1, _BattleConfig.HandSize do
+            if #queue > 0 then
+                hand[i] = table.remove(queue, 1)
+            else
+                hand[i] = ""
+            end
+        end
+        self._T.queue = queue
+        self:PublishHand(hand)
+        log("[BattleSide] reset team=" .. tostring(team) .. " controller=" .. (controllerUserId ~= "" and controllerUserId or "AI") .. " deck=" .. self.DeckCsv .. " hand=" .. self.HandCsv .. " queue=" .. table.concat(queue, ","))
     end
 
     @ExecSpace("ServerOnly")
@@ -49,13 +96,8 @@ script BattleSide extends Component
 
     @ExecSpace("ServerOnly")
     method void Tick(number delta)
-        -- Cost income and cooldown countdown, driven by the director's clock.
+        -- Cost income, driven by the director's clock.
         self.Cost = math.min(self.CostMax, self.Cost + _BattleConfig.CostPerSecond * (self._T.regenRate or 1) * delta)
-        local cooldowns = self._T.cooldowns
-        if cooldowns == nil then return end
-        for slot, remain in pairs(cooldowns) do
-            if remain > 0 then cooldowns[slot] = remain - delta end
-        end
     end
 
     @ExecSpace("ServerOnly")
@@ -76,21 +118,33 @@ script BattleSide extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method string CheckCard(integer slot, table cfg)
-        -- Returns "" when the slot's card may be played now, otherwise the reason it is rejected.
+    method string CheckCard(table cfg)
+        -- Returns "" when the card may be played now (its cost is affordable), otherwise the reason it is rejected.
         if self.FreePlay then return "" end
-        local remain = self._T.cooldowns[slot]
-        if remain ~= nil and remain > 0 then return "cooldown " .. string.format("%.1f", remain) end
         if self.Cost < cfg.cost then return "cost " .. string.format("%.0f", self.Cost) .. "/" .. tostring(cfg.cost) end
         return ""
     end
 
     @ExecSpace("ServerOnly")
-    method void PayCard(integer slot, table cfg)
-        -- Charges the card's cost and starts its cooldown.
+    method void PayCard(table cfg)
+        -- Charges the card's cost.
         if self.FreePlay then return end
         self.Cost = self.Cost - cfg.cost
-        self._T.cooldowns[slot] = cfg.cooldown
+    end
+
+    @ExecSpace("ServerOnly")
+    method void CycleCard(integer handIndex)
+        -- The card in this hand slot was played: it goes to the back of the queue and the queue's front card takes
+        -- the slot. With no other card waiting (deck no bigger than the hand) the same card comes straight back.
+        local hand = self:GetHandIds()
+        local played = hand[handIndex]
+        if played == nil or played == "" then return end
+        local queue = self._T.queue or {}
+        table.insert(queue, played)
+        hand[handIndex] = table.remove(queue, 1)
+        self._T.queue = queue
+        self:PublishHand(hand)
+        log("[BattleSide] team " .. tostring(self.Team) .. " cycled slot " .. tostring(handIndex) .. ": " .. played .. " -> " .. hand[handIndex] .. " hand=" .. self.HandCsv .. " next=" .. self.NextCardId)
     end
 
 end

@@ -16,7 +16,7 @@
       {
         "id": "2662b308-c75f-488e-b21a-929ac5b74f8e",
         "path": "/maps/battle5",
-        "componentNames": "MOD.Core.MapComponent,MOD.Core.FootholdComponent,script.BattleDirector,script.StageAI",
+        "componentNames": "MOD.Core.MapComponent,MOD.Core.FootholdComponent,script.BattleDirector,script.StageAI,script.EntityPool",
         "jsonString": {
           "name": "battle5",
           "path": "/maps/battle5",
@@ -1640,6 +1640,10 @@
               "LoopTimer": 0,
               "LoopInterval": 6,
               "LoopMinInterval": 3
+            },
+            {
+              "@type": "script.EntityPool",
+              "Enable": true
             }
           ],
           "@version": 1

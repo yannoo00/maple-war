@@ -148,7 +148,7 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 | `CurrencyTable` | `CurrencyId, Name, Max, RegenSeconds, StartAmount, #Memo` |
 | `ShopProductTable` | `ProductId, CurrencyId, Amount, Label, #Memo` |
 | `StageTable` (추가) | `EntryCost` |
-| `UnitTable` (추가) | `AttackType` (`melee` / `ranged` / `melee_area` / `ranged_area`, 스킬·기지는 빈칸), `AttackEffectRuid`, `AttackSoundRuid`, `DamageSoundRuid`, `DieSoundRuid` |
+| `UnitTable` (추가) | `AttackType` (`melee` / `ranged` / `melee_area` / `ranged_area`, 스킬·기지는 빈칸), `AttackEffectRuid`, `HitEffectRuid`, `AttackSoundRuid`, `DamageSoundRuid`, `DieSoundRuid` |
 | `UnitTable` (추가) | `Attribute`(earth / water / fire / wind / light / dark), `Effect`(EffectTable의 id), `HitRuid`, `KnockbackHpPercent`·`KnockbackDistance`·`KnockbackSeconds`(빈칸 = 공용 기본값) |
 | `EffectTable` (기본값) | `EffectId, Type, Name, Duration, Power, ChanceEarth, ChanceWater, ChanceFire, ChanceWind, ChanceLight, ChanceDark, #Memo` |
 | `UnitTable` (추가) | `EffectDuration`, `EffectPower`, `EffectChanceEarth`~`EffectChanceDark` (효과 표 기본값의 유닛별 덮어쓰기, 빈칸 = 기본값. 몬스터·설치물) |

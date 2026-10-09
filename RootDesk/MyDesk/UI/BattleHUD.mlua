@@ -6,11 +6,8 @@ script BattleHUD extends Component
     property Entity slot3 = "9c7a19b5-2bef-43c5-9e8f-dc5961519b54"
     property Entity slot4 = "c581ddfe-ba86-43c6-8437-8888cd7bc44e"
     property Entity slot5 = "bc2f845e-6b01-4693-9a4a-fa32b1d49cf6"
-    property Entity slot6 = "888c3b5c-1a5c-4ed6-a18d-29c7568d1100"
-    property Entity slot7 = "52cfd3eb-c557-4426-8324-67a4261e1fe0"
-    property Entity slot8 = "82b0f23d-6b03-4ee7-88c4-2f34da84640c"
-    property Entity slot9 = "199b3cf2-5649-457e-90ad-36e2ae9b6fda"
-    property Entity slot10 = "5265fe6e-8fa6-4e58-a38d-b15e62f4e63f"
+    -- Small preview of the next queued card (the one that fills the next played slot).
+    property Entity nextCard = "a5d88760-570a-4549-ae6d-4064dabd9a45"
     property TextGUIRendererComponent costText = "72569f18-c8ed-4434-a834-15eecbc46c00"
     property Entity hintText = "f91a8765-50c0-45b7-aaa1-4958e8617766"
     property TextGUIRendererComponent allyHpText = "7500f34a-4dbf-454b-a622-bbed41c9c0db"
@@ -27,7 +24,7 @@ script BattleHUD extends Component
     property Entity costUpButton = "47981bee-9856-4688-bb7d-1f67bf65d72e"
     property any costUpHandler = nil
     property number HpBarWidth = 400
-    -- Highlight when a card comes off cooldown: the card swells by ReadyPulseScale and settles over ReadyPulseSeconds.
+    -- Highlight when a new card arrives in a hand slot: it swells by ReadyPulseScale and settles over ReadyPulseSeconds.
     property number ReadyPulseSeconds = 0.3
     property number ReadyPulseScale = 0.18
     property any restartHandler = nil
@@ -37,46 +34,36 @@ script BattleHUD extends Component
 
     @ExecSpace("ClientOnly")
     method void OnBeginPlay()
-        -- Binds the deck slots, fills the static card texts and wires the button clicks.
-        local slotEntities = {
-            self.slot1, self.slot2, self.slot3, self.slot4, self.slot5,
-            self.slot6, self.slot7, self.slot8, self.slot9, self.slot10,
-        }
-        -- Slots start empty; ApplyDeck fills them from the side this player controls.
+        -- Binds the hand slots, clears the card texts and wires the button clicks.
+        local slotEntities = { self.slot1, self.slot2, self.slot3, self.slot4, self.slot5 }
+        -- Slots start empty; ApplyHand fills them from the hand of the side this player controls.
         local slots = {}
         local cards = 0
         self.slotHandlers = {}
-        for i = 1, _BattleConfig.DeckSize do
+        for i = 1, _BattleConfig.HandSize do
             local entity = slotEntities[i]
             if isvalid(entity) then
-                local cfg = nil
                 local nameEntity = entity:GetChildByName("Name")
                 local costEntity = entity:GetChildByName("Cost")
                 local dimEntity = entity:GetChildByName("Dim")
-                local cooldownEntity = entity:GetChildByName("Cooldown")
                 local iconEntity = entity:GetChildByName("Icon")
-                -- Cooldown shade: a filled sprite over the card that drains downward; the old number text stays off.
-                local coolEntity = entity:GetChildByName("Cool")
                 if isvalid(iconEntity) then iconEntity.Enable = false end
-                if isvalid(coolEntity) then coolEntity.Enable = false end
                 local slotIndex = i
                 local clickHandler = entity:ConnectEvent(ButtonClickEvent, function() self:OnSlotClicked(slotIndex) end)
                 table.insert(self.slotHandlers, { entity = entity, eventHandler = clickHandler })
                 nameEntity.TextGUIRendererComponent.Text = ""
                 costEntity.TextGUIRendererComponent.Text = ""
                 entity.ButtonComponent.Enable = false
-                dimEntity.Enable = (cfg == nil)
-                cooldownEntity.Enable = false
+                dimEntity.Enable = true
                 table.insert(slots, {
                     entity = entity, nameText = nameEntity.TextGUIRendererComponent, costText = costEntity.TextGUIRendererComponent,
-                    cfg = cfg, dim = dimEntity, cooldown = cooldownEntity, icon = iconEntity, cool = coolEntity,
-                    cooldownText = cooldownEntity.TextGUIRendererComponent,
-                    dimmed = (cfg == nil), shown = 0, coolRemain = 0, readyPulse = 0,
+                    cfg = nil, unitId = "", dim = dimEntity, icon = iconEntity, dimmed = true, readyPulse = 0,
                 })
             end
         end
         self._T.slots = slots
         self._T.view = {}
+        if isvalid(self.nextCard) then self.nextCard.Parent.Enable = false end
 
         if isvalid(self.restartButton) then
             self.restartHandler = self.restartButton:ConnectEvent(ButtonClickEvent, self.OnRestartClicked)
@@ -98,46 +85,59 @@ script BattleHUD extends Component
     end
 
     @ExecSpace("ClientOnly")
-    method void ApplyDeck(table deckIds)
-        -- Fills the slots from a deck (array of unit ids); slots beyond the deck are emptied and disabled.
-        local cards = 0
-        local icons = 0
-        local iconPairs = {}
+    method void ApplyHand(table handIds)
+        -- Fills the hand slots from the synced hand (unit ids in slot order, "" = empty). Only slots whose card
+        -- changed are redrawn, and a card that replaces a played one pulses once.
+        local changed = {}
         for i, slot in ipairs(self._T.slots) do
-            local cfg = nil
-            if deckIds[i] ~= nil then cfg = _BattleConfig:GetUnit(deckIds[i]) end
-            slot.cfg = cfg
-            -- Unit / skill image of the card; hidden for an empty slot or a unit without an image.
-            local iconRuid = ""
-            if cfg ~= nil then iconRuid = _BattleConfig:GetIconRuid(deckIds[i]) end
-            if isvalid(slot.icon) then
-                if iconRuid ~= "" then
-                    slot.icon.SpriteGUIRendererComponent.ImageRUID = DataRef(iconRuid)
-                    icons = icons + 1
-                    table.insert(iconPairs, deckIds[i] .. "=" .. iconRuid)
+            local unitId = handIds[i] or ""
+            if unitId ~= slot.unitId then
+                local hadCard = slot.unitId ~= ""
+                slot.unitId = unitId
+                local cfg = nil
+                if unitId ~= "" then cfg = _BattleConfig:GetUnit(unitId) end
+                slot.cfg = cfg
+                self:PaintCard(slot.entity, unitId)
+                if cfg ~= nil then
+                    slot.nameText.Text = cfg.name
+                    slot.costText.Text = tostring(math.floor(cfg.cost))
+                else
+                    slot.nameText.Text = ""
+                    slot.costText.Text = ""
                 end
-                slot.icon.Enable = iconRuid ~= ""
+                slot.entity.ButtonComponent.Enable = cfg ~= nil
+                slot.dimmed = (cfg == nil)
+                slot.dim.Enable = slot.dimmed
+                slot.entity.UITransformComponent.UIScale = Vector3(1, 1, 1)
+                slot.readyPulse = 0
+                if hadCard and cfg ~= nil then slot.readyPulse = self.ReadyPulseSeconds end
+                table.insert(changed, tostring(i) .. "=" .. (unitId ~= "" and unitId or "-"))
             end
-            _BattleConfig:PaintRarityFrame(slot.entity, cfg ~= nil and deckIds[i] or "")
-            if cfg ~= nil then
-                cards = cards + 1
-                slot.nameText.Text = cfg.name
-                slot.costText.Text = tostring(cfg.cost)
-            else
-                slot.nameText.Text = ""
-                slot.costText.Text = ""
-            end
-            slot.entity.ButtonComponent.Enable = cfg ~= nil
-            slot.dimmed = (cfg == nil)
-            slot.dim.Enable = slot.dimmed
-            slot.shown = 0
-            slot.coolRemain = 0
-            slot.readyPulse = 0
-            slot.cooldown.Enable = false
-            if isvalid(slot.cool) then slot.cool.Enable = false end
-            slot.entity.UITransformComponent.UIScale = Vector3(1, 1, 1)
         end
-        log("[BattleHUD] deck applied cards=" .. tostring(cards) .. " icons=" .. tostring(icons) .. " [" .. table.concat(iconPairs, " ") .. "]")
+        log("[BattleHUD] hand applied [" .. table.concat(changed, " ") .. "]")
+    end
+
+    @ExecSpace("ClientOnly")
+    method void ApplyNext(string unitId)
+        -- Shows the next queued card in the small preview (hidden when nothing is waiting).
+        if not isvalid(self.nextCard) then return end
+        local shown = unitId ~= ""
+        self.nextCard.Parent.Enable = shown
+        if shown then self:PaintCard(self.nextCard, unitId) end
+        log("[BattleHUD] next card " .. (shown and unitId or "none"))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PaintCard(Entity card, string unitId)
+        -- Draws a card's unit / skill image (Icon child) and rarity frame; both hidden for an empty card.
+        local icon = card:GetChildByName("Icon")
+        local iconRuid = ""
+        if unitId ~= "" then iconRuid = _BattleConfig:GetIconRuid(unitId) end
+        if isvalid(icon) then
+            if iconRuid ~= "" then icon.SpriteGUIRendererComponent.ImageRUID = DataRef(iconRuid) end
+            icon.Enable = iconRuid ~= ""
+        end
+        _BattleConfig:PaintRarityFrame(card, unitId)
     end
 
     @ExecSpace("ClientOnly")
@@ -257,9 +257,13 @@ script BattleHUD extends Component
         ---@type BattleSide
         local otherSide = commander:GetSideOf(false)
         if mySide == nil or otherSide == nil then return end
-        if mySide.DeckCsv ~= view.deckCsv then
-            view.deckCsv = mySide.DeckCsv
-            self:ApplyDeck(mySide:GetDeckIds())
+        if mySide.HandCsv ~= view.handCsv then
+            view.handCsv = mySide.HandCsv
+            self:ApplyHand(mySide:GetHandIds())
+        end
+        if mySide.NextCardId ~= view.nextCard then
+            view.nextCard = mySide.NextCardId
+            self:ApplyNext(mySide.NextCardId)
         end
 
         local state = director.State
@@ -318,28 +322,8 @@ script BattleHUD extends Component
         end
         view.maxHp = maxHp
 
-        for i, slot in ipairs(slots) do
+        for _, slot in ipairs(slots) do
             if slot.cfg ~= nil then
-                local remain = commander:GetCooldownRemain(i)
-                local shown = math.ceil(remain)
-                -- Cooldown shade: full right after the card is played, draining downward until it is ready again.
-                if isvalid(slot.cool) then
-                    if remain > 0 then
-                        if slot.coolRemain <= 0 then
-                            slot.cool.Enable = true
-                            log("[BattleHUD] slot " .. tostring(i) .. " cooldown started " .. string.format("%.1f", remain) .. "s (shade)")
-                        end
-                        local total = math.max(0.01, slot.cfg.cooldown)
-                        slot.cool.SpriteGUIRendererComponent.FillAmount = math.max(0, math.min(1, remain / total))
-                    elseif slot.coolRemain > 0 then
-                        -- Just became ready: hide the shade and pulse the card once.
-                        slot.cool.Enable = false
-                        slot.readyPulse = self.ReadyPulseSeconds
-                        log("[BattleHUD] slot " .. tostring(i) .. " cooldown ended, ready pulse")
-                    end
-                end
-                slot.coolRemain = remain
-                slot.shown = shown
                 if slot.readyPulse > 0 then
                     slot.readyPulse = slot.readyPulse - delta
                     local k = math.max(0, slot.readyPulse / self.ReadyPulseSeconds)
@@ -348,7 +332,8 @@ script BattleHUD extends Component
                     if slot.readyPulse <= 0 then s = 1 end
                     slot.entity.UITransformComponent.UIScale = Vector3(s, s, 1)
                 end
-                local dimmed = shown > 0 or cost < slot.cfg.cost or state ~= "PLAYING"
+                -- No cooldowns: a card is only dimmed while its cost is not affordable (or the battle is not running).
+                local dimmed = cost < slot.cfg.cost or state ~= "PLAYING"
                 if dimmed ~= slot.dimmed then
                     slot.dimmed = dimmed
                     slot.dim.Enable = dimmed
@@ -395,22 +380,15 @@ script BattleHUD extends Component
                 if isvalid(self.rewardText) then self.rewardText.Text = "획득 메소 +" .. tostring(reward) end
                 log("[BattleHUD] result reward shown: 획득 메소 +" .. tostring(reward))
             end
-            -- Reward chest line: the chest's name and the cards it gave (synced by the director).
-            local cardsCsv = director.RewardCardsCsv
-            if cardsCsv ~= view.cardsCsv then
-                view.cardsCsv = cardsCsv
+            -- Reward stone line: the summon stone the battle gave (it goes to storage and is used in the lobby).
+            local stoneId = director.RewardChest
+            if stoneId ~= view.cardsCsv then
+                view.cardsCsv = stoneId
                 local text = ""
-                if cardsCsv ~= "" then
-                    local chest = _BattleConfig:GetChest(director.RewardChest)
-                    local parts = {}
-                    for id, count in string.gmatch(cardsCsv, "([^,:]+):(%d+)") do
-                        local unit = _BattleConfig:GetUnit(id)
-                        table.insert(parts, (unit and unit.name or id) .. " x" .. count)
-                    end
-                    text = (chest and chest.name or "상자") .. ": " .. table.concat(parts, ", ")
-                end
+                local stone = _BattleConfig:GetSummonStone(stoneId)
+                if stone ~= nil then text = "보상: " .. stone.name .. " 1개  (로비의 [소환]에서 사용)" end
                 if isvalid(self.cardsText) then self.cardsText.Text = text end
-                log("[BattleHUD] result chest shown: " .. text)
+                log("[BattleHUD] result stone shown: " .. text)
             end
             -- Restart is another entry: the button shows the stage's entry cost and is off when the player cannot pay it.
             local stage = _BattleConfig:GetStage(director.StageId)

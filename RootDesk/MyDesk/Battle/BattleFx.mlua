@@ -43,6 +43,8 @@ script BattleFx extends Logic
         local rec = unit._T.fx
         if rec == nil then return end
         unit._T.fx = nil
+        -- A unit taken away in the middle of a hit blink (a pooled entity is reused) gets its normal material back.
+        if rec.flashRemain ~= nil then self:EndFlash(rec) end
         self:RemoveBar(rec, "unit removed")
         local recs = self._T.recs
         if recs == nil then return end
@@ -357,8 +359,15 @@ script BattleFx extends Logic
         if not isvalid(source) then return end
         local fx = attacker._T.fx
         if cfg.attackEffectRuid ~= nil then
-            -- Attached to the attacker, so the effect follows its size and facing.
-            local serial = _EffectService:PlayEffectAttached(cfg.attackEffectRuid, source, Vector3(0, 0, 0), 0, Vector3(1, 1, 1), false)
+            -- Attached to the attacker, so the effect follows its size and facing. The offset columns are world units on
+            -- screen (X forward, Y up from the feet), so they are divided by the unit's own size; the unit's flipped
+            -- x scale (-dir * size) turns local -x into "forward" for both teams.
+            local size = cfg.scale * _BattleConfig.UnitScale
+            if size <= 0 then size = 1 end
+            local fxScale = cfg.attackEffectScale
+            if fxScale == nil or fxScale <= 0 then fxScale = 1 end
+            local offset = Vector3(-cfg.attackEffectOffsetX / size, cfg.attackEffectOffsetY / size, 0)
+            local serial = _EffectService:PlayEffectAttached(cfg.attackEffectRuid, source, offset, 0, Vector3(fxScale, fxScale, 1), false)
             if fx ~= nil and fx.attackFxLogged ~= true then
                 fx.attackFxLogged = true
                 log("[BattleFx] attack effect " .. source.Name .. " ruid=" .. cfg.attackEffectRuid .. " serial=" .. tostring(serial))
@@ -402,6 +411,27 @@ script BattleFx extends Logic
             sx = from.x, sy = startY, tx = to.x, ty = to.y + self.ProjectileAimY * _BattleConfig.UnitScale,
             elapsed = 0, duration = math.max(0.1, travelTime),
         })
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnAttackHit(BattleUnit attacker, Entity target)
+        -- An attack landed: plays the attacker's hit effect (UnitTable HitEffectRuid) on the unit it damaged.
+        -- The effect is attached to the target so it follows a knocked-back unit, but its size and facing are the
+        -- attacker's (the target's own scale is divided out), at the height projectiles aim for.
+        local cfg = _BattleConfig:GetUnit(attacker.UnitId)
+        if cfg == nil or cfg.hitEffectRuid == nil or not isvalid(target) then return end
+        local parentScale = target.TransformComponent.Scale
+        if parentScale.x == 0 or parentScale.y == 0 then return end
+        local size = cfg.scale * _BattleConfig.UnitScale
+        -- Clips face left by default, like the unit sprites: mirrored when the attacker advances to the right.
+        local localScale = Vector3(-attacker:GetDirection() * size / parentScale.x, size / parentScale.y, 1)
+        local localY = self.ProjectileAimY * _BattleConfig.UnitScale / parentScale.y
+        local serial = _EffectService:PlayEffectAttached(cfg.hitEffectRuid, target, Vector3(0, localY, 0), 0, localScale, false)
+        local fx = attacker._T.fx
+        if fx ~= nil and fx.hitFxLogged ~= true then
+            fx.hitFxLogged = true
+            log("[VRF] BattleFx hit effect " .. attacker.Entity.Name .. " -> " .. target.Name .. " ruid=" .. cfg.hitEffectRuid .. " serial=" .. tostring(serial))
+        end
     end
 
     @ExecSpace("ClientOnly")

@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import Field, { ExtraFields } from '../Field.jsx';
 import { Badge, Thumb } from '../ui.jsx';
-
-const thumbRuid = (u) => (u ? (u.Kind === 'skill' ? u.EffectRuid : u.StandRuid) : '');
+import { unitIconRuid } from '../unit.js';
 
 export function StageBadges({ draft, data }) {
   const times = draft.waves.map((w) => Number(w.time)).filter(Number.isFinite);
@@ -52,7 +51,7 @@ function Timeline({ waves, loopCount, units }) {
         const unit = units.find((u) => u.UnitId === w.unitId);
         return (
           <span key={i} className={`mark ${lv ? 'lv' : ''}`} style={{ left: pos(t) }} title={`${unit ? unit.Name : w.unitId} · ${t}초`}>
-            <Thumb ruid={thumbRuid(unit)} /><span>{t}s</span>{lv && <b>Lv{w.level}</b>}
+            <Thumb ruid={unitIconRuid(unit)} /><span>{t}s</span>{lv && <b>Lv{w.level}</b>}
           </span>
         );
       })}
@@ -122,7 +121,7 @@ export default function StageForm({ draft, set, data, originalId }) {
             const u = unitById(id);
             return (
               <span key={i} className="chip">
-                <Thumb ruid={thumbRuid(u)} />
+                <Thumb ruid={unitIconRuid(u)} />
                 {u ? `${u.Name} (${id} · ${schema.kindLabels[u.Kind] || u.Kind})` : `${id} (없음)`}
                 <button title="빼기" onClick={() => set('loopPool', loopPool.filter((_, j) => j !== i))}>×</button>
               </span>

@@ -39,6 +39,13 @@ script LobbyUI extends Component
     -- Unit info popup (modal backdrop) and its window; the window's children are found by name.
     property Entity unitInfoPanel = "3b885e61-e590-4b4f-821c-3a4b2685d63b"
     property Entity unitInfoWindow = "498c4818-5292-4de6-9bb3-d122d6893d98"
+    -- Summon screen: stone tiles (one per stone rarity), the summon button and the selected stone's details.
+    property Entity summonButton = "a90502b6-f87a-457a-9690-91755368fd02"
+    property Entity summonPanel = "d661a45b-5057-4374-9e33-da054ab7489c"
+    property Entity stoneTile = "9f3c6850-6218-4a5c-bc12-6f16862c5604"
+    property Entity summonActionButton = "daecdeb7-8f16-4c66-be3d-fc46f1e11160"
+    -- Summon reveal (modal): effect clip, then one screen per summoned card kind; its children are found by name.
+    property Entity revealPanel = "306da072-cf77-4280-a82d-e875b4e0a741"
     @HideFromInspector property string Screen = "main"
     @HideFromInspector property string SelectedStage = ""
     property table clickHandlers = {}
@@ -69,6 +76,14 @@ script LobbyUI extends Component
         self:Bind(self.shopTabCurrency, function() self:OnMenuClicked("ticket") end)
         self:Bind(self.ticketTabChest, function() self:OnMenuClicked("shop") end)
         self:Bind(self.chestCloseButton, function() self:OnChestCloseClicked() end)
+        self:Bind(self.summonButton, function() self:OnMenuClicked("summon") end)
+        self:Bind(self.summonActionButton, function() self:OnSummonClicked() end)
+        if isvalid(self.stoneTile) then self.stoneTile.Enable = false end
+        if isvalid(self.revealPanel) then
+            self:Bind(self.revealPanel:GetChildByName("Tap"), function() self:OnRevealTapped() end)
+            self:Bind(self.revealPanel:GetChildByName("SkipBtn"), function() self:FinishReveal() end)
+            self.revealPanel.Enable = false
+        end
         if isvalid(self.unitInfoWindow) then
             self:Bind(self.unitInfoWindow:GetChildByName("CloseBtn"), function() self:CloseUnitInfo() end)
             self:Bind(self.unitInfoWindow:GetChildByName("UpgradeBtn"), function() self:OnUpgradeClicked(self._T.infoUnit or "") end)
@@ -88,7 +103,11 @@ script LobbyUI extends Component
 
     @ExecSpace("ClientOnly")
     method void OnEndPlay()
-        -- Disconnects every button click handler.
+        -- Disconnects every button click handler and stops a running summon reveal timer.
+        if self._T.revealTimer ~= nil then
+            _TimerService:ClearTimer(self._T.revealTimer)
+            self._T.revealTimer = nil
+        end
         for _, rec in ipairs(self.clickHandlers) do
             if isvalid(rec.entity) then rec.entity:DisconnectEvent(ButtonClickEvent, rec.eventHandler) end
         end
@@ -152,7 +171,7 @@ script LobbyUI extends Component
         ---@type PlayerData
         local data = player:GetComponent("script.PlayerData")
         if data == nil then return end
-        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.StagesCsv .. "|" .. tostring(data.CostLevelCap) .. "|" .. data.WalletCsv .. "|" .. data.CardsCsv
+        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.StagesCsv .. "|" .. tostring(data.CostLevelCap) .. "|" .. data.WalletCsv .. "|" .. data.CardsCsv .. "|" .. data.StonesCsv
         if signature ~= view.signature then
             view.signature = signature
             log("[LobbyUI] data changed loaded=" .. tostring(data.Loaded) .. " meso=" .. tostring(data.Meso) .. " units=" .. data.UnitsCsv .. " deck=" .. data.DeckCsv .. " stages=" .. data.StagesCsv .. " wallet=" .. data.WalletCsv)
@@ -209,6 +228,8 @@ script LobbyUI extends Component
         if isvalid(self.deckPanel) then self.deckPanel.Enable = screen == "deck" end
         if isvalid(self.shopPanel) then self.shopPanel.Enable = screen == "shop" end
         if isvalid(self.ticketPanel) then self.ticketPanel.Enable = screen == "ticket" end
+        if isvalid(self.summonPanel) then self.summonPanel.Enable = screen == "summon" end
+        if isvalid(self.revealPanel) then self.revealPanel.Enable = false end
         if isvalid(self.chestPanel) then self.chestPanel.Enable = false end
         if isvalid(self.backButton) then self.backButton.Enable = screen ~= "main" end
         -- A card menu or the info popup never outlives the screen it was opened on.
@@ -241,6 +262,8 @@ script LobbyUI extends Component
             if self._T.infoUnit ~= nil then self:RenderUnitInfo(data, self._T.infoUnit) end
         elseif self.Screen == "shop" then
             self:RenderShop(data)
+        elseif self.Screen == "summon" then
+            self:RenderSummon(data)
         elseif self.Screen == "ticket" then
             self:RenderTicketShop()
         end
@@ -504,7 +527,7 @@ script LobbyUI extends Component
             end
             if state.owned == false then
                 self:SetChildText(item.entity, "Level", "미보유")
-                if isvalid(progress) then self:SetChildText(progress, "Label", "상자에서 획득") end
+                if isvalid(progress) then self:SetChildText(progress, "Label", "소환으로 획득") end
                 if isvalid(fill) then fill.SpriteGUIRendererComponent.FillAmount = 0 end
                 table.insert(summary, unit.id .. "=none")
             else
@@ -755,11 +778,12 @@ script LobbyUI extends Component
         end
         self:SetChildText(window, "Sub", sub)
         local lines = {}
-        table.insert(lines, "소환 코스트  " .. self:FormatNumber(base.cost) .. "     재소환 대기  " .. self:FormatNumber(base.cooldown) .. "초")
+        table.insert(lines, "소환 코스트  " .. self:FormatNumber(base.cost))
         if base.kind == "skill" then
             table.insert(lines, "피해  " .. self:FormatNumber(unit.damage))
             table.insert(lines, "범위  " .. self:FormatNumber(base.radius))
         else
+            if base.spawnCount > 1 then table.insert(lines, "한 번에 소환  " .. tostring(base.spawnCount) .. "마리") end
             table.insert(lines, "HP  " .. self:FormatNumber(unit.maxHp) .. "     공격력  " .. self:FormatNumber(unit.attack))
             table.insert(lines, "공격 간격  " .. self:FormatNumber(base.attackInterval) .. "초     사거리  " .. self:FormatNumber(base.range))
             if base.kind == "monster" then table.insert(lines, "이동 속도  " .. self:FormatNumber(base.speed)) end
@@ -772,7 +796,7 @@ script LobbyUI extends Component
         self:SetChildText(window, "Effect", self:DescribeEffect(base))
         local progress = ""
         if state.owned == false then
-            progress = "상자에서 카드를 얻으면\n사용할 수 있습니다."
+            progress = "소환의 돌로 카드를 얻으면\n사용할 수 있습니다."
         elseif state.maxed then
             progress = "최대 레벨입니다."
         else
@@ -794,37 +818,36 @@ script LobbyUI extends Component
 
     @ExecSpace("ClientOnly")
     method string DescribeEffect(table unit)
-        -- Describes the one effect a monster / build's attacks can apply: name, what it does, duration, distance
-        -- and the chance per attribute of the monster that was hit (this unit's overrides, else EffectTable).
-        local effect = _BattleConfig:GetEffect(unit.effectId)
-        if effect == nil then return "효과  없음" end
-        local unitOverride = unit.effectOverride or { chance = {} }
-        local duration = unitOverride.duration or effect.duration
-        local power = unitOverride.power or effect.power
-        local text = "효과  " .. effect.name .. " — " .. self:EffectTypeDescription(effect.type)
-        local parts = {}
-        if duration > 0 then table.insert(parts, "지속 " .. self:FormatNumber(duration) .. "초") end
-        if (effect.type == "warp" or effect.type == "blow") and power > 0 then table.insert(parts, "거리 " .. self:FormatNumber(power)) end
-        if #parts > 0 then text = text .. " (" .. table.concat(parts, ", ") .. ")" end
-        local chances = {}
-        for _, attribute in ipairs({ "earth", "water", "fire", "wind", "light", "dark" }) do
-            local chance = unitOverride.chance[attribute]
-            if chance == nil then chance = effect.chance[attribute] or 0 end
-            if chance > 0 then table.insert(chances, _BattleConfig:GetAttributeLabel(attribute) .. " " .. self:FormatNumber(chance) .. "%") end
+        -- Describes the effect rules of a monster / build (UnitEffectTable): one line per rule with the effect's name and
+        -- what it does, when it triggers (on hit with its chance, or always on the unit itself), duration and magnitude.
+        local rules = _BattleConfig:GetUnitEffects(unit.id)
+        local lines = {}
+        for _, rule in ipairs(rules) do
+            local effect = _BattleConfig:GetEffect(rule.effectId)
+            if effect ~= nil then
+                local duration = rule.duration or effect.duration
+                local power = rule.power or effect.power
+                local parts = {}
+                if rule.trigger == "on_hit" then
+                    table.insert(parts, "공격 시 " .. self:FormatNumber(rule.chance) .. "%")
+                    if duration > 0 then table.insert(parts, "지속 " .. self:FormatNumber(duration) .. "초") end
+                else
+                    table.insert(parts, "항상 자신에게")
+                end
+                if (effect.type == "warp" or effect.type == "blow") and power > 0 then table.insert(parts, "거리 " .. self:FormatNumber(power)) end
+                if effect.type == "curse" and power > 0 then table.insert(parts, "공격력 -" .. self:FormatNumber(power) .. "%") end
+                table.insert(lines, "효과  " .. effect.name .. " — " .. self:EffectTypeDescription(effect.type) .. " (" .. table.concat(parts, ", ") .. ")")
+            end
         end
-        if #chances > 0 then
-            text = text .. "\n적용 확률 (맞은 몬스터의 속성별)  " .. table.concat(chances, " / ")
-        else
-            text = text .. "\n적용 확률  없음"
-        end
-        return text
+        if #lines == 0 then return "효과  없음" end
+        return table.concat(lines, "\n")
     end
 
     @ExecSpace("ClientOnly")
     method string EffectTypeDescription(string effectType)
         -- One-line description of an effect behavior (see BattleUnit:ReceiveEffect).
         if effectType == "nullify" then return "맞은 몬스터의 공격이 이 유닛에게 통하지 않음" end
-        if effectType == "curse" then return "맞은 몬스터의 효과를 봉인" end
+        if effectType == "curse" then return "맞은 몬스터의 공격력을 감소시킴" end
         if effectType == "warp" then return "맞은 몬스터를 즉시 뒤로 보내고 묶어 둠" end
         if effectType == "blow" then return "맞은 몬스터를 뒤로 날려버림" end
         return effectType
@@ -861,19 +884,12 @@ script LobbyUI extends Component
         end
         local rows = self:SyncPool("shop", self.shopRow, #ids, "Action", function(item) self:OnShopActionClicked(item.key) end)
         local summary = {}
+        local held = data:GetStoneCounts()
         for i, id in ipairs(ids) do
-            local chest = _BattleConfig:GetChest(id)
+            local chest = _BattleConfig:GetSummonStone(id)
             local item = rows[i]
             item.key = id
-            self:SetChildIcon(item.entity, "")
-            -- The row's frame takes the chest's own rarity color (chest ids match rarity ids).
-            local frame = item.entity:GetChildByName("Rarity")
-            if isvalid(frame) then
-                frame.Enable = true
-                for _, edge in ipairs(frame.Children) do
-                    if edge.SpriteGUIRendererComponent ~= nil then edge.SpriteGUIRendererComponent.Color = _BattleConfig:GetRarityColor(self:RarityUnitSample(id)) end
-                end
-            end
+            self:PaintStone(item.entity, id)
             local odds = {}
             for _, rarity in ipairs(_BattleConfig:GetRarities()) do
                 local pct = chest.chance[rarity] or 0
@@ -883,25 +899,18 @@ script LobbyUI extends Component
             if chest.guarantee ~= "" then guarantee = " · " .. _BattleConfig:GetRarityLabel(chest.guarantee) .. " 이상 1장 보장" end
             self:SetChildText(item.entity, "Name", chest.name)
             self:SetChildText(item.entity, "Kind", table.concat(odds, " / ") .. guarantee)
-            self:SetChildText(item.entity, "Level", "카드 " .. tostring(chest.cards) .. "장")
+            self:SetChildText(item.entity, "Level", "카드 " .. tostring(chest.cards) .. "장 · 보유 " .. tostring(held[id] or 0) .. "개")
             local label = "판매 안 함"
             local enabled = false
             if chest.priceMeso > 0 then
-                label = "열기 " .. tostring(chest.priceMeso) .. " 메소"
+                label = "구매 " .. tostring(chest.priceMeso) .. " 메소"
                 enabled = data.Meso >= chest.priceMeso
             end
             item.button.TextGUIRendererComponent.Text = label
             self:SetButtonEnabled(item.button, enabled)
             table.insert(summary, id .. "=" .. tostring(chest.priceMeso) .. (enabled and "+" or "-"))
         end
-        log("[LobbyUI] shop rendered chests=" .. tostring(#ids) .. " meso=" .. tostring(data.Meso) .. " [" .. table.concat(summary, " ") .. "]")
-    end
-
-    @ExecSpace("ClientOnly")
-    method string RarityUnitSample(string rarity)
-        -- Returns any unit id of a rarity so the shared rarity frame painter can color a chest row ("" if none).
-        local ids = _BattleConfig:GetUnitsByRarity(rarity)
-        return ids[1] or ""
+        log("[LobbyUI] shop rendered stones=" .. tostring(#ids) .. " meso=" .. tostring(data.Meso) .. " held=" .. data.StonesCsv .. " [" .. table.concat(summary, " ") .. "]")
     end
 
     @ExecSpace("ClientOnly")
@@ -916,14 +925,225 @@ script LobbyUI extends Component
     end
 
     @ExecSpace("ClientOnly")
-    method void OnShopActionClicked(string chestId)
-        -- Sends a chest purchase; the server opens it and sends the cards back for the result screen.
+    method void OnShopActionClicked(string stoneId)
+        -- Sends a summon stone purchase; the stone goes to storage (the held count on the row goes up).
         ---@type PlayerData
         local data = self:GetData()
-        if data == nil or chestId == "" then return end
+        if data == nil or stoneId == "" then return end
         _BattleSound:Play("click")
-        log("[LobbyUI] chest purchase requested " .. chestId .. " meso=" .. tostring(data.Meso))
-        data:RequestBuyChest(chestId)
+        log("[LobbyUI] stone purchase requested " .. stoneId .. " meso=" .. tostring(data.Meso))
+        data:RequestBuyStone(stoneId)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PaintStone(Entity item, string stoneId)
+        -- Draws a summon stone on an item: its icon (base stone icon unless the rarity overrides it) in the "Icon"
+        -- child and its rarity color on the "Rarity" frame.
+        local stone = _BattleConfig:GetSummonStone(stoneId)
+        if stone == nil then return end
+        local icon = item:GetChildByName("Icon")
+        if isvalid(icon) then
+            icon.SpriteGUIRendererComponent.ImageRUID = DataRef(stone.iconRuid)
+            if icon.Enable == false then icon.Enable = true end
+        end
+        local frame = item:GetChildByName("Rarity")
+        if isvalid(frame) then
+            if frame.Enable == false then frame.Enable = true end
+            for _, edge in ipairs(frame.Children) do
+                if edge.SpriteGUIRendererComponent ~= nil then edge.SpriteGUIRendererComponent.Color = stone.frameColor end
+            end
+        end
+    end
+
+    -- ===== Summon (use held stones) =====
+
+    @ExecSpace("ClientOnly")
+    method void RenderSummon(PlayerData data)
+        -- One tile per stone rarity with the held count (shaded at 0); the selected stone is highlighted and its
+        -- details shown; the summon button works only for a held, selected stone.
+        local ids = _BattleConfig:GetChestIds()
+        local held = data:GetStoneCounts()
+        self._T.ownedBefore = data:GetUnitLevels()
+        local selected = self._T.selectedStone or ""
+        if (held[selected] or 0) <= 0 then
+            -- Keep a valid selection: the first held stone (or none).
+            selected = ""
+            for _, id in ipairs(ids) do
+                if selected == "" and (held[id] or 0) > 0 then selected = id end
+            end
+            self._T.selectedStone = selected
+        end
+        local tiles = self:SyncPool("stone", self.stoneTile, #ids, "", function(item) self:OnStoneTileClicked(item.key) end)
+        for i, id in ipairs(ids) do
+            local item = tiles[i]
+            local stone = _BattleConfig:GetSummonStone(id)
+            item.key = id
+            self:PaintStone(item.entity, id)
+            self:SetChildText(item.entity, "Name", stone.name)
+            self:SetChildText(item.entity, "CountBadge", "x" .. tostring(held[id] or 0))
+            self:SetChildEnable(item.entity, "Dim", (held[id] or 0) <= 0)
+            self:SetChildEnable(item.entity, "Select", id == selected)
+        end
+        local info = ""
+        local stone = _BattleConfig:GetSummonStone(selected)
+        if stone ~= nil then
+            local odds = {}
+            for _, rarity in ipairs(_BattleConfig:GetRarities()) do
+                local pct = stone.chance[rarity] or 0
+                if pct > 0 then table.insert(odds, _BattleConfig:GetRarityLabel(rarity) .. " " .. tostring(math.floor(pct)) .. "%") end
+            end
+            info = stone.name .. " — 카드 " .. tostring(stone.cards) .. "장"
+            if stone.guarantee ~= "" then info = info .. " · " .. _BattleConfig:GetRarityLabel(stone.guarantee) .. " 이상 1장 보장" end
+            info = info .. "\n" .. table.concat(odds, " / ")
+        else
+            info = "보유한 소환의 돌이 없습니다. 상점이나 전투 보상으로 얻을 수 있습니다."
+        end
+        if isvalid(self.summonPanel) then self:SetChildText(self.summonPanel, "Info", info) end
+        self:SetButtonEnabled(self.summonActionButton, stone ~= nil and self._T.summoning ~= true)
+        log("[LobbyUI] summon rendered held=" .. data.StonesCsv .. " selected=" .. selected)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnStoneTileClicked(string stoneId)
+        -- Selects a held stone for the summon button.
+        ---@type PlayerData
+        local data = self:GetData()
+        if data == nil or (data:GetStoneCounts()[stoneId] or 0) <= 0 then return end
+        _BattleSound:Play("click")
+        self._T.selectedStone = stoneId
+        self:Render()
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnSummonClicked()
+        -- Uses the selected stone; the server rolls the cards and sends them back for the reveal.
+        ---@type PlayerData
+        local data = self:GetData()
+        local stoneId = self._T.selectedStone or ""
+        if data == nil or stoneId == "" or self._T.summoning == true then return end
+        if (data:GetStoneCounts()[stoneId] or 0) <= 0 then return end
+        _BattleSound:Play("click")
+        self._T.summoning = true
+        self:SetButtonEnabled(self.summonActionButton, false)
+        -- If the server refuses (no result comes back), the button frees itself after a few seconds.
+        _TimerService:SetTimerOnce(function()
+            if self._T.summoning == true then
+                self._T.summoning = false
+                log("[LobbyUI] summon got no result, button re-enabled")
+                self:Render()
+            end
+        end, 5)
+        log("[LobbyUI] summon requested " .. stoneId)
+        data:RequestSummon(stoneId)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void ShowSummonResult(string stoneId, string resultCsv)
+        -- Starts the reveal: the effect plays for SummonRevealDelay, then one screen per summoned card kind
+        -- ("슬라임 3장!"), rarest last. Tapping moves on; after the last one the summary of all cards is shown.
+        self._T.summoning = false
+        local entries = {}
+        for id, count in string.gmatch(resultCsv, "([^,:]+):(%d+)") do
+            local unit = _BattleConfig:GetUnit(id)
+            local rank = 1
+            if unit ~= nil then rank = _BattleConfig:GetRarityRank(unit.rarity) end
+            table.insert(entries, { id = id, count = tonumber(count), rank = rank })
+        end
+        table.sort(entries, function(a, b)
+            if a.rank ~= b.rank then return a.rank < b.rank end
+            return a.count > b.count
+        end)
+        self._T.reveal = { stoneId = stoneId, csv = resultCsv, entries = entries, index = 0, ownedBefore = self._T.ownedBefore or {} }
+        local panel = self.revealPanel
+        if not isvalid(panel) or #entries == 0 then
+            self:ShowChestResult(stoneId, resultCsv)
+            return
+        end
+        panel.Enable = true
+        local stone = _BattleConfig:GetSummonStone(stoneId)
+        local effect = panel:GetChildByName("Effect")
+        if isvalid(effect) and stone ~= nil then
+            -- Re-enable so the clip starts from its first frame.
+            effect.Enable = false
+            effect.SpriteGUIRendererComponent.ImageRUID = DataRef(stone.effectRuid)
+            effect.Enable = true
+        end
+        self:SetChildEnable(panel, "Card", false)
+        self:SetChildText(panel, "Title", "")
+        self:SetChildText(panel, "Sub", "")
+        self:SetChildText(panel, "Counter", "")
+        if self._T.revealTimer ~= nil then _TimerService:ClearTimer(self._T.revealTimer) end
+        self._T.revealTimer = _TimerService:SetTimerOnce(function()
+            self._T.revealTimer = nil
+            self:ShowRevealEntry(1)
+        end, _BattleConfig.SummonRevealDelay)
+        log("[LobbyUI] summon reveal started " .. stoneId .. " kinds=" .. tostring(#entries))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void ShowRevealEntry(integer index)
+        -- Shows one summoned card kind: its stand clip (monster / build) or icon (skill), rarity frame,
+        -- "이름 N장!" and a NEW mark for a unit that was not owned before.
+        local reveal = self._T.reveal
+        local panel = self.revealPanel
+        if reveal == nil or not isvalid(panel) then return end
+        local entry = reveal.entries[index]
+        if entry == nil then
+            self:FinishReveal()
+            return
+        end
+        reveal.index = index
+        local unit = _BattleConfig:GetUnit(entry.id)
+        local card = panel:GetChildByName("Card")
+        if isvalid(card) then
+            card.Enable = true
+            local picture = card:GetChildByName("Unit")
+            local ruid = _BattleConfig:GetRevealRuid(entry.id)
+            if isvalid(picture) then
+                if ruid ~= "" then picture.SpriteGUIRendererComponent.ImageRUID = DataRef(ruid) end
+                picture.Enable = ruid ~= ""
+            end
+            _BattleConfig:PaintRarityFrame(card, entry.id)
+        end
+        local name = entry.id
+        local sub = ""
+        if unit ~= nil then
+            name = unit.name
+            sub = _BattleConfig:GetRarityLabel(unit.rarity) .. " · " .. self:KindLabel(unit.kind)
+            if unit.starter == false and reveal.ownedBefore[entry.id] == nil then sub = "NEW!  " .. sub end
+        end
+        self:SetChildText(panel, "Title", name .. " " .. tostring(entry.count) .. "장!")
+        self:SetChildText(panel, "Sub", sub)
+        self:SetChildText(panel, "Counter", tostring(index) .. " / " .. tostring(#reveal.entries))
+        _BattleSound:Play("click")
+        log("[LobbyUI] reveal " .. tostring(index) .. "/" .. tostring(#reveal.entries) .. " " .. entry.id .. " x" .. tostring(entry.count))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnRevealTapped()
+        -- Tap during the reveal: skips the opening effect, or moves to the next card kind.
+        local reveal = self._T.reveal
+        if reveal == nil then return end
+        if self._T.revealTimer ~= nil then
+            _TimerService:ClearTimer(self._T.revealTimer)
+            self._T.revealTimer = nil
+        end
+        self:ShowRevealEntry(reveal.index + 1)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void FinishReveal()
+        -- Ends the reveal and shows the summary of every summoned card (the chest result panel).
+        local reveal = self._T.reveal
+        if self._T.revealTimer ~= nil then
+            _TimerService:ClearTimer(self._T.revealTimer)
+            self._T.revealTimer = nil
+        end
+        if isvalid(self.revealPanel) then self.revealPanel.Enable = false end
+        self._T.reveal = nil
+        if reveal == nil then return end
+        log("[LobbyUI] reveal finished " .. reveal.stoneId)
+        self:ShowChestResult(reveal.stoneId, reveal.csv)
     end
 
     -- ===== Chest result =====
@@ -966,7 +1186,7 @@ script LobbyUI extends Component
             self.chestTitle.Text = (chest and chest.name or chestId) .. " — 카드 " .. tostring(total) .. "장"
         end
         -- The result covers the screen behind it, so that screen's panel is hidden until the result is closed.
-        for _, panel in ipairs({ self.mainPanel, self.stagePanel, self.deckPanel, self.shopPanel, self.ticketPanel }) do
+        for _, panel in ipairs({ self.mainPanel, self.stagePanel, self.deckPanel, self.shopPanel, self.ticketPanel, self.summonPanel, self.revealPanel }) do
             if isvalid(panel) then panel.Enable = false end
         end
         self.chestPanel.Enable = true

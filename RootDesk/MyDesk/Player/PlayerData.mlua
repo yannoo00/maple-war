@@ -18,6 +18,9 @@ script PlayerData extends Component
     -- Wallet as "currencyId:amount:nextAt,...". nextAt is the _UtilLogic.ServerElapsedSeconds at which the
     -- next +1 arrives in this room (0 = not refilling). Written by the server only (PublishWallet).
     @TargetUserSync property string WalletCsv = ""
+    -- Summon stones held, as "stoneId:count,..." (stone ids are ChestTable ids). Bought in the shop or won in
+    -- battle, and used in the lobby's summon screen.
+    @TargetUserSync property string StonesCsv = ""
     property string StorageKey = "PlayerData"
     property number DeckSaveDelay = 3
     @HideFromInspector property boolean IsDirty = false
@@ -40,6 +43,13 @@ script PlayerData extends Component
         -- Returns collected cards as a table: unit id -> count.
         local counts = {}
         for id, count in string.gmatch(self.CardsCsv, "([^,:]+):(%d+)") do counts[id] = tonumber(count) end
+        return counts
+    end
+
+    method table GetStoneCounts()
+        -- Returns held summon stones as a table: stone id -> count.
+        local counts = {}
+        for id, count in string.gmatch(self.StonesCsv, "([^,:]+):(%d+)") do counts[id] = tonumber(count) end
         return counts
     end
 
@@ -89,6 +99,7 @@ script PlayerData extends Component
             self.DeckCsv = data.deck or ""
             self.StagesCsv = data.stages or ""
             self.CardsCsv = data.cards or ""
+            self.StonesCsv = data.stones or ""
             self.CostLevelCap = math.max(_BattleConfig.DefaultCostLevelCap, math.floor(data.costCap or 0))
             self:LoadPurchases(data.purchases)
             -- An account saved before a currency existed receives that currency's start amount once.
@@ -187,6 +198,7 @@ script PlayerData extends Component
         -- Serializes everything that is stored for this player.
         return _HttpService:JSONEncode({
             meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, stages = self.StagesCsv, cards = self.CardsCsv, costCap = self.CostLevelCap,
+            stones = self.StonesCsv,
             wallet = self:ExportWallet(), purchases = table.concat(self._T.purchases or {}, ","),
         })
     end
@@ -468,52 +480,88 @@ script PlayerData extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method string BuyChest(string chestId)
-        -- Buys and opens a chest with meso. Returns the cards csv, or "" when refused (logged).
-        if self.Loaded == false then return "" end
-        local chest = _BattleConfig:GetChest(chestId)
-        if chest == nil or chest.priceMeso <= 0 then
-            log("[PlayerData] chest " .. chestId .. " is not for sale")
-            return ""
+    method void AddStones(string stoneId, integer amount)
+        -- Adds (or with a negative amount, removes) held summon stones. No save; the caller saves.
+        local counts = self:GetStoneCounts()
+        counts[stoneId] = math.max(0, (counts[stoneId] or 0) + amount)
+        local parts = {}
+        for _, id in ipairs(_BattleConfig:GetChestIds()) do
+            if (counts[id] or 0) > 0 then table.insert(parts, id .. ":" .. tostring(counts[id])) end
         end
-        if self.Meso < chest.priceMeso then
-            log("[PlayerData] chest " .. chestId .. " refused: not enough meso " .. tostring(self.Meso) .. "/" .. tostring(chest.priceMeso))
-            return ""
+        self.StonesCsv = table.concat(parts, ",")
+        self:MarkDirty()
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean BuyStone(string stoneId)
+        -- Buys one summon stone with meso; it goes to the stone storage (used later in the summon screen).
+        if self.Loaded == false then return false end
+        local stone = _BattleConfig:GetSummonStone(stoneId)
+        if stone == nil or stone.priceMeso <= 0 then
+            log("[PlayerData] stone " .. stoneId .. " is not for sale")
+            return false
         end
-        self.Meso = self.Meso - chest.priceMeso
-        local result = self:OpenChest(chestId)
+        if self.Meso < stone.priceMeso then
+            log("[PlayerData] stone " .. stoneId .. " refused: not enough meso " .. tostring(self.Meso) .. "/" .. tostring(stone.priceMeso))
+            return false
+        end
+        self.Meso = self.Meso - stone.priceMeso
+        self:AddStones(stoneId, 1)
         self:Save(false)
+        log("[PlayerData] stone bought " .. stoneId .. " stones=" .. self.StonesCsv .. " meso=" .. tostring(self.Meso))
+        return true
+    end
+
+    @ExecSpace("ServerOnly")
+    method string UseStone(string stoneId)
+        -- Uses one held summon stone: rolls its cards (OpenChest) and saves. Returns the cards csv, or "" when refused.
+        if self.Loaded == false then return "" end
+        if (self:GetStoneCounts()[stoneId] or 0) <= 0 then
+            log("[PlayerData] stone " .. stoneId .. " refused: none held")
+            return ""
+        end
+        self:AddStones(stoneId, -1)
+        local result = self:OpenChest(stoneId)
+        self:Save(false)
+        log("[PlayerData] stone used " .. stoneId .. " -> " .. result .. " stones=" .. self.StonesCsv)
         return result
     end
 
     @ExecSpace("Server")
-    method void RequestBuyChest(string chestId)
-        -- Client request: buy a chest; the cards are sent back for the result screen.
+    method void RequestBuyStone(string stoneId)
+        -- Client request: buy one summon stone with meso.
         if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
-        local result = self:BuyChest(chestId)
-        if result ~= "" then self:OnChestOpened(chestId, result, senderUserId) end
+        self:BuyStone(stoneId)
+    end
+
+    @ExecSpace("Server")
+    method void RequestSummon(string stoneId)
+        -- Client request: use one held summon stone; the cards are sent back for the reveal.
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        local result = self:UseStone(stoneId)
+        if result ~= "" then self:OnSummoned(stoneId, result, senderUserId) end
     end
 
     @ExecSpace("Client")
-    method void OnChestOpened(string chestId, string resultCsv)
-        -- Client: a chest was opened for this player; the lobby shows its cards.
+    method void OnSummoned(string stoneId, string resultCsv)
+        -- Client: a stone was used for this player; the lobby plays the summon reveal.
         local controller = _EntityService:GetEntityByPath("/ui/LobbyUI/Controller")
         if isvalid(controller) then
             ---@type LobbyUI
             local lobby = controller:GetComponent("script.LobbyUI")
-            if lobby ~= nil then lobby:ShowChestResult(chestId, resultCsv) end
+            if lobby ~= nil then lobby:ShowSummonResult(stoneId, resultCsv) end
         end
-        log("[PlayerData] chest result shown " .. chestId .. ": " .. resultCsv)
+        log("[PlayerData] summon result shown " .. stoneId .. ": " .. resultCsv)
     end
 
     @ExecSpace("ServerOnly")
     method string GrantBattleResult(string stageId, integer meso, string chestId, boolean cleared)
-        -- Battle end: adds the meso reward, opens the stage's reward chest, records a clear, and saves right away.
-        -- Returns the chest cards as csv ("" when there was no chest).
+        -- Battle end: adds the meso reward, puts the stage's reward summon stone into storage (it is used later in
+        -- the lobby's summon screen), records a clear, and saves right away. Returns "" (no cards are rolled here).
         if self.Loaded == false then return "" end
         if meso > 0 then self.Meso = self.Meso + meso end
         local cards = ""
-        if chestId ~= "" then cards = self:OpenChest(chestId) end
+        if chestId ~= "" and _BattleConfig:GetChest(chestId) ~= nil then self:AddStones(chestId, 1) end
         if cleared and self:IsStageCleared(stageId) == false then
             if self.StagesCsv == "" then
                 self.StagesCsv = stageId
@@ -524,28 +572,8 @@ script PlayerData extends Component
         self:MarkDirty()
         -- Async here: this runs inside the battle's update chain. Leaving the room flushes anything still pending.
         self:Save(false)
-        log("[PlayerData] battle result stage=" .. stageId .. " meso+" .. tostring(meso) .. " chest=" .. chestId .. " cleared=" .. tostring(cleared) .. " total=" .. tostring(self.Meso))
+        log("[PlayerData] battle result stage=" .. stageId .. " meso+" .. tostring(meso) .. " stone=" .. chestId .. " stones=" .. self.StonesCsv .. " cleared=" .. tostring(cleared) .. " total=" .. tostring(self.Meso))
         return cards
-    end
-
-    @ExecSpace("ServerOnly")
-    method string BuyUnit(string unitId)
-        -- Buys a unit with meso. Returns "" on success or the reason it was refused.
-        if self.Loaded == false then return "not loaded" end
-        local cfg = _BattleConfig:GetUnit(unitId)
-        if cfg == nil or cfg.price <= 0 then return "not for sale" end
-        local levels = self:GetUnitLevels()
-        if levels[unitId] ~= nil then return "already owned" end
-        if self.Meso < cfg.price then return "not enough meso" end
-        self.Meso = self.Meso - math.floor(cfg.price)
-        if self.UnitsCsv == "" then
-            self.UnitsCsv = unitId .. ":1"
-        else
-            self.UnitsCsv = self.UnitsCsv .. "," .. unitId .. ":1"
-        end
-        self:MarkDirty()
-        self:Save(false)
-        return ""
     end
 
     @ExecSpace("ServerOnly")
@@ -629,14 +657,6 @@ script PlayerData extends Component
     end
 
     -- ===== Client requests =====
-
-    @ExecSpace("Server")
-    method void RequestBuyUnit(string unitId)
-        -- Client request: buy a unit.
-        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
-        local reason = self:BuyUnit(unitId)
-        log("[PlayerData] buy " .. unitId .. " -> " .. (reason == "" and "ok" or reason) .. " meso=" .. tostring(self.Meso))
-    end
 
     @ExecSpace("Server")
     method void RequestLevelUp(string unitId)

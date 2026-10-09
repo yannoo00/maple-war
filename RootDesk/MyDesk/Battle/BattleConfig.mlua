@@ -35,10 +35,28 @@ script BattleConfig extends Logic
     -- Shortest time an effect icon stays above a unit's head (client), so a short push is still readable.
     property number StatusIconMinSeconds = 1.0
     property integer DeckSize = 10
+    -- Cards in hand during a battle. The deck is shuffled into a queue; the hand holds the front cards and a played
+    -- card goes to the back of the queue while the next queued card takes its hand slot. There are no cooldowns.
+    property integer HandSize = 5
+    -- Seconds after a unit dies before the server takes its entity away. Clients hide it themselves at the end of its
+    -- die clip, so this only has to be longer than the longest die clip.
+    property number DieReleaseSeconds = 2.0
+    -- After its die clip ends, every unit fades out (sprite alpha 1 -> 0) over this many seconds on the clients.
+    -- Die clip + fade must stay shorter than DieReleaseSeconds.
+    property number DeathFadeSeconds = 0.6
+    -- A monster card with SpawnCount > 1 (UnitTable) puts its copies on the field this many seconds apart; the first at once.
+    property number MultiSpawnInterval = 0.25
     -- Currency (CurrencyTable id) paid to enter a campaign stage; the amount is the stage's EntryCost.
     property string EntryCurrencyId = "ticket"
     -- Paid currency (CurrencyTable id, 골드리치 주화) bought with Worldcoin; shown in the lobby top bar.
     property string PremiumCurrencyId = "premium"
+    -- Base summon stone: what every rarity's stone (ChestTable row) inherits unless the row overrides it.
+    -- A row's blank IconRuid uses SummonStoneIconRuid; its Rarity picks the frame color.
+    property string SummonStoneIconRuid = "c82b597d498746738bb87a9531e32e53"
+    -- Animation clip played behind the revealed card when a stone is used.
+    property string SummonEffectRuid = "630c802568f543c0bb85e041db0aed4d"
+    -- How long the effect plays before the first card shows.
+    property number SummonRevealDelay = 1.0
 
     method number Num(string text, number fallback)
         -- Converts a dataset cell to a number; blank or invalid cells give the fallback.
@@ -85,22 +103,8 @@ script BattleConfig extends Logic
                     areaAttack = self:IsAreaAttackType(attackType),
                     -- Monsters only: attribute (earth / water / fire / wind / light / dark) and its knockback: every time
                     -- it has lost another KnockbackHpPercent of its max HP it is pushed back while its hit clip plays.
-                    -- Monsters and builds: the one effect their attacks can apply (EffectTable id) and its overrides.
+                    -- Monsters and builds: the effects a unit uses are its rows in UnitEffectTable (see GetUnitEffects).
                     attribute = self:OptText(ds:GetCell(i, "Attribute")) or "",
-                    effectId = self:OptText(ds:GetCell(i, "Effect")) or "",
-                    -- This unit's own override of the effect's defaults (blank cell = nil = use the EffectTable value).
-                    effectOverride = {
-                        duration = self:OptNum(ds:GetCell(i, "EffectDuration")),
-                        power = self:OptNum(ds:GetCell(i, "EffectPower")),
-                        chance = {
-                            earth = self:OptNum(ds:GetCell(i, "EffectChanceEarth")),
-                            water = self:OptNum(ds:GetCell(i, "EffectChanceWater")),
-                            fire = self:OptNum(ds:GetCell(i, "EffectChanceFire")),
-                            wind = self:OptNum(ds:GetCell(i, "EffectChanceWind")),
-                            light = self:OptNum(ds:GetCell(i, "EffectChanceLight")),
-                            dark = self:OptNum(ds:GetCell(i, "EffectChanceDark")),
-                        },
-                    },
                     hitRuid = self:OptText(ds:GetCell(i, "HitRuid")) or "",
                     knockbackHpPercent = self:Num(ds:GetCell(i, "KnockbackHpPercent"), self.KnockbackHpPercent),
                     knockbackDistance = self:Num(ds:GetCell(i, "KnockbackDistance"), self.KnockbackDistance),
@@ -108,8 +112,6 @@ script BattleConfig extends Logic
                     name = ds:GetCell(i, "Name"),
                     rarity = self:OptText(ds:GetCell(i, "Rarity")) or "normal",
                     cost = self:Num(ds:GetCell(i, "Cost"), 0),
-                    cooldown = self:Num(ds:GetCell(i, "Cooldown"), 0),
-                    price = self:Num(ds:GetCell(i, "Price"), 0),
                     starter = self:Num(ds:GetCell(i, "Starter"), 0) > 0,
                     order = i,
                     maxHp = self:Num(ds:GetCell(i, "MaxHp"), 1),
@@ -127,8 +129,15 @@ script BattleConfig extends Logic
                     attackHitDelay = self:Num(ds:GetCell(i, "AttackHitDelay"), 0),
                     projectileRuid = projectileRuid,
                     -- Presentation of an attack (client only): effect clip played on the attacker when it attacks,
+                    -- effect clip played on each unit its attack damages (hitEffectRuid),
                     -- and the unit's own sounds for attacking, being damaged and dying. Blank = none / shared sound.
                     attackEffectRuid = self:OptText(ds:GetCell(i, "AttackEffectRuid")),
+                    hitEffectRuid = self:OptText(ds:GetCell(i, "HitEffectRuid")),
+                    -- Where and how large the attack effect plays (client only), in world units as seen on screen:
+                    -- X forward (the way the unit faces), Y up from its feet, scale on top of the unit's size. Blank = 0 / 1.
+                    attackEffectOffsetX = self:Num(ds:GetCell(i, "AttackEffectOffsetX"), 0),
+                    attackEffectOffsetY = self:Num(ds:GetCell(i, "AttackEffectOffsetY"), 0),
+                    attackEffectScale = self:Num(ds:GetCell(i, "AttackEffectScale"), 1),
                     attackSoundRuid = self:OptText(ds:GetCell(i, "AttackSoundRuid")),
                     damageSoundRuid = self:OptText(ds:GetCell(i, "DamageSoundRuid")),
                     dieSoundRuid = self:OptText(ds:GetCell(i, "DieSoundRuid")),
@@ -140,6 +149,13 @@ script BattleConfig extends Logic
                     hitDelay = self:Num(ds:GetCell(i, "SkillHitDelay"), 0),
                     effectRuid = self:OptText(ds:GetCell(i, "EffectRuid")),
                     effectScale = self:Num(ds:GetCell(i, "EffectScale"), 1),
+                    -- Skill effect position added to the default (frame bottom on the ground, centred on the area), world units.
+                    effectOffsetX = self:Num(ds:GetCell(i, "EffectOffsetX"), 0),
+                    effectOffsetY = self:Num(ds:GetCell(i, "EffectOffsetY"), 0),
+                    -- Monsters: how many copies one card puts on the field (blank = 1); copies come MultiSpawnInterval apart.
+                    -- iconRuid (optional, skills): the card picture; blank = the effect clip's thumbnail.
+                    spawnCount = math.max(1, math.floor(self:Num(ds:GetCell(i, "SpawnCount"), 1))),
+                    iconRuid = self:OptText(ds:GetCell(i, "IconRuid")),
                 }
             end
         end
@@ -225,6 +241,9 @@ script BattleConfig extends Logic
                     },
                     guarantee = self:OptText(ds:GetCell(i, "Guarantee")) or "",
                     priceMeso = math.floor(self:Num(ds:GetCell(i, "PriceMeso"), 0)),
+                    -- Per-rarity overrides of the base summon stone (blank = inherit; see GetSummonStone).
+                    rarity = self:OptText(ds:GetCell(i, "Rarity")) or id,
+                    iconOverride = self:OptText(ds:GetCell(i, "IconRuid")) or "",
                 }
             end
         end
@@ -237,6 +256,38 @@ script BattleConfig extends Logic
         -- Returns one chest definition, or nil.
         if chestId == nil or chestId == "" then return nil end
         return self:GetChests()[chestId]
+    end
+
+    method table GetSummonStone(string stoneId)
+        -- Returns a summon stone: the base stone (the SummonStone* properties) with its rarity row (ChestTable)
+        -- applied on top. Fields: everything of GetChest plus iconRuid, effectRuid and frameColor. nil when unknown.
+        local chest = self:GetChest(stoneId)
+        if chest == nil then return nil end
+        local stone = {}
+        for key, value in pairs(chest) do stone[key] = value end
+        stone.iconRuid = self.SummonStoneIconRuid
+        if chest.iconOverride ~= "" then stone.iconRuid = chest.iconOverride end
+        stone.effectRuid = self.SummonEffectRuid
+        stone.frameColor = self:GetRarityColorOf(chest.rarity)
+        return stone
+    end
+
+    method Color GetRarityColorOf(string rarity)
+        -- Returns the frame color of a rarity id (normal / rare / epic / unique / legendary).
+        if rarity == "rare" then return Color(0.25, 0.55, 1, 1) end
+        if rarity == "epic" then return Color(0.66, 0.33, 0.97, 1) end
+        if rarity == "unique" then return Color(1, 0.85, 0.2, 1) end
+        if rarity == "legendary" then return Color(0.6, 0.95, 0.25, 1) end
+        return Color(0.62, 0.62, 0.62, 1)
+    end
+
+    method string GetRevealRuid(string unitId)
+        -- Returns what the summon reveal shows for a unit: its stand animation clip (monster / build, played as is)
+        -- or its static icon (skill, or a unit without a stand clip).
+        local unit = self:GetUnit(unitId)
+        if unit == nil then return "" end
+        if unit.kind ~= "skill" and unit.standRuid ~= nil and unit.standRuid ~= "" then return unit.standRuid end
+        return self:GetIconRuid(unitId)
     end
 
     method table GetChestIds()
@@ -262,9 +313,9 @@ script BattleConfig extends Logic
 
     method table GetEffects()
         -- Returns every effect definition keyed by effect id, loaded once from EffectTable:
-        -- { id, type, name, duration, power, chance = { attribute -> percent } }. These are the DEFAULTS; a unit's
-        -- UnitTable Effect* cells override them per unit (see BattleUnit:TryApplyEffect).
-        -- type is the behavior (nullify / curse / warp / blow); chance is looked up by the attribute of the unit that was hit.
+        -- { id, type, name, duration, power }. An effect only says WHAT it does; who gets it, when and with what chance
+        -- is the owning unit's rule (GetUnitEffects), which may override duration / power.
+        -- type is the behavior (nullify / curse / warp / blow); duration 0 on an 'always' rule means "as long as it lives".
         local effects = self._T.effects
         if effects ~= nil then return effects end
         effects = {}
@@ -280,14 +331,8 @@ script BattleConfig extends Logic
                     name = ds:GetCell(i, "Name") or id,
                     duration = self:Num(ds:GetCell(i, "Duration"), 0),
                     power = self:Num(ds:GetCell(i, "Power"), 0),
-                    chance = {
-                        earth = self:Num(ds:GetCell(i, "ChanceEarth"), 0),
-                        water = self:Num(ds:GetCell(i, "ChanceWater"), 0),
-                        fire = self:Num(ds:GetCell(i, "ChanceFire"), 0),
-                        wind = self:Num(ds:GetCell(i, "ChanceWind"), 0),
-                        light = self:Num(ds:GetCell(i, "ChanceLight"), 0),
-                        dark = self:Num(ds:GetCell(i, "ChanceDark"), 0),
-                    },
+                    -- Who the effect may be used on: "target" (an enemy it hits), "self" (the unit itself) or "both".
+                    applies = self:OptText(ds:GetCell(i, "Applies")) or "target",
                 }
             end
         end
@@ -300,6 +345,47 @@ script BattleConfig extends Logic
         -- Returns one effect definition, or nil when the id is blank or unknown.
         if effectId == nil or effectId == "" then return nil end
         return self:GetEffects()[effectId]
+    end
+
+    method table GetUnitEffects(string unitId)
+        -- Returns the effect rules of one unit (an empty table when it has none), loaded once from UnitEffectTable:
+        -- { effectId, trigger, target, chance, duration, power } in table order.
+        -- on_hit + target: when this unit's attack damages an enemy, roll chance (percent) and apply the effect to that enemy.
+        -- always + self: applied to the unit itself when it is set up, for as long as it lives (chance is 100).
+        -- duration / power are optional overrides of the effect's defaults (nil = use the EffectTable value).
+        local byUnit = self._T.unitEffects
+        if byUnit == nil then
+            byUnit = {}
+            local ds = _DataService:GetTable("UnitEffectTable")
+            local count = 0
+            if ds ~= nil then count = ds:GetRowCount() end
+            for i = 1, count do
+                local id = ds:GetCell(i, "UnitId")
+                local effectId = ds:GetCell(i, "EffectId")
+                local trigger = ds:GetCell(i, "Trigger")
+                local target = ds:GetCell(i, "Target")
+                if id ~= nil and id ~= "" and effectId ~= nil and effectId ~= "" then
+                    if (trigger == "on_hit" and target == "target") or (trigger == "always" and target == "self") then
+                        local chance = 100
+                        if trigger == "on_hit" then chance = self:Num(ds:GetCell(i, "Chance"), 0) end
+                        if byUnit[id] == nil then byUnit[id] = {} end
+                        table.insert(byUnit[id], {
+                            effectId = effectId,
+                            trigger = trigger,
+                            target = target,
+                            chance = chance,
+                            duration = self:OptNum(ds:GetCell(i, "Duration")),
+                            power = self:OptNum(ds:GetCell(i, "Power")),
+                        })
+                    else
+                        log_warning("[BattleConfig] UnitEffectTable row " .. tostring(i) .. " skipped: trigger=" .. tostring(trigger) .. " target=" .. tostring(target))
+                    end
+                end
+            end
+            self._T.unitEffects = byUnit
+            log("[BattleConfig] UnitEffectTable loaded rows=" .. tostring(count))
+        end
+        return byUnit[unitId] or {}
     end
 
     method string GetAttackTypeLabel(string attackType)
@@ -316,7 +402,7 @@ script BattleConfig extends Logic
         local unit = self:GetUnit(unitId)
         if unit == nil then return "" end
         local ruid = unit.standRuid
-        if unit.kind == "skill" then ruid = unit.effectRuid or "" end
+        if unit.kind == "skill" then ruid = unit.iconRuid or unit.effectRuid or "" end
         if ruid == nil or ruid == "" then return "" end
         return "thumbnail://" .. ruid
     end
@@ -326,11 +412,7 @@ script BattleConfig extends Logic
         local unit = self:GetUnit(unitId)
         local rarity = "normal"
         if unit ~= nil then rarity = unit.rarity end
-        if rarity == "rare" then return Color(0.25, 0.55, 1, 1) end
-        if rarity == "epic" then return Color(0.66, 0.33, 0.97, 1) end
-        if rarity == "unique" then return Color(1, 0.85, 0.2, 1) end
-        if rarity == "legendary" then return Color(0.6, 0.95, 0.25, 1) end
-        return Color(0.62, 0.62, 0.62, 1)
+        return self:GetRarityColorOf(rarity)
     end
 
     @ExecSpace("ClientOnly")

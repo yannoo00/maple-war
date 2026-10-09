@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { exec } = require('node:child_process');
 const data = require('./unitdata.cjs');
+const chests = require('./chestdata.cjs');
 
 const PORT = Number(process.argv[2]) || 3456;
 const DIST = path.join(__dirname, 'dist');   // `npm run build` (web/) 결과
@@ -40,7 +41,14 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (req.method === 'GET' && url.pathname === '/api/state') {
-      return send(res, 200, data.stateForEditor());
+      // Units / stages / effects come from unitdata; summon stones (ChestTable) are merged in from chestdata.
+      const state = data.stateForEditor();
+      const chestSchema = chests.stateFields();
+      Object.assign(state.schema, chestSchema);
+      state.schema.enumLabels = { ...state.schema.enumLabels, Guarantee: chestSchema.rarityLabels };
+      state.chests = chests.list();
+      state.files = { ...state.files, chests: chests.FILE };
+      return send(res, 200, state);
     }
     if (req.method === 'POST' && (url.pathname === '/api/validate' || url.pathname === '/api/unit/validate')) {
       const body = await readBody(req);
@@ -70,6 +78,20 @@ const server = http.createServer(async (req, res) => {
       const r = data.removeEffect(id, { force: url.searchParams.get('force') === '1' });
       return send(res, r.ok ? 200 : 400, r);
     }
+    if (req.method === 'POST' && url.pathname === '/api/chest/validate') {
+      const body = await readBody(req);
+      return send(res, 200, chests.previewValidate(body.chest || {}, { mode: body.mode || 'upsert' }));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/chest') {
+      const body = await readBody(req);
+      const r = chests.save(body.chest || {}, { mode: body.mode || 'upsert' });
+      return send(res, r.ok ? 200 : 400, r);
+    }
+    if (req.method === 'DELETE' && url.pathname.startsWith('/api/chest/')) {
+      const id = decodeURIComponent(url.pathname.slice('/api/chest/'.length));
+      const r = chests.remove(id, { force: url.searchParams.get('force') === '1' });
+      return send(res, r.ok ? 200 : 400, r);
+    }
     if (req.method === 'POST' && url.pathname === '/api/stage/validate') {
       const body = await readBody(req);
       return send(res, 200, data.previewValidateStage(body.stage || {}, { mode: body.mode || 'upsert' }));
@@ -87,6 +109,13 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname.startsWith('/api/resource/')) {
       const ruid = url.pathname.slice('/api/resource/'.length).toLowerCase();
       return send(res, 200, await data.lookupResource(ruid));
+    }
+    if (req.method === 'GET' && url.pathname.startsWith('/api/sprite/')) {
+      // 이펙트·몬스터 프레임 PNG (투명 배경). 같은 출처로 줘야 미리보기가 캔버스로 투명도를 읽을 수 있다.
+      const png = await data.fetchSprite(url.pathname.slice('/api/sprite/'.length).toLowerCase());
+      if (!png) return send(res, 404, { error: 'sprite not found' });
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' });
+      return res.end(png);
     }
     if (req.method === 'GET' && !url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
     return send(res, 404, { error: 'not found' });

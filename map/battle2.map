@@ -16,7 +16,7 @@
       {
         "id": "b52c53d9-081b-4281-981b-fed97ecc21d4",
         "path": "/maps/battle2",
-        "componentNames": "MOD.Core.MapComponent,MOD.Core.FootholdComponent,script.BattleDirector,script.StageAI",
+        "componentNames": "MOD.Core.MapComponent,MOD.Core.FootholdComponent,script.BattleDirector,script.StageAI,script.EntityPool",
         "jsonString": {
           "name": "battle2",
           "path": "/maps/battle2",
@@ -1640,6 +1640,10 @@
               "LoopTimer": 0,
               "LoopInterval": 6,
               "LoopMinInterval": 3
+            },
+            {
+              "@type": "script.EntityPool",
+              "Enable": true
             }
           ],
           "@version": 1

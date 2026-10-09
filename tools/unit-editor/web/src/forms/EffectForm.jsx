@@ -2,15 +2,12 @@ import { useState } from 'react';
 import Field, { ExtraFields } from '../Field.jsx';
 import { Badge } from '../ui.jsx';
 
-const ELEMENTS = ['earth', 'water', 'fire', 'wind', 'light', 'dark'];
-
 // 코드에 없는 효과 타입을 Claude에게 구현시키기 위한 요청 글
 function requestText(e) {
-  const chance = ELEMENTS.map((a) => `${a} ${e['Chance' + a[0].toUpperCase() + a.slice(1)] || 0}%`).join(', ');
   return `EffectTable에 새 효과 "${e.EffectId}"(Type=${e.Type}, 이름 "${e.Name}")를 추가했어. 아직 코드에 없는 타입이야. 아래 설명대로 BattleUnit:ReceiveEffect에 구현해줘.\n` +
-    `- 지속 시간 ${e.Duration || 0}초, 세기(Power) ${e.Power || 0}, 속성별 확률: ${chance}\n` +
+    `- 기본 지속 시간 ${e.Duration || 0}초, 세기(Power) ${e.Power || 0}, 쓸 수 있는 대상(Applies) ${e.Applies || 'target'}\n` +
     `- 설명: ${e['#Memo'] || '(메모 없음)'}\n` +
-    `구현 뒤 add-unit 스킬의 effect types로 타입이 인식되는지 확인하고, 플레이 로그로 효과가 걸리는 걸 보여줘.`;
+    `걸리는 시점·확률은 효과가 아니라 몬스터의 효과 규칙(UnitEffectTable)이 정해. 구현 뒤 add-unit 스킬의 effect types로 타입이 인식되는지 확인하고, 플레이 로그로 효과가 걸리는 걸 보여줘.`;
 }
 
 export function EffectBadges({ draft, data, originalId }) {
@@ -43,7 +40,7 @@ export default function EffectForm({ draft, set, data }) {
         <legend>효과</legend>
         <div className="muted" style={{ marginBottom: 8 }}>
           구현된 타입: {schema.implementedEffectTypes.map((t) => <code key={t}>{t} </code>)}
-          — 다른 타입을 적으면 "미구현"으로 저장되고, 메모의 설명이 구현 스펙이 됩니다. 확률은 <b>맞은 유닛의 속성</b> 기준입니다.
+          — 다른 타입을 적으면 "미구현"으로 저장되고, 메모의 설명이 구현 스펙이 됩니다. 효과는 <b>무엇을 하는지</b>만 정합니다. 어느 몬스터가 언제·몇 %로 거는지는 몬스터의 효과 규칙에서 정합니다.
         </div>
         <div className="grid">
           {schema.effectFields.map((f) => (

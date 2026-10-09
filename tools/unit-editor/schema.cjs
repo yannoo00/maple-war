@@ -22,13 +22,12 @@ const ENUM_LABELS = {
 
 const GROUPS = [
   { id: 'id', label: '식별', kinds: KINDS },
-  { id: 'card', label: '카드 · 상점', kinds: KINDS },
+  { id: 'card', label: '카드', kinds: KINDS },
   { id: 'combat', label: '전투 수치', kinds: ['monster', 'build'] },
   { id: 'timing', label: '공격 타이밍 (화면 보고 맞추는 값)', kinds: ['monster', 'build'] },
   { id: 'clip', label: '애니메이션 RUID', kinds: ['monster', 'build'] },
-  { id: 'fx', label: '공격 연출 · HP 바 (클라이언트 전용)', kinds: ['monster', 'build'] },
+  { id: 'fx', label: '공격 연출 (클라이언트 전용)', kinds: ['monster', 'build'] },
   { id: 'monster', label: '속성 · 넉백 (몬스터 전용)', kinds: ['monster'] },
-  { id: 'effect', label: '효과 (몬스터 · 설치물) — 빈칸 = 효과 표의 기본값', kinds: ['monster', 'build'] },
   { id: 'skill', label: '스킬', kinds: ['skill'] },
   { id: 'memo', label: '메모', kinds: KINDS },
 ];
@@ -45,11 +44,12 @@ const FIELDS = [
     help: '카드 테두리 색만 결정' },
 
   { key: 'Cost', group: 'card', type: 'number', label: '소환 코스트', required: KINDS, kinds: KINDS },
-  { key: 'Cooldown', group: 'card', type: 'number', label: '쿨타임(초)', required: KINDS, kinds: KINDS },
-  { key: 'Price', group: 'card', type: 'number', label: '구매가(메소)', kinds: KINDS, default: '0',
-    help: '0 = 상점에 안 뜸. 아군 구매 가능 여부는 이 값과 Starter로 정해짐' },
+  { key: 'IconRuid', group: 'card', type: 'ruid', label: '스킬 카드 아이콘', kinds: ['skill'],
+    help: '카드·상점·덱에 보이는 그림. 빈칸 = 범위 이펙트의 썸네일' },
+  { key: 'SpawnCount', group: 'card', type: 'int', label: '한 번에 소환하는 수', kinds: ['monster'],
+    help: '빈칸 = 1마리. 2 이상이면 카드 한 장으로 여러 마리(군단): 첫 마리는 바로, 나머지는 0.25초 간격(전투 설정 MultiSpawnInterval). 마리당 능력치는 이 행의 값' },
   { key: 'Starter', group: 'card', type: 'bool', label: '스타터 지급', kinds: KINDS, default: '0',
-    help: '1 = 신규 유저가 처음부터 가짐' },
+    help: '1 = 신규 유저가 처음부터 가짐. 0이어도 상자에서 나옴(상자는 같은 등급의 모든 카드 유닛을 뽑음)' },
 
   { key: 'MaxHp', group: 'combat', type: 'number', label: '최대 HP', required: ['monster', 'build'], kinds: ['monster', 'build'],
     help: '레벨 StatRate 배율 적용' },
@@ -86,26 +86,25 @@ const FIELDS = [
   { key: 'ProjectileScale', group: 'fx', type: 'number', label: '투사체 크기', kinds: ['monster', 'build'], default: '1' },
   { key: 'AttackEffectRuid', group: 'fx', type: 'ruid', label: '공격 이펙트 (attack1/info/effect)', kinds: ['monster', 'build'],
     help: '공격 시 자기 몸에 붙여 재생' },
+  { key: 'AttackEffectOffsetX', group: 'fx', type: 'number', label: '공격 이펙트 위치 X', kinds: ['monster', 'build'],
+    help: '앞(유닛이 바라보는 쪽)이 +. 월드 유닛, 화면에서 보이는 크기 기준(1 = 100px). 빈칸 = 0' },
+  { key: 'AttackEffectOffsetY', group: 'fx', type: 'number', label: '공격 이펙트 위치 Y', kinds: ['monster', 'build'],
+    help: '발 기준 위가 +. 빈칸 = 0 (이펙트가 발 위치에 놓임). 미리보기의 맞춤 버튼으로 몸 중앙에 맞출 수 있음' },
+  { key: 'AttackEffectScale', group: 'fx', type: 'number', label: '공격 이펙트 크기 배율', kinds: ['monster', 'build'],
+    help: '이펙트는 유닛 크기를 따라가며, 그 위에 곱하는 값. 빈칸 = 1' },
+  { key: 'HitEffectRuid', group: 'fx', type: 'ruid', label: '타격 이펙트 (attack1/info/hit)', kinds: ['monster', 'build'],
+    help: '이 유닛의 공격이 피해를 준 순간, 맞은 대상의 몸에 재생. 빈칸 = 없음. 범위 공격은 맞은 대상마다 재생' },
   { key: 'AttackSoundRuid', group: 'fx', type: 'ruid', label: '공격음 (audio/Attack1)', kinds: ['monster', 'build'] },
   { key: 'DamageSoundRuid', group: 'fx', type: 'ruid', label: '피격음 (audio/Damage)', kinds: ['monster', 'build'], help: '빈칸 = 공용 타격음' },
   { key: 'DieSoundRuid', group: 'fx', type: 'ruid', label: '사망음 (audio/Die)', kinds: ['monster', 'build'] },
-  { key: 'BarY', group: 'fx', type: 'number', label: 'HP 바 높이', kinds: ['monster', 'build'], help: '빈칸 = BattleFx 기본값. 보통 0.5~1.15' },
-  { key: 'BarWidth', group: 'fx', type: 'number', label: 'HP 바 너비', kinds: ['monster', 'build'], help: '빈칸 = BattleFx 기본값' },
+  // Monsters and builds have no HP bar any more (BattleFx.ShowUnitBars = false); BarY now only sets how high the effect
+  // icons (knockback, curse ...) float above the unit. BarWidth only sizes the base towers' bar, so no card kind fills it
+  // (kinds: [] keeps it out of the form; the base row keeps its value).
+  { key: 'BarY', group: 'fx', type: 'number', label: '효과 아이콘 높이', kinds: ['monster', 'build'], help: '머리 위 효과 아이콘이 뜨는 높이. 빈칸 = BattleFx 기본값(0.8). 보통 0.5~1.15' },
+  { key: 'BarWidth', group: 'fx', type: 'number', label: 'HP 바 너비 (기지 전용)', kinds: [] },
 
   { key: 'Attribute', group: 'monster', type: 'enum', enum: ENUMS.Attribute, label: '속성', kinds: ['monster'],
-    help: '빈칸이면 효과를 받지 않음. 상성 없음, 효과 확률에만 쓰임' },
-  { key: 'Effect', group: 'effect', type: 'effect', label: '효과 (EffectTable id)', kinds: ['monster', 'build'],
-    help: '이 유닛의 공격으로 피해를 받은 몬스터에게 확률로 걸림. 빈칸 = 없음' },
-  { key: 'EffectDuration', group: 'effect', type: 'number', label: '효과 지속 시간(초) 덮어쓰기', kinds: ['monster', 'build'],
-    help: '빈칸 = 효과 표의 Duration' },
-  { key: 'EffectPower', group: 'effect', type: 'number', label: '효과 세기 덮어쓰기', kinds: ['monster', 'build'],
-    help: '빈칸 = 효과 표의 Power' },
-  { key: 'EffectChanceEarth', group: 'effect', type: 'number', label: '확률 · 땅(%) 덮어쓰기', kinds: ['monster', 'build'], help: '빈칸 = 효과 표의 기본 확률. 0 = 걸리지 않음' },
-  { key: 'EffectChanceWater', group: 'effect', type: 'number', label: '확률 · 물(%) 덮어쓰기', kinds: ['monster', 'build'] },
-  { key: 'EffectChanceFire', group: 'effect', type: 'number', label: '확률 · 화염(%) 덮어쓰기', kinds: ['monster', 'build'] },
-  { key: 'EffectChanceWind', group: 'effect', type: 'number', label: '확률 · 바람(%) 덮어쓰기', kinds: ['monster', 'build'] },
-  { key: 'EffectChanceLight', group: 'effect', type: 'number', label: '확률 · 빛(%) 덮어쓰기', kinds: ['monster', 'build'] },
-  { key: 'EffectChanceDark', group: 'effect', type: 'number', label: '확률 · 어둠(%) 덮어쓰기', kinds: ['monster', 'build'] },
+    help: '지금은 어떤 규칙에도 쓰이지 않음(상성·효과 확률 없음). 나중을 위해 남겨 둔 칸' },
   { key: 'KnockbackHpPercent', group: 'monster', type: 'number', label: '넉백 체력 구간(%)', kinds: ['monster'],
     help: '빈칸 = 공용 34. 0 = 넉백 없음' },
   { key: 'KnockbackDistance', group: 'monster', type: 'number', label: '넉백 거리', kinds: ['monster'], help: '빈칸 = 공용 0.8' },
@@ -116,10 +115,12 @@ const FIELDS = [
   { key: 'SkillHitDelay', group: 'skill', type: 'number', label: '피해 시점(초)', required: ['skill'], kinds: ['skill'], help: '이펙트 시작부터 피해까지' },
   { key: 'EffectRuid', group: 'skill', type: 'ruid', label: '범위 이펙트', required: ['skill'], kinds: ['skill'], help: '상점 아이콘 썸네일에도 사용' },
   { key: 'EffectScale', group: 'skill', type: 'number', label: '이펙트 크기', kinds: ['skill'], default: '1' },
-  { key: 'IconRuid', group: 'skill', type: 'ruid', label: '스킬 아이콘', kinds: ['skill'],
-    help: '카드·상점·덱에 보이는 그림. 빈칸 = 범위 이펙트의 썸네일을 대신 씀' },
+  { key: 'EffectOffsetX', group: 'skill', type: 'number', label: '이펙트 위치 X', kinds: ['skill'],
+    help: '범위 중심 기준 오른쪽이 +. 월드 유닛(1 = 100px). 빈칸 = 0' },
+  { key: 'EffectOffsetY', group: 'skill', type: 'number', label: '이펙트 위치 Y', kinds: ['skill'],
+    help: '지면 기준 위가 +. 기본 위치(이펙트 프레임의 맨 아래가 지면)에 더해짐. 빈칸 = 0. 미리보기의 맞춤 버튼으로 내용물을 맞출 수 있음' },
 
-  { key: '#Memo', group: 'memo', type: 'memo', label: '메모', kinds: KINDS, help: '코드가 읽지 않음. 적/아군은 메모가 아니라 Starter·Price·스테이지 등장으로 정해짐' },
+  { key: '#Memo', group: 'memo', type: 'memo', label: '메모', kinds: KINDS, help: '코드가 읽지 않음. 적은 메모가 아니라 스테이지 등장(시간표·반복 풀)으로 정해짐' },
 ];
 
 const FIELD_BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f]));
@@ -127,30 +128,34 @@ const FIELD_BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f]));
 const UNIT_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 // ---------- EffectTable ----------
-// One row = one effect a monster's or build's attack can apply. Type is the behavior key BattleUnit:ReceiveEffect branches on.
-// Duration / Power / Chance* here are DEFAULTS: a unit overrides any of them with its own UnitTable EffectDuration /
-// EffectPower / EffectChance* cell (blank = use the default below).
+// One row = one effect: WHAT it does (Type is the behavior key BattleUnit:ReceiveEffect branches on, plus Duration / Power).
+// Who gets it, when and with what chance is NOT here: each monster / build owns that as rules in UnitEffectTable, and a
+// rule may override Duration / Power. Applies says which targets the effect makes sense for (target = an enemy it hits,
+// self = the unit itself as a trait, both).
 // A row whose Type is not implemented in code is allowed: it is a design note (the memo is the spec) until Claude
 // implements it. The editor shows which types the code actually handles (see unitdata.implementedEffectTypes).
 
-const ATTRIBUTE_CHANCE_KEYS = { earth: 'ChanceEarth', water: 'ChanceWater', fire: 'ChanceFire', wind: 'ChanceWind', light: 'ChanceLight', dark: 'ChanceDark' };
-// Same attributes in UnitTable: the unit's own override of each default chance.
-const UNIT_CHANCE_KEYS = { earth: 'EffectChanceEarth', water: 'EffectChanceWater', fire: 'EffectChanceFire', wind: 'EffectChanceWind', light: 'EffectChanceLight', dark: 'EffectChanceDark' };
+const EFFECT_APPLIES = ['target', 'self', 'both'];
+ENUM_LABELS.Applies = { target: '적에게 (공격으로 거는 효과)', self: '자신에게 (특성)', both: '둘 다' };
+
+// 유닛이 효과를 쓰는 규칙(UnitEffectTable): 시점 -> 대상은 정해져 있다.
+//   on_hit  : 이 유닛의 공격이 적에게 피해를 줄 때, 규칙마다 정한 확률(%)로 맞은 적(target)에게 건다.
+//   always  : 생성될 때 자신(self)에게 건다(확률 없음, 사는 동안 지속). 지속 시간 칸은 무시된다.
+const RULE_TRIGGERS = [
+  { id: 'on_hit', label: '공격 시', target: 'target' },
+  { id: 'always', label: '항상 (특성)', target: 'self' },
+];
 
 const EFFECT_FIELDS = [
   { key: 'EffectId', type: 'text', label: '효과 ID', required: true,
-    help: '영문 소문자·숫자·밑줄. UnitTable.Effect 칸이 이 값을 가리킴' },
+    help: '영문 소문자·숫자·밑줄. 유닛의 효과 규칙(UnitEffectTable)이 이 값을 가리킴' },
   { key: 'Type', type: 'text', label: '동작 타입', required: true,
     help: '코드가 분기하는 키. 기존: nullify / curse / warp / blow. 새 타입을 적으면 "미구현"으로 표시되고, 메모의 설명을 보고 Claude가 구현함' },
   { key: 'Name', type: 'text', label: '표시 이름', required: true },
-  { key: 'Duration', type: 'number', label: '지속 시간(초) · 기본값', required: true, help: '유닛이 EffectDuration으로 덮어쓸 수 있음. nullify·curse: 효과 유지 / warp: 정지 시간 / blow: 밀리는 시간' },
-  { key: 'Power', type: 'number', label: '세기 · 기본값', default: '0', help: '유닛이 EffectPower로 덮어쓸 수 있음. warp·blow: 거리(사거리와 같은 단위). 다른 타입은 의미를 메모에 적을 것' },
-  { key: 'ChanceEarth', type: 'number', label: '확률 · 땅(%) 기본값', default: '0' },
-  { key: 'ChanceWater', type: 'number', label: '확률 · 물(%) 기본값', default: '0' },
-  { key: 'ChanceFire', type: 'number', label: '확률 · 화염(%) 기본값', default: '0' },
-  { key: 'ChanceWind', type: 'number', label: '확률 · 바람(%) 기본값', default: '0' },
-  { key: 'ChanceLight', type: 'number', label: '확률 · 빛(%) 기본값', default: '0' },
-  { key: 'ChanceDark', type: 'number', label: '확률 · 어둠(%) 기본값', default: '0' },
+  { key: 'Duration', type: 'number', label: '지속 시간(초) · 기본값', required: true, help: '유닛의 규칙이 덮어쓸 수 있음. nullify·curse: 효과 유지 / warp: 정지 시간 / blow: 밀리는 시간. 특성(always)으로 쓸 때는 무시됨(사는 동안 지속)' },
+  { key: 'Power', type: 'number', label: '세기 · 기본값', default: '0', help: '유닛의 규칙이 덮어쓸 수 있음. warp·blow: 거리(사거리와 같은 단위) / curse: 공격력 감소 % (50 = 절반). 다른 타입은 의미를 메모에 적을 것' },
+  { key: 'Applies', type: 'enum', enum: EFFECT_APPLIES, label: '쓸 수 있는 대상', default: 'target',
+    help: '적에게 거는 효과면 target, 자신의 특성이면 self, 둘 다 되면 both. 유닛의 규칙이 이 값과 맞지 않으면 저장이 막힘' },
   { key: 'IconRuid', type: 'ruid', label: '아이콘', help: '효과에 걸린 유닛 머리 위에 뜨는 그림. 빈칸 = 코드의 기본 픽셀 아이콘' },
   { key: '#Memo', type: 'memo', label: '효과 설명 (구현 스펙)',
     help: '코드는 읽지 않음. 미구현 타입이면 이 설명이 Claude에게 넘길 구현 스펙이 됨: 누구에게, 얼마 동안, 무엇이 일어나는지' },
@@ -205,8 +210,8 @@ module.exports = {
   UNIT_ID_PATTERN,
   isEditableKind,
   fieldsForKind,
-  ATTRIBUTE_CHANCE_KEYS,
-  UNIT_CHANCE_KEYS,
+  EFFECT_APPLIES,
+  RULE_TRIGGERS,
   EFFECT_FIELDS,
   EFFECT_FIELD_BY_KEY,
   EFFECT_ID_PATTERN,

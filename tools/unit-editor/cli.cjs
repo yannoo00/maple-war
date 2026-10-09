@@ -17,7 +17,7 @@
 //   node tools/unit-editor/cli.cjs effect template            empty EffectTable JSON to fill
 //   node tools/unit-editor/cli.cjs effect validate <file.json>
 //   node tools/unit-editor/cli.cjs effect add|update|upsert <file.json>
-//   node tools/unit-editor/cli.cjs effect remove <effectId> [--force]  (force also clears units' Effect cells)
+//   node tools/unit-editor/cli.cjs effect remove <effectId> [--force]  (force also deletes the units' effect rules that use it)
 //   node tools/unit-editor/cli.cjs effect types               effect types the game code implements
 //
 //   node tools/unit-editor/cli.cjs stage list                  stages with wave count / pool / map check
@@ -28,6 +28,13 @@
 //   node tools/unit-editor/cli.cjs stage remove <stageId> [--force]  (force also clears UnlockStage references)
 //   Stage JSON = StageTable columns + "waves": [{ "time": 4, "unitId": "slime", "level": 1 }] (replaces the whole
 //   timetable) + "loopPool": ["slime", "slime", "spirit"] (repeats = weight). Omit either key to keep the file's.
+//
+//   node tools/unit-editor/cli.cjs chest list                  summon stones (ChestTable) with odds sum / stage rewards
+//   node tools/unit-editor/cli.cjs chest show <chestId>
+//   node tools/unit-editor/cli.cjs chest template             empty ChestTable JSON to fill
+//   node tools/unit-editor/cli.cjs chest validate <file.json>
+//   node tools/unit-editor/cli.cjs chest add|update|upsert <file.json>   (Chance* must add up to 100)
+//   node tools/unit-editor/cli.cjs chest remove <chestId> [--force]  (force also clears StageTable.RewardChest references)
 //
 //   node tools/unit-editor/cli.cjs resource <ruid>            type / name / thumbnail of a RUID (public MSW API)
 //
@@ -40,6 +47,7 @@
 const fs = require('node:fs');
 const schema = require('./schema.cjs');
 const data = require('./unitdata.cjs');
+const chests = require('./chestdata.cjs');
 
 function out(obj) { process.stdout.write(JSON.stringify(obj, null, 2) + '\n'); }
 
@@ -64,7 +72,7 @@ switch (cmd) {
   case 'list': {
     const list = data.listUnits().filter((u) => !arg || u.Kind === arg);
     const rows = list.map((u) => ({
-      UnitId: u.UnitId, Kind: u.Kind, Name: u.Name, Rarity: u.Rarity, Cost: u.Cost, Price: u.Price, Starter: u.Starter,
+      UnitId: u.UnitId, Kind: u.Kind, Name: u.Name, Rarity: u.Rarity, Cost: u.Cost, Starter: u.Starter,
       ally: u._status.ally, enemyStages: u._status.enemyStages,
     }));
     out(rows);
@@ -151,6 +159,29 @@ switch (cmd) {
       printResult(data.removeStage(target, { force: more.includes('--force') }));
     } else {
       console.error('stage 하위 명령: list | show | template | validate | add | update | upsert | remove');
+      process.exit(1);
+    }
+    break;
+  }
+  case 'chest': {
+    const [sub, target, ...more] = [arg, ...rest];
+    if (sub === 'list') {
+      out(chests.list().map((c) => ({ ChestId: c.ChestId, Name: c.Name, Rarity: c.Rarity, Cards: c.Cards, PriceMeso: c.PriceMeso, Guarantee: c.Guarantee, chanceSum: c._status.chanceSum, expected: c._status.expected, rewardOf: c._status.rewardOf })));
+    } else if (sub === 'show') {
+      const c = chests.list().find((x) => x.ChestId === target);
+      if (!c) { console.error(`ChestId "${target}"가 없습니다`); process.exit(1); }
+      out(c);
+    } else if (sub === 'template') {
+      out(chests.template());
+    } else if (sub === 'validate') {
+      const mode = more.includes('--add') ? 'add' : more.includes('--update') ? 'update' : 'upsert';
+      printResult(chests.previewValidate(readJson(target), { mode }));
+    } else if (sub === 'add' || sub === 'update' || sub === 'upsert') {
+      printResult(chests.save(readJson(target), { mode: sub }));
+    } else if (sub === 'remove') {
+      printResult(chests.remove(target, { force: more.includes('--force') }));
+    } else {
+      console.error('chest 하위 명령: list | show | template | validate | add | update | upsert | remove');
       process.exit(1);
     }
     break;

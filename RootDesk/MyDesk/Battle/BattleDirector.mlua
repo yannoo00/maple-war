@@ -14,6 +14,11 @@ script BattleDirector extends Component
     @Sync property number EnemyBaseX = 0
     @Sync property number GroundY = -1.36
     property string UnitModelId = "battleunit"
+    -- Unit entities come from the map's EntityPool (script.EntityPool on this same map entity): taken out on spawn,
+    -- put back after death instead of being destroyed. This many are created up front so the first spawns do not hitch.
+    -- Without the pool component on the map, units are spawned and destroyed directly as before.
+    property string UnitPoolKey = "unit"
+    property integer UnitPoolPrewarm = 12
     -- The battle starts when the player's client reports its resources loaded, or after this many seconds.
     property number ReadyTimeout = 10
     @HideFromInspector property number Elapsed = 0
@@ -29,8 +34,39 @@ script BattleDirector extends Component
         self._T.bases = {}
         self:BindSide(1, "AllyBase")
         self:BindSide(2, "EnemyBase")
+        self:PreparePool()
         self.State = "WAITING"
         log("[BattleDirector] waiting for player")
+    end
+
+    @ExecSpace("ServerOnly")
+    method any GetPool()
+        -- Returns the map's EntityPool component, or nil when this map has none.
+        return self.Entity:GetComponent("script.EntityPool")
+    end
+
+    @ExecSpace("ServerOnly")
+    method void PreparePool()
+        -- Registers the unit pool with the map's EntityPool and creates the first parked unit entities.
+        ---@type EntityPool
+        local pool = self:GetPool()
+        if pool == nil then
+            log_warning("[VRF] BattleDirector: no EntityPool on " .. self.Entity.Name .. ", units are spawned and destroyed directly")
+            return
+        end
+        pool:Prewarm(self.UnitPoolKey, self.UnitModelId, self.UnitPoolPrewarm)
+        pool:SetHooks(self.UnitPoolKey, { "script.BattleUnit" })
+        log("[VRF] BattleDirector unit pool ready key=" .. self.UnitPoolKey .. " prewarm=" .. tostring(self.UnitPoolPrewarm))
+    end
+
+    @ExecSpace("ServerOnly")
+    method void ReleaseUnitEntity(Entity entity)
+        -- Takes a unit entity off the field: back to the pool (parked for reuse), or destroyed when there is no pool.
+        if not isvalid(entity) then return end
+        ---@type EntityPool
+        local pool = self:GetPool()
+        if pool ~= nil and pool:Release(entity) then return end
+        entity:Destroy()
     end
 
     @ExecSpace("ServerOnly")
@@ -131,7 +167,7 @@ script BattleDirector extends Component
     method void StartBattle(string userId, string stageId)
         -- Clears the field and starts a campaign battle: the user drives team 1, the stage AI drives team 2.
         for _, unit in ipairs(self._T.units) do
-            if unit.Kind ~= "base" and isvalid(unit.Entity) then unit.Entity:Destroy() end
+            if unit.Kind ~= "base" and isvalid(unit.Entity) then self:ReleaseUnitEntity(unit.Entity) end
         end
         self._T.units = {}
         -- Leave ENDED before clearing the result so clients never see "ended with no winner".
@@ -225,31 +261,36 @@ script BattleDirector extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method number UseCard(integer team, integer slot, number targetX)
-        -- Player path: validates the deck slot against the side's cost and cooldown, then plays it.
-        -- Returns the cooldown started, or 0 when rejected.
-        if self.State ~= "PLAYING" then return 0 end
+    method boolean UseCard(integer team, integer handIndex, string unitId, number targetX)
+        -- Player path: plays the card in a hand slot. unitId is the card the client saw there; a mismatch (the hand
+        -- changed in between) is rejected so a quick double tap never plays the card that replaced it.
+        -- Validates the cost, plays the card, then cycles it to the back of the queue. Returns true when played.
+        if self.State ~= "PLAYING" then return false end
         ---@type BattleSide
         local side = self._T.sides[team]
-        if side == nil then return 0 end
-        local unitId = side:GetDeckIds()[slot]
-        if unitId == nil then return 0 end
+        if side == nil then return false end
+        local handId = side:GetHandIds()[handIndex]
+        if handId == nil or handId == "" or handId ~= unitId then
+            log("[BattleDirector] team " .. tostring(team) .. " hand slot " .. tostring(handIndex) .. " holds " .. tostring(handId) .. ", not " .. unitId .. " - rejected")
+            return false
+        end
         local cfg = _BattleConfig:GetUnit(unitId)
-        if cfg == nil then return 0 end
-        local reason = side:CheckCard(slot, cfg)
+        if cfg == nil then return false end
+        local reason = side:CheckCard(cfg)
         if reason ~= "" then
             log("[BattleDirector] team " .. tostring(team) .. " card " .. unitId .. " rejected: " .. reason)
-            return 0
+            return false
         end
-        if self:PlayUnit(team, unitId, targetX, side:GetUnitLevel(unitId)) == false then return 0 end
-        side:PayCard(slot, cfg)
-        log("[BattleDirector] team " .. tostring(team) .. " card used slot=" .. tostring(slot) .. " " .. unitId .. " cost=" .. string.format("%.0f", side.Cost))
-        return cfg.cooldown
+        if self:PlayUnit(team, unitId, targetX, side:GetUnitLevel(unitId)) == false then return false end
+        side:PayCard(cfg)
+        side:CycleCard(handIndex)
+        log("[BattleDirector] team " .. tostring(team) .. " card used slot=" .. tostring(handIndex) .. " " .. unitId .. " cost=" .. string.format("%.0f", side.Cost))
+        return true
     end
 
     @ExecSpace("ServerOnly")
     method boolean PlayUnit(integer team, string unitId, number targetX, integer level)
-        -- Executes a card for a team at the given unit level, without cost/cooldown checks
+        -- Executes a card for a team at the given unit level, without cost checks
         -- (UseCard validates first; the stage AI calls this directly).
         if self.State ~= "PLAYING" then return false end
         local cfg = _BattleConfig:GetUnitAtLevel(unitId, level)
@@ -260,7 +301,20 @@ script BattleDirector extends Component
         local dir = self:GetDirection(team)
         local spawnX = self:GetBaseX(team) + dir * _BattleConfig.SpawnOffsetX
         if cfg.kind == "monster" then
-            return self:SpawnUnit(team, unitId, spawnX, cfg)
+            -- One card can bring several copies (SpawnCount): the first at once, the rest MultiSpawnInterval apart,
+            -- each at the card's level.
+            if self:SpawnUnit(team, unitId, spawnX, cfg) == false then return false end
+            for n = 2, cfg.spawnCount do
+                _TimerService:SetTimerOnce(function()
+                    if isvalid(self.Entity) and self.State == "PLAYING" then
+                        self:SpawnUnit(team, unitId, spawnX, _BattleConfig:GetUnitAtLevel(unitId, level))
+                    end
+                end, _BattleConfig.MultiSpawnInterval * (n - 1))
+            end
+            if cfg.spawnCount > 1 then
+                log("[BattleDirector] multi spawn " .. unitId .. " x" .. tostring(cfg.spawnCount) .. " every " .. tostring(_BattleConfig.MultiSpawnInterval) .. "s")
+            end
+            return true
         elseif cfg.kind == "build" then
             -- Builds go on the team's own half: between its spawn point and the middle of the field.
             local middle = (self.AllyBaseX + self.EnemyBaseX) * 0.5
@@ -296,7 +350,15 @@ script BattleDirector extends Component
         self._T.seq = self._T.seq + 1
         local name = unitId .. "_" .. tostring(self._T.seq)
         local pos = Vector3(spawnX, self.GroundY + _BattleConfig.SpawnYOffset, 0)
-        local entity = _SpawnService:SpawnByModelId(self.UnitModelId, name, pos, self.Entity)
+        -- From the pool when the map has one (a parked entity is reused, or the pool spawns a new one); else a direct spawn.
+        local entity = nil
+        ---@type EntityPool
+        local pool = self:GetPool()
+        if pool ~= nil then
+            entity = pool:Acquire(self.UnitPoolKey, pos)
+        else
+            entity = _SpawnService:SpawnByModelId(self.UnitModelId, name, pos, self.Entity)
+        end
         if entity == nil then
             log_error("[BattleDirector] spawn failed model=" .. self.UnitModelId)
             return false

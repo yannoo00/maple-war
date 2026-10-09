@@ -33,11 +33,11 @@ node tools/unit-editor/cli.cjs remove <unitId> [--force]     # 삭제 (--force: 
 
 ## 절차
 
-1. **종류 결정**: 몬스터(전진·교전) / 설치물(제자리, `Speed=0`) / 스킬(범위 피해 한 번). 사용자가 말한 역할에서 정한다.
+1. **종류 결정**: 몬스터(전진·교전) / 설치물(제자리, `Speed=0`) / 스킬(범위 피해 한 번). 군단(한 장에 여러 마리)은 별도 종류가 아니라 몬스터 행에 `SpawnCount`를 2 이상으로 둔 것이다(간격은 게임에서 0.25초 고정, 마리당 능력치는 그 행의 값). 사용자가 말한 역할에서 정한다.
 2. **틀 받기**: `template <kind>`로 JSON 틀, 모르는 칸은 `schema <kind>`의 `help`를 본다. 비슷한 기존 유닛을 `show`로 열어 수치 감을 잡는다(근접 노멀 코스트 40~60 / HP 35~75 / 공격 9~15, 원거리 Range 3~3.5, 탱커 HP 220~340).
-3. **RUID 찾기**: 클립 4종(`StandRuid` `MoveRuid` `AttackRuid` `DieRuid`)은 필수. `msw-search` 스킬로 몬스터 리소스 팩을 찾아 `stand` / `move` / `attack1` / `die1`을 넣고, 있으면 `hit1`→`HitRuid`, `attack1/info/ball`→`ProjectileRuid`, `attack1/info/effect`→`AttackEffectRuid`, `audio/Attack1·Damage·Die`→`*SoundRuid`. 사용자가 팩 목록 JSON(`action`→`ruid`)을 주면 그대로 옮긴다. **RUID를 지어내지 말 것.**
-4. **적/아군은 입력 칸이 아니다.** 아군 = `Starter=1` 또는 `Price>0`. 적 = `waves` / `loopPool`에 들어감. 둘 다 아니면 어디에도 안 나오므로 CLI가 경고한다. 사용자가 "적으로"라고 하면 스테이지와 등장 시각을 정해 `waves`에 넣는다(기존 시간표는 `show`의 `_status.waves` 참고, 보통 4~6초 간격).
-5. **화면 보고 맞추는 값**(`AttackPlayRate` `AttackPose` `AttackHitDelay` `BarY` `ProjectileScale`)은 비슷한 유닛 값을 복사해 넣고, 사용자에게 플레이 후 확인을 부탁한다.
+3. **RUID 찾기**: 클립 4종(`StandRuid` `MoveRuid` `AttackRuid` `DieRuid`)은 필수. `msw-search` 스킬로 몬스터 리소스 팩을 찾아 `stand` / `move` / `attack1` / `die1`을 넣고, 있으면 `hit1`→`HitRuid`, `attack1/info/ball`→`ProjectileRuid`, `attack1/info/effect`→`AttackEffectRuid`, `attack1/info/hit`→`HitEffectRuid`(맞은 대상에게 재생, 없으면 빈칸), `audio/Attack1·Damage·Die`→`*SoundRuid`. 사용자가 팩 목록 JSON(`action`→`ruid`)을 주면 그대로 옮긴다. **RUID를 지어내지 말 것.**
+4. **적/아군은 입력 칸이 아니다.** 카드 유닛은 `Starter=1`이면 처음부터 갖고, 아니어도 상자에서 나온다(직접 구매·쿨타임 없음). 적 = `waves` / `loopPool`에 들어간다. 사용자가 "적으로"라고 하면 스테이지와 등장 시각을 정해 `waves`에 넣는다(기존 시간표는 `show`의 `_status.waves` 참고, 보통 4~6초 간격).
+5. **화면 보고 맞추는 값**(`AttackPlayRate` `AttackPose` `AttackHitDelay` `BarY` `ProjectileScale`, 이펙트 위치 `AttackEffectOffsetX/Y` `AttackEffectScale` `EffectOffsetX/Y`)은 비슷한 유닛 값을 복사해 넣고, 사용자에게 플레이 후 확인을 부탁한다.
 6. JSON을 스크래치패드에 쓰고 `validate` → 오류 없으면 `add`(또는 `update`).
 7. Maker MCP `maker_refresh_workspace`로 반영(플레이 중이면 먼저 `maker_stop`). 플레이로 확인할 때는 소환 로그 `[BattleUnit] setup <id> ...`를 본다.
 8. 보고: 추가된 행 요약, 파생 상태(스타터/구매/적 스테이지), `warnings`, 사용자가 화면으로 확인할 항목.
@@ -62,20 +62,20 @@ node tools/unit-editor/cli.cjs stage remove <id> [--force]  # --force: 이 스�
 
 ## 효과(EffectTable) 추가·구현
 
-효과 한 줄 = `EffectTable.csv` 한 행. 그 행의 `Duration` / `Power` / `Chance*`는 **기본값**이고, 몬스터·설치물이 `UnitTable`의 `EffectDuration` / `EffectPower` / `EffectChance*` 칸으로 덮어쓴다(빈칸 = 기본값). 유닛에 효과를 줄 때는 유닛 JSON에 `Effect`와 필요한 덮어쓰기 칸만 넣는다. `Type`이 코드가 분기하는 키이고, 구현된 타입은 `BattleUnit:ReceiveEffect`의 `effect.type == "..."` 분기에서 자동으로 읽는다.
+효과 한 줄 = `EffectTable.csv` 한 행이고 **무엇을 하는지**(`Type` `Duration` `Power` `Applies`)만 정한다. 걸리는 시점·확률은 몬스터·설치물의 **효과 규칙**(`UnitEffectTable.csv`, 한 유닛에 여러 줄)이 정한다. 유닛에 효과를 줄 때는 유닛 JSON의 `effects` 배열에 `{ effectId, trigger: on_hit|always, target: target|self, chance, duration, power }`를 넣는다(`on_hit`은 target·확률 필수, `always`는 self·확률 100, 지속·세기는 비우면 효과 표 값). `effects`를 생략하면 기존 규칙은 그대로 둔다. `Type`이 코드가 분기하는 키이고, 구현된 타입은 `BattleUnit:ReceiveEffect`의 `effect.type == "..."` 분기에서 자동으로 읽는다.
 
 ```
 node tools/unit-editor/cli.cjs effect types                 # 코드가 구현한 타입 목록
 node tools/unit-editor/cli.cjs effect list                  # 효과 + 구현 여부 + 쓰는 유닛
 node tools/unit-editor/cli.cjs effect template              # 채울 JSON
 node tools/unit-editor/cli.cjs effect validate|add|update|upsert <file.json>
-node tools/unit-editor/cli.cjs effect remove <id> [--force] # --force: 쓰는 유닛의 Effect 칸도 비움
+node tools/unit-editor/cli.cjs effect remove <id> [--force] # --force: 쓰는 유닛의 효과 규칙도 지움
 ```
 
 **사용자가 편집기에서 미구현 타입의 효과를 저장한 뒤 "구현해줘"라고 요청하는 흐름**이 기본이다. 그때 절차:
 
 1. `effect show <id>`로 행을 읽는다. `#Memo`가 구현 스펙이다(누구에게, 얼마 동안, 무엇이 일어나는지). 모호하면 사용자에게 한 번만 묻는다.
-2. `RootDesk/MyDesk/Battle/BattleUnit.mlua`의 `ReceiveEffect`에 `elseif effect.type == "<type>" then` 분기를 추가한다. 상태가 필요하면 `property`를 선언하고(`_T` 외 미선언 필드 금지), `OnUpdate`에서 시간을 줄이고, `Setup`에서 초기화한다. 기존 4종(nullify / curse / warp / blow)의 구조를 따른다. `log()`로 걸림·해제를 남긴다.
+2. `RootDesk/MyDesk/Battle/BattleUnit.mlua`의 `ReceiveEffect`에 `elseif effect.type == "<type>" then` 분기를 추가한다. 상태가 필요하면 `property`를 선언하고(`_T` 외 미선언 필드 금지), `OnUpdate`에서 시간을 줄이고, `Setup`에서 초기화한다. 기존 4종(nullify / curse / warp / blow)의 구조를 따른다. 자신에게 쓰는 특성(`Applies=self`/`always` 규칙)은 `ApplyAlwaysRules`가 `Setup` 끝에서 `ReceiveEffect`로 적용하고 `effect.permanent`가 참이므로 지속 시간 대신 사는 동안 유지하면 된다. `log()`로 걸림·해제를 남긴다.
 3. 연출(클라이언트)이 필요하면 `BattleFx` 쪽에 두고 서버 로직과 섞지 않는다.
 4. `effect types`로 새 타입이 잡히는지 확인 → Maker refresh → 플레이 로그로 `[BattleUnit] effect <id> (<type>) ...` 확인. 서버에서 직접 거는 테스트는 `maker_execute_script`로 `ReceiveEffect`를 호출하면 된다.
 5. GDD(`Docs/MapleWar-M3-GDD.md`) §4 효과 동작 목록에 한 줄 추가한다.
@@ -89,7 +89,7 @@ node tools/unit-editor/cli.cjs effect remove <id> [--force] # --force: 쓰는 �
 | 바뀐 것 | 고칠 곳 |
 |---|---|
 | 열 추가 (예: `GachaWeight`) | `FIELDS` / `STAGE_FIELDS` / `EFFECT_FIELDS`에 한 줄 (`key`, `type`, `label`, `kinds`, `required`, `help`). 안 넣어도 "기타 열"로 보이고 저장되지만 검증·설명이 없다 |
-| 열 삭제 (예: `Price` 없어짐) | 스키마의 그 줄을 지운다. 지우지 않아도 CSV에 없는 열은 화면·검증에서 자동으로 빠진다 |
+| 열 삭제 (예: `Cooldown`·`Price`가 없어진 때처럼) | 스키마의 그 줄을 지운다. 지우지 않아도 CSV에 없는 열은 화면·검증에서 자동으로 빠진다 |
 | enum 값 변경 (등급·속성·공격 타입) | `ENUMS` / `ENUM_LABELS` |
 | "아군/적" 같은 파생 규칙이 바뀜 (예: 구매 → 뽑기) | `unitdata.cjs`의 `unitStatus` (게임 코드의 규칙을 그대로 옮긴다) |
 | 새 표가 생김 (예: `GachaTable`) | `schema.cjs`에 필드 목록 + `unitdata.cjs`에 list/validate/save/remove + `cli.cjs`/`server.cjs`에 명령·엔드포인트 + `web/src/modes.js`에 모드 설정 + `web/src/forms/`에 폼 하나 + `Sidebar.jsx` 행. 효과 모드가 가장 단순한 본보기 |

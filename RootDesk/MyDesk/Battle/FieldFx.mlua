@@ -99,8 +99,8 @@ script FieldFx extends Logic
         end
         local areaWidth = cfg.radius * _BattleConfig.RangeScale * 2
         local size = areaWidth / geo.width * (cfg.effectScale or 1)
-        local x = centerX - geo.offsetX * size
-        local y = groundY + geo.height * size * 0.5 - geo.offsetY * size
+        local x = centerX + (cfg.effectOffsetX or 0) - geo.offsetX * size
+        local y = groundY + (cfg.effectOffsetY or 0) + geo.height * size * 0.5 - geo.offsetY * size
         local serial = _EffectService:PlayEffect(ruid, player, Vector3(x, y, 0), 0, Vector3(size, size, 1), false)
         log("[FieldFx] skill effect " .. tostring(cfg.id) .. " centerX=" .. string.format("%.2f", centerX) .. " width=" .. string.format("%.2f", areaWidth) .. " scale=" .. string.format("%.2f", size) .. " serial=" .. tostring(serial))
     end
@@ -192,7 +192,7 @@ script FieldFx extends Logic
                 for id, _ in pairs(ids) do
                     local unit = _BattleConfig:GetUnit(id)
                     if unit ~= nil then
-                        for _, ruid in ipairs({ unit.standRuid, unit.moveRuid, unit.attackRuid, unit.dieRuid, unit.hitRuid or "", unit.projectileRuid or "", unit.attackEffectRuid or "", unit.effectRuid or "" }) do
+                        for _, ruid in ipairs({ unit.standRuid, unit.moveRuid, unit.attackRuid, unit.dieRuid, unit.hitRuid or "", unit.projectileRuid or "", unit.attackEffectRuid or "", unit.hitEffectRuid or "", unit.effectRuid or "" }) do
                             if ruid ~= "" and seen[ruid] == nil then
                                 seen[ruid] = true
                                 table.insert(ruids, ruid)
@@ -218,9 +218,9 @@ script FieldFx extends Logic
             self:HidePreview()
             return
         end
-        local unitId = side:GetDeckIds()[slot]
+        local unitId = side:GetHandIds()[slot]
         local cfg = nil
-        if unitId ~= nil then cfg = _BattleConfig:GetUnit(unitId) end
+        if unitId ~= nil and unitId ~= "" then cfg = _BattleConfig:GetUnit(unitId) end
         if cfg == nil then
             self:HidePreview()
             return

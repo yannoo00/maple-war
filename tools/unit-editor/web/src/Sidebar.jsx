@@ -1,13 +1,16 @@
 import { Badge, Thumb } from './ui.jsx';
+import { unitIconRuid } from './unit.js';
 
 function UnitRow({ item: u, schema }) {
   const s = u._status;
   return (
     <>
-      <Thumb ruid={u.Kind === 'skill' ? u.EffectRuid : u.StandRuid} />
+      <Thumb ruid={unitIconRuid(u)} />
       <div className="main"><div className="nm">{u.Name}</div><div className="id">{u.UnitId} · {schema.kindLabels[u.Kind]} · 코스트 {u.Cost}</div></div>
       <div className="badges">
-        {s.starter ? <Badge type="ally">스타터</Badge> : s.purchasable && <Badge type="ally">구매</Badge>}
+        {Number(u.SpawnCount) > 1 && <Badge type="none">×{u.SpawnCount}</Badge>}
+        {s.effects.length > 0 && <Badge type="none">효과 {s.effects.length}</Badge>}
+        {s.starter ? <Badge type="ally">스타터</Badge> : s.ally && <Badge type="ally">상자</Badge>}
         {s.enemy && <Badge type="enemy">적 {s.enemyStages.map((x) => x.replace('stage', '')).join(',')}</Badge>}
         {!s.ally && !s.enemy && <Badge type="none">미등장</Badge>}
       </div>
@@ -42,7 +45,23 @@ function EffectRow({ item: e }) {
   );
 }
 
-const ROWS = { units: UnitRow, stages: StageRow, effects: EffectRow };
+function ChestRow({ item: c, schema }) {
+  const st = c._status;
+  const price = Number(c.PriceMeso) || 0;
+  return (
+    <>
+      <Thumb ruid={c.IconRuid || schema.summonStoneIconRuid} />
+      <div className="main"><div className="nm">{c.Name}</div><div className="id">{c.ChestId} · 카드 {c.Cards}장 · {schema.rarityLabels[c.Rarity] || c.Rarity}</div></div>
+      <div className="badges">
+        {Math.abs(st.chanceSum - 100) > 0.001 && <Badge type="warn">합 {st.chanceSum}%</Badge>}
+        {price > 0 ? <Badge type="ally">{price}메소</Badge> : <Badge type="none">비매품</Badge>}
+        {st.rewardOf.length > 0 && <Badge type="enemy">보상 {st.rewardOf.map((x) => x.replace('stage', '')).join(',')}</Badge>}
+      </div>
+    </>
+  );
+}
+
+const ROWS = { units: UnitRow, stages: StageRow, chests: ChestRow, effects: EffectRow };
 const KIND_TABS = [['', '전체'], ['monster', '몬스터'], ['build', '설치물'], ['skill', '스킬']];
 
 export default function Sidebar({ mode, m, data, selectedId, filterKind, setFilterKind, search, setSearch, onSelect }) {

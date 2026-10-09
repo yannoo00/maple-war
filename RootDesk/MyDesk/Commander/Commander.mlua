@@ -73,18 +73,20 @@ script Commander extends Component
 
     @ExecSpace("ClientOnly")
     method void SelectSlot(integer slot)
-        -- Plays a monster card at once; build and skill cards wait for a battlefield position.
+        -- Plays the monster card in a hand slot at once; build and skill cards wait for a battlefield position.
         ---@type BattleSide
         local side = self:GetMySide()
         if side == nil then return end
-        local unitId = side:GetDeckIds()[slot]
-        if unitId == nil then return end
+        local unitId = side:GetHandIds()[slot]
+        if unitId == nil or unitId == "" then return end
         local cfg = _BattleConfig:GetUnit(unitId)
+        if cfg == nil then return end
         if cfg.kind == "monster" then
             self.PendingSlot = 0
-            self:RequestUseCard(slot, 0)
+            self:RequestUseCard(slot, unitId, 0)
         else
             self.PendingSlot = slot
+            self._T.pendingUnit = unitId
             log("[Commander] targeting slot=" .. tostring(slot) .. " " .. unitId)
         end
     end
@@ -92,15 +94,12 @@ script Commander extends Component
     @ExecSpace("ClientOnly")
     @EventSender("Service", "InputService")
     handler HandleKeyDownEvent(KeyDownEvent event)
-        -- Number keys 1~0 select deck slots, Esc cancels targeting.
+        -- Number keys 1~5 select hand slots, Esc cancels targeting.
         if self.Entity ~= _UserService.LocalPlayer then return end
         local key = event.key
-        local slotKeys = {
-            KeyboardKey.Alpha1, KeyboardKey.Alpha2, KeyboardKey.Alpha3, KeyboardKey.Alpha4, KeyboardKey.Alpha5,
-            KeyboardKey.Alpha6, KeyboardKey.Alpha7, KeyboardKey.Alpha8, KeyboardKey.Alpha9, KeyboardKey.Alpha0,
-        }
+        local slotKeys = { KeyboardKey.Alpha1, KeyboardKey.Alpha2, KeyboardKey.Alpha3, KeyboardKey.Alpha4, KeyboardKey.Alpha5 }
         for slot, slotKey in ipairs(slotKeys) do
-            if key == slotKey then
+            if slot <= _BattleConfig.HandSize and key == slotKey then
                 self:SelectSlot(slot)
                 return
             end
@@ -120,7 +119,7 @@ script Commander extends Component
         local world = _UILogic:ScreenToWorldPosition(event.TouchPoint)
         local slot = self.PendingSlot
         self.PendingSlot = 0
-        self:RequestUseCard(slot, world.x)
+        self:RequestUseCard(slot, self._T.pendingUnit or "", world.x)
     end
 
     @ExecSpace("Server")
@@ -137,8 +136,8 @@ script Commander extends Component
     end
 
     @ExecSpace("Server")
-    method void RequestUseCard(integer slot, number targetX)
-        -- Asks the battle director to play a deck card and reports the result back to this client.
+    method void RequestUseCard(integer slot, string unitId, number targetX)
+        -- Asks the battle director to play the card the client saw in a hand slot and reports the result back.
         if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
         ---@type BattleDirector
         local director = self:GetDirector()
@@ -146,10 +145,8 @@ script Commander extends Component
         ---@type BattleSide
         local side = director:GetSideByUser(senderUserId)
         if side == nil then return end
-        local unitId = side:GetDeckIds()[slot]
-        local cooldown = director:UseCard(side.Team, slot, targetX)
-        if cooldown > 0 then
-            self:OnCardUsed(slot, unitId, targetX, cooldown, senderUserId)
+        if director:UseCard(side.Team, slot, unitId, targetX) then
+            self:OnCardUsed(slot, unitId, targetX, senderUserId)
         end
     end
 
@@ -272,25 +269,16 @@ script Commander extends Component
     end
 
     @ExecSpace("Client")
-    method void OnCardUsed(integer slot, string unitId, number targetX, number cooldown)
-        -- Client-side presentation for a played card: HUD cooldown and the skill effect.
-        self._T.cooldownEnds = self._T.cooldownEnds or {}
-        self._T.cooldownEnds[slot] = _UtilLogic.ElapsedSeconds + cooldown
+    method void OnCardUsed(integer slot, string unitId, number targetX)
+        -- Client-side presentation for a played card: the card sound and the skill effect.
+        -- (The hand refill itself arrives through the synced BattleSide.HandCsv.)
         local cfg = _BattleConfig:GetUnit(unitId)
         _BattleSound:Play("card")
         if cfg ~= nil and cfg.kind == "skill" then
             -- The effect is placed over the actual damage area by FieldFx.
             _FieldFx:PlaySkillEffect(cfg, targetX)
         end
-        log("[Commander] card used slot=" .. tostring(slot) .. " " .. unitId .. " cooldown=" .. tostring(cooldown))
-    end
-
-    @ExecSpace("ClientOnly")
-    method number GetCooldownRemain(integer slot)
-        -- Returns the remaining cooldown of a slot for the HUD.
-        local ends = self._T.cooldownEnds
-        if ends == nil or ends[slot] == nil then return 0 end
-        return math.max(0, ends[slot] - _UtilLogic.ElapsedSeconds)
+        log("[Commander] card used slot=" .. tostring(slot) .. " " .. unitId)
     end
 
 end

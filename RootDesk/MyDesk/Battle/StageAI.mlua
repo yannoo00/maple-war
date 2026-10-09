@@ -2,7 +2,7 @@
 script StageAI extends Component
 
     -- Campaign controller for one side: feeds the stage timetable into the director in place of player input.
-    -- The timetable is the authority, so its cards skip cost and cooldown checks (the side is FreePlay).
+    -- The timetable is the authority, so its cards skip the cost check and the hand (the side is FreePlay).
     property integer Team = 2
     @HideFromInspector property boolean Running = false
     @HideFromInspector property number Elapsed = 0

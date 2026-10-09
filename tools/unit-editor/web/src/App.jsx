@@ -6,10 +6,12 @@ import Sidebar from './Sidebar.jsx';
 import UnitForm, { UnitBadges } from './forms/UnitForm.jsx';
 import StageForm, { StageBadges } from './forms/StageForm.jsx';
 import EffectForm, { EffectBadges } from './forms/EffectForm.jsx';
+import ChestForm, { ChestBadges } from './forms/ChestForm.jsx';
 
 const FORMS = {
   units: { Form: UnitForm, Badges: UnitBadges },
   stages: { Form: StageForm, Badges: StageBadges },
+  chests: { Form: ChestForm, Badges: ChestBadges },
   effects: { Form: EffectForm, Badges: EffectBadges },
 };
 
