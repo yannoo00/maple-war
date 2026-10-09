@@ -103,9 +103,9 @@ node tools/unit-editor/cli.cjs effect remove <id> [--force] # --force: 쓰는 �
 - `UnitLevelTable` / `CostLevelTable` 손대기 — 유닛별이 아니라 공용 표다.
 - 브라우저 편집기(`node tools/unit-editor/server.cjs`)를 Claude가 켜서 쓰기 — 그건 사람용 입구다. Claude는 CLI를 쓴다.
 
-## 스킬 동작(SkillActionTable)
+## 스킬 구현 (BattleSkills.mlua)
 
-스킬 카드가 무엇을 하는지는 `SkillActionTable.csv`(스킬 하나에 여러 줄)가 정한다. 유닛 JSON의 `skillActions` 배열로 넣는다: `{ action: damage|heal|effect, team: enemy|ally|all, kinds: "monster;build", attribute, excludeAttribute, maxTargets, power, effectId, delay, repeat, interval }`. power를 비우면 그 스킬의 SkillDamage(레벨 배율 적용), 숫자를 적으면 그 값 × 레벨 배율. 반복마다 범위 안 대상을 다시 찾는다. 동작 줄이 없는 스킬은 예전처럼 적 몬스터·설치물에게 SkillDamage 1회. 실행 코드는 `Battle/BattleSkills.mlua`.
+스킬이 무엇을 하는지는 코드다: `Battle/BattleSkills.mlua`의 `GetDefs`에 스킬 ID마다 `defs["<id>"] = { values = "...", run = function(ctx) ... end }` 항목 하나. 공용 부품 `Repeat`(SkillHitDelay 뒤부터 n회) / `FindTargets`(범위·팀·종류·최대 수) / `Damage`(피해 파이프라인) / `ApplyEffect`(효과 표의 효과 걸기) / `unit:Heal`로 짠다. 수치는 UnitTable에 둔다: `SkillDamage`(주 수치, 레벨 배율 적용됨) / `SkillRadius` / `SkillHitDelay` / `SkillValue1`·`SkillValue2`(스킬마다 뜻이 다른 범용 칸 — 그 뜻을 항목의 `values` 글에 적는다. 운영툴이 저장할 때 이 글을 안내로 보여 준다). 코드에 없는 스킬은 저장은 되고(#Memo 필수, 구현 스펙) 전투에서는 범위 안 적에게 SkillDamage만 준다. 구현 요청 흐름은 효과와 같다.
 
 ## 속성 상성
 

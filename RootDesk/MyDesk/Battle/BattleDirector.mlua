@@ -437,8 +437,8 @@ script BattleDirector extends Component
             local x = math.max(math.min(spawnX, middle), math.min(math.max(spawnX, middle), targetX))
             return self:SpawnUnit(team, unitId, x, cfg)
         elseif cfg.kind == "skill" then
-            -- The effect starts on the clients right away; the skill's actions (SkillActionTable) land SkillHitDelay
-            -- seconds later, at the moment the effect visually hits. _BattleSkills runs them.
+            -- The effect starts on the clients right away; _BattleSkills runs what the skill does (its code entry),
+            -- starting SkillHitDelay seconds later, at the moment the effect visually hits.
             _BattleSkills:Cast(self, team, cfg, targetX)
             return true
         end

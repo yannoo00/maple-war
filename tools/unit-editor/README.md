@@ -55,9 +55,9 @@ cd tools/unit-editor/web && npm install && npm run build   # 처음 한 번, 화
 
 상단 "효과" 모드에서 `EffectTable.csv`를 편집한다. `Type`이 코드의 분기 키라서, 코드(`BattleUnit:ReceiveEffect`)에 없는 타입을 적으면 **미구현 · 설명만 저장**으로 표시된다. 그 상태로 저장해 두고, 화면에 뜨는 요청 글을 복사해 Claude 세션에 붙이면 Claude가 메모의 설명대로 구현한다(절차는 `.claude/skills/add-unit/SKILL.md`). 구현된 타입 목록은 코드에서 자동으로 읽으므로 구현이 끝나면 배지가 "구현됨"으로 바뀐다.
 
-## 스킬 동작 편집
+## 스킬
 
-스킬이 하는 일은 `SkillActionTable.csv`(스킬 하나에 여러 줄)에 있다. 지금은 CLI로만 편집한다(유닛 JSON의 `skillActions` 배열, 형식은 `.claude/skills/add-unit/SKILL.md`). 화면 편집 표는 아직 없다.
+스킬이 하는 일은 코드(`Battle/BattleSkills.mlua`의 스킬 ID별 항목)이고, 수치만 표에 있다: `SkillDamage` / `SkillRadius` / `SkillHitDelay` / `SkillValue1`·`SkillValue2`(스킬마다 뜻이 다름; 저장하면 그 스킬의 뜻이 안내로 나온다). 코드에 없는 스킬은 #Memo를 스펙으로 적어 저장해 두고 Claude에게 구현을 요청한다.
 
 ## 소환의 돌 편집
 

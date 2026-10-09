@@ -153,6 +153,9 @@ script BattleConfig extends Logic
                     damage = self:Num(ds:GetCell(i, "SkillDamage"), 0),
                     radius = self:Num(ds:GetCell(i, "SkillRadius"), 0),
                     hitDelay = self:Num(ds:GetCell(i, "SkillHitDelay"), 0),
+                    -- Skills: two free numbers each skill gives its own meaning (see BattleSkills.GetDefs); nil when blank.
+                    skillValue1 = self:OptNum(ds:GetCell(i, "SkillValue1")),
+                    skillValue2 = self:OptNum(ds:GetCell(i, "SkillValue2")),
                     effectRuid = self:OptText(ds:GetCell(i, "EffectRuid")),
                     effectScale = self:Num(ds:GetCell(i, "EffectScale"), 1),
                     -- Skill effect position added to the default (frame bottom on the ground, centred on the area), world units.
@@ -424,47 +427,6 @@ script BattleConfig extends Logic
         end
         if beats[attackerAttribute] == targetAttribute then return 1 + self.AttributeBonus end
         return 1
-    end
-
-    method table GetSkillActions(string skillId)
-        -- Returns the action rows of one skill in table order (empty when it has none), loaded once from SkillActionTable:
-        -- { action = damage|heal|effect, team = enemy|ally|all, kinds = { monster = true, ... }, attribute, excludeAttribute,
-        --   maxTargets (0 = all), power (nil = the skill's SkillDamage), effectId, delay, repeats, interval }.
-        local bySkill = self._T.skillActions
-        if bySkill == nil then
-            bySkill = {}
-            local ds = _DataService:GetTable("SkillActionTable")
-            local count = 0
-            if ds ~= nil then count = ds:GetRowCount() end
-            for i = 1, count do
-                local id = ds:GetCell(i, "SkillId")
-                local action = ds:GetCell(i, "Action")
-                if id ~= nil and id ~= "" and (action == "damage" or action == "heal" or action == "effect") then
-                    local kinds = {}
-                    local kindsText = self:OptText(ds:GetCell(i, "Kinds")) or "monster;build"
-                    for kind in string.gmatch(kindsText, "[^;]+") do kinds[kind] = true end
-                    if bySkill[id] == nil then bySkill[id] = {} end
-                    table.insert(bySkill[id], {
-                        action = action,
-                        team = self:OptText(ds:GetCell(i, "Team")) or "enemy",
-                        kinds = kinds,
-                        attribute = self:OptText(ds:GetCell(i, "Attribute")) or "",
-                        excludeAttribute = self:OptText(ds:GetCell(i, "ExcludeAttribute")) or "",
-                        maxTargets = math.floor(self:Num(ds:GetCell(i, "MaxTargets"), 0)),
-                        power = self:OptNum(ds:GetCell(i, "Power")),
-                        effectId = self:OptText(ds:GetCell(i, "EffectId")) or "",
-                        delay = self:Num(ds:GetCell(i, "Delay"), 0),
-                        repeats = math.max(1, math.floor(self:Num(ds:GetCell(i, "Repeat"), 1))),
-                        interval = self:Num(ds:GetCell(i, "Interval"), 1),
-                    })
-                elseif id ~= nil and id ~= "" then
-                    log_warning("[BattleConfig] SkillActionTable row " .. tostring(i) .. " skipped: action=" .. tostring(action))
-                end
-            end
-            self._T.skillActions = bySkill
-            log("[BattleConfig] SkillActionTable loaded rows=" .. tostring(count))
-        end
-        return bySkill[skillId] or {}
     end
 
     method number GetStatRate(integer level)

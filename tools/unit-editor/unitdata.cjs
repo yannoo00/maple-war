@@ -18,7 +18,6 @@ const FILES = {
   stages: path.join(DATA_DIR, 'StageTable.csv'),
   effects: path.join(DATA_DIR, 'EffectTable.csv'),
   unitEffects: path.join(DATA_DIR, 'UnitEffectTable.csv'),   // 유닛별 효과 규칙 (한 유닛에 여러 줄)
-  skillActions: path.join(DATA_DIR, 'SkillActionTable.csv'), // 스킬의 동작 줄 (한 스킬에 여러 줄)
 };
 
 // ---------- CSV ----------
@@ -89,8 +88,7 @@ function loadAll() {
   const stages = readTable(FILES.stages);
   const effects = readTable(FILES.effects);
   const unitEffects = readTable(FILES.unitEffects);
-  const skillActions = readTable(FILES.skillActions);
-  return { units, waves, stages, effects, unitEffects, skillActions };
+  return { units, waves, stages, effects, unitEffects };
 }
 
 function unitById(units, id) {
@@ -122,9 +120,8 @@ function unitStatus(unit, data) {
   const effects = data.unitEffects.records
     .filter((r) => r.UnitId === unit.UnitId)
     .map((r) => ({ effectId: r.EffectId, trigger: r.Trigger, target: r.Target, chance: r.Chance, duration: r.Duration, power: r.Power }));
-  const skillActions = data.skillActions.records
-    .filter((r) => r.SkillId === unit.UnitId)
-    .map((r) => ({ action: r.Action, team: r.Team, kinds: r.Kinds, attribute: r.Attribute, excludeAttribute: r.ExcludeAttribute, maxTargets: r.MaxTargets, power: r.Power, effectId: r.EffectId, delay: r.Delay, repeat: r.Repeat, interval: r.Interval }));
+  // Skills: whether BattleSkills.mlua has an entry for this id, and what its SkillValue1/2 mean there.
+  const skill = unit.Kind === 'skill' ? (implementedSkills()[unit.UnitId] || null) : undefined;
   return {
     ally: playable,   // 카드 유닛은 스타터로 받거나 상자에서 나온다
     starter,
@@ -133,7 +130,8 @@ function unitStatus(unit, data) {
     waves,
     pools,
     effects,
-    skillActions,
+    skillImplemented: skill === undefined ? undefined : skill !== null,
+    skillValues: skill ? skill.values : '',
   };
 }
 
@@ -147,7 +145,7 @@ function normalizeUnit(input) {
   // Accepts a JSON object keyed by CSV column names; booleans / numbers become strings as the CSV stores them.
   const out = {};
   for (const [k, v] of Object.entries(input)) {
-    if (k === 'waves' || k === 'loopPool' || k === 'effects' || k === 'skillActions') continue;
+    if (k === 'waves' || k === 'loopPool' || k === 'effects') continue;
     if (v == null) { out[k] = ''; continue; }
     if (typeof v === 'boolean') { out[k] = v ? '1' : '0'; continue; }
     out[k] = String(v).trim();
@@ -201,6 +199,14 @@ function validateUnit(unit, data, opts = {}) {
   if (kind === 'skill' && unit.SkillSoundDelay != null && String(unit.SkillSoundDelay) !== '' && isNumeric(String(unit.SkillSoundDelay)) && Number(unit.SkillSoundDelay) < 0) errors.push('SkillSoundDelay는 0 이상이어야 합니다');
   if (kind === 'skill' && !unit.SkillSoundRuid && unit.SkillSoundDelay != null && String(unit.SkillSoundDelay) !== '') warnings.push('스킬 효과음(SkillSoundRuid)이 없어 재생 시점 칸이 쓰이지 않습니다');
   if (kind === 'skill' && !unit.EffectRuid && ['EffectOffsetX', 'EffectOffsetY'].some((k) => unit[k] != null && String(unit[k]) !== '')) warnings.push('범위 이펙트(EffectRuid)가 없어 위치 칸이 쓰이지 않습니다');
+
+  if (kind === 'skill' && unit.UnitId) {
+    const skill = implementedSkills()[unit.UnitId];
+    if (!skill) {
+      if (!unit['#Memo']) errors.push(`스킬 "${unit.UnitId}"는 아직 코드(BattleSkills.mlua)에 없습니다. 구현 스펙이 되도록 #Memo에 무슨 일을 하는지 적어 주세요`);
+      else warnings.push(`스킬 "${unit.UnitId}"는 아직 코드에 없어 전투에서는 범위 안 적에게 SkillDamage만 줍니다. 메모의 설명으로 Claude에게 구현을 요청하세요`);
+    } else if (skill.values) warnings.push(`스킬 값: ${skill.values}`);
+  }
 
   if (kind === 'monster' && unit.SpawnCount != null && String(unit.SpawnCount) !== '') {
     const n = Number(unit.SpawnCount);
@@ -326,76 +332,21 @@ function setUnitEffects(data, unitId, rules) {
   return changed;
 }
 
-// ---------- Skill actions (SkillActionTable) ----------
-// A skill's rows say on whom (Team / Kinds / Attribute / ExcludeAttribute / MaxTargets within the skill's radius), what
-// (damage / heal / effect with EffectId) and when (SkillHitDelay + Delay, Repeat times every Interval). BattleSkills.mlua runs them.
+// ---------- Skills (BattleSkills.mlua registry) ----------
+// What a skill does is code: one `defs["<skillId>"] = { values = "...", run = ... }` entry in BattleSkills.GetDefs.
+// The tool only reads which ids have an entry and what the entry says SkillValue1 / SkillValue2 mean.
 
-const SKILL_ACTION_KEYS = ['action', 'team', 'kinds', 'attribute', 'excludeAttribute', 'maxTargets', 'power', 'effectId', 'delay', 'repeat', 'interval'];
+const BATTLE_SKILLS_MLUA = path.join(ROOT, 'RootDesk', 'MyDesk', 'Battle', 'BattleSkills.mlua');
 
-function normalizeSkillActions(rows) {
-  return (Array.isArray(rows) ? rows : []).map((r) => {
-    const o = {};
-    for (const k of SKILL_ACTION_KEYS) {
-      const v = r && r[k] != null ? r[k] : '';
-      o[k] = Array.isArray(v) ? v.join(';') : String(v).trim();
-    }
-    return o;
-  });
-}
-
-function validateSkillActions(unit, rows, data) {
-  const errors = [];
-  const warnings = [];
-  if (!rows.length) return { errors, warnings };
-  if (unit.Kind !== 'skill') { errors.push('스킬 동작 줄은 스킬만 가질 수 있습니다'); return { errors, warnings }; }
-  rows.forEach((r, i) => {
-    const at = '스킬 동작 ' + (i + 1);
-    if (!schema.SKILL_ACTIONS.includes(r.action)) errors.push(at + ': 동작은 ' + schema.SKILL_ACTIONS.join(' / ') + ' 중 하나여야 합니다 (현재 "' + r.action + '")');
-    if (r.team !== '' && !schema.SKILL_TEAMS.includes(r.team)) errors.push(at + ': 대상 팀은 ' + schema.SKILL_TEAMS.join(' / ') + ' 중 하나여야 합니다 (현재 "' + r.team + '")');
-    for (const k of r.kinds.split(';').map((x) => x.trim()).filter(Boolean)) {
-      if (!schema.SKILL_KINDS.includes(k)) errors.push(at + ': 대상 종류 "' + k + '"는 ' + schema.SKILL_KINDS.join(' / ') + ' 중 하나여야 합니다');
-    }
-    for (const k of ['attribute', 'excludeAttribute']) {
-      if (r[k] !== '' && !schema.ENUMS.Attribute.includes(r[k])) errors.push(at + ': 속성 "' + r[k] + '"는 ' + schema.ENUMS.Attribute.join(' / ') + ' 중 하나여야 합니다');
-    }
-    for (const [k, label, min] of [['maxTargets', '최대 대상 수', 0], ['power', '세기', 0], ['delay', '추가 지연', 0], ['repeat', '반복 횟수', 1], ['interval', '반복 간격', 0]]) {
-      if (r[k] !== '' && (!isNumeric(r[k]) || Number(r[k]) < min)) errors.push(at + ': ' + label + '는 ' + min + ' 이상의 숫자여야 합니다 (현재 "' + r[k] + '")');
-    }
-    if (r.action === 'effect') {
-      const effect = data.effects.records.find((e) => e.EffectId === r.effectId);
-      if (!r.effectId) errors.push(at + ': effect 동작은 EffectId가 필요합니다');
-      else if (!effect) errors.push(at + ': 효과 "' + r.effectId + '"가 EffectTable에 없습니다');
-      else if ((effect.Applies || 'target') === 'self') errors.push(at + ': "' + r.effectId + '"는 자신의 특성(Applies=self)이라 스킬로 걸 수 없습니다');
-    } else if (r.effectId) warnings.push(at + ': ' + r.action + ' 동작은 EffectId를 쓰지 않습니다');
-    if (r.action === 'heal' && r.team === 'enemy') warnings.push(at + ': 적을 회복시키는 동작입니다');
-  });
-  return { errors, warnings };
-}
-
-function setSkillActions(data, skillId, rows) {
-  // Replaces every SkillActionTable row of skillId, at the place of its first old row (or at the end).
-  const table = data.skillActions;
-  const old = table.records;
-  const memo = old.length ? old[0]['#Memo'] : '';
-  const fresh = rows.map((r) => {
-    const rec = {};
-    for (const h of table.header) rec[h] = '';
-    rec.SkillId = skillId; rec.Action = r.action; rec.Team = r.team; rec.Kinds = r.kinds; rec.Attribute = r.attribute;
-    rec.ExcludeAttribute = r.excludeAttribute; rec.MaxTargets = r.maxTargets; rec.Power = r.power; rec.EffectId = r.effectId;
-    rec.Delay = r.delay; rec.Repeat = r.repeat; rec.Interval = r.interval;
-    return rec;
-  });
-  const next = [];
-  let placed = false;
-  for (const rec of old) {
-    if (rec.SkillId !== skillId) { next.push(rec); continue; }
-    if (!placed) { next.push(...fresh); placed = true; }
-  }
-  if (!placed) next.push(...fresh);
-  if (memo && next.length && !next[0]['#Memo']) next[0]['#Memo'] = memo;
-  const changed = JSON.stringify(old) !== JSON.stringify(next);
-  if (changed) { table.records = next; writeTable(table); }
-  return changed;
+function implementedSkills() {
+  // Returns { skillId: { values } } for every registry entry; an alias (defs["a"] = defs["b"]) shares b's text.
+  const out = {};
+  try {
+    const src = fs.readFileSync(BATTLE_SKILLS_MLUA, 'utf8');
+    for (const m of src.matchAll(/defs\["([a-z0-9_]+)"\]\s*=\s*\{\s*values\s*=\s*"([^"]*)"/g)) out[m[1]] = { values: m[2] };
+    for (const m of src.matchAll(/defs\["([a-z0-9_]+)"\]\s*=\s*defs\["([a-z0-9_]+)"\]/g)) if (out[m[2]]) out[m[1]] = out[m[2]];
+  } catch { /* script missing: nothing implemented */ }
+  return out;
 }
 
 // ---------- Mutations ----------
@@ -416,7 +367,6 @@ function saveUnit(input, opts = {}) {
   const waves = opts.waves != null ? opts.waves : (Array.isArray(input.waves) ? input.waves : null);
   const loopPoolStages = opts.loopPool != null ? opts.loopPool : (Array.isArray(input.loopPool) ? input.loopPool : null);
   const rules = Array.isArray(input.effects) ? normalizeRules(input.effects) : null;
-  const skillActions = Array.isArray(input.skillActions) ? normalizeSkillActions(input.skillActions) : null;
 
   const result = validateUnit(unit, data, { mode, waves: waves || [], loopPool: loopPoolStages || [] });
   const waveErrors = validateWaves(waves || [], data);
@@ -427,11 +377,6 @@ function saveUnit(input, opts = {}) {
     const ruleResult = validateEffectRules(unit, rules, data);
     result.errors.push(...ruleResult.errors);
     result.warnings.push(...ruleResult.warnings);
-  }
-  if (skillActions) {
-    const actionResult = validateSkillActions(unit, skillActions, data);
-    result.errors.push(...actionResult.errors);
-    result.warnings.push(...actionResult.warnings);
   }
   if (result.errors.length) return { ok: false, ...result, unit };
 
@@ -458,7 +403,6 @@ function saveUnit(input, opts = {}) {
   if (waves) { setWaves(data, unit.UnitId, waves); changed.push('StageWaveTable.csv'); }
   if (loopPoolStages) { setLoopPool(data, unit.UnitId, loopPoolStages); changed.push('StageTable.csv'); }
   if (rules && setUnitEffects(data, unit.UnitId, rules)) changed.push('UnitEffectTable.csv');
-  if (skillActions && setSkillActions(data, unit.UnitId, skillActions)) changed.push('SkillActionTable.csv');
 
   const fresh = loadAll();
   return { ok: true, created: !existing, errors: [], warnings: result.warnings, unit: rec, status: unitStatus(rec, fresh), changed };
@@ -513,7 +457,6 @@ function removeUnit(unitId, opts = {}) {
   if (status.waves.length) { setWaves(data, unitId, []); changed.push('StageWaveTable.csv'); }
   if (status.pools.length) { setLoopPool(data, unitId, []); changed.push('StageTable.csv'); }
   if (status.effects.length && setUnitEffects(data, unitId, [])) changed.push('UnitEffectTable.csv');
-  if (status.skillActions.length && setSkillActions(data, unitId, [])) changed.push('SkillActionTable.csv');
   return { ok: true, removed: existing, changed, note: '플레이어 저장 데이터에 이 유닛이 남아 있을 수 있습니다' };
 }
 
@@ -933,8 +876,7 @@ function templateFor(kind) {
   for (const f of schema.fieldsForKind(kind)) t[f.key] = f.key === 'Kind' ? kind : (f.default != null ? f.default : '');
   t.waves = [];
   t.loopPool = [];
-  if (kind === 'monster' || kind === 'build') t.effects = [];
-  if (kind === 'skill') t.skillActions = [];   // [{ action: damage|heal|effect, team: enemy|ally|all, kinds: 'monster;build', attribute, excludeAttribute, maxTargets, power, effectId, delay, repeat, interval }]   // [{ effectId, trigger: on_hit|always, target: target|self, chance, duration, power }]
+  if (kind === 'monster' || kind === 'build') t.effects = [];   // [{ effectId, trigger: on_hit|always, target: target|self, chance, duration, power }]
   return t;
 }
 
@@ -977,11 +919,6 @@ function previewValidate(input, opts = {}) {
     r.errors.push(...ruleResult.errors);
     r.warnings.push(...ruleResult.warnings);
   }
-  if (Array.isArray(input.skillActions)) {
-    const actionResult = validateSkillActions(unit, normalizeSkillActions(input.skillActions), data);
-    r.errors.push(...actionResult.errors);
-    r.warnings.push(...actionResult.warnings);
-  }
   const ids = stageIds(data.stages);
   for (const s of loopPoolStages) if (!ids.includes(s)) r.errors.push(`스테이지 "${s}"가 StageTable에 없습니다`);
   return { ok: r.errors.length === 0, ...r, unit };
@@ -992,7 +929,7 @@ module.exports = {
   parseCsv, serializeCsv, readTable, writeTable,
   loadAll, listUnits, getUnit, unitStatus, templateFor, stateForEditor,
   normalizeUnit, validateUnit, previewValidate, saveUnit, removeUnit,
-  implementedEffectTypes, listEffects, effectTemplate, previewValidateEffect, saveEffect, removeEffect,
+  implementedEffectTypes, implementedSkills, listEffects, effectTemplate, previewValidateEffect, saveEffect, removeEffect,
   mapNames, listStages, stageTemplate, previewValidateStage, saveStage, removeStage,
   lookupResource, fetchSprite, fetchAudio,
 };

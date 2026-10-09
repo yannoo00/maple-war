@@ -117,6 +117,8 @@ const FIELDS = [
   { key: 'SkillDamage', group: 'skill', type: 'number', label: '스킬 피해', required: ['skill'], kinds: ['skill'], help: '레벨 배율 적용' },
   { key: 'SkillRadius', group: 'skill', type: 'number', label: '범위', required: ['skill'], kinds: ['skill'], help: '미리보기 박스 크기에도 사용' },
   { key: 'SkillHitDelay', group: 'skill', type: 'number', label: '피해 시점(초)', required: ['skill'], kinds: ['skill'], help: '이펙트 시작부터 피해까지' },
+  { key: 'SkillValue1', group: 'skill', type: 'number', label: '스킬 값 1', kinds: ['skill'], help: '스킬마다 뜻이 다름(코드의 BattleSkills 등록부가 정함). 저장 시 그 스킬의 설명이 경고/안내로 나옴' },
+  { key: 'SkillValue2', group: 'skill', type: 'number', label: '스킬 값 2', kinds: ['skill'], help: '스킬마다 뜻이 다름. 스킬 값 1 도움말 참고' },
   { key: 'EffectRuid', group: 'skill', type: 'ruid', label: '범위 이펙트', required: ['skill'], kinds: ['skill'], help: '상점 아이콘 썸네일에도 사용' },
   { key: 'EffectScale', group: 'skill', type: 'number', label: '이펙트 크기', kinds: ['skill'], default: '1' },
   { key: 'EffectOffsetX', group: 'skill', type: 'number', label: '이펙트 위치 X', kinds: ['skill'],
@@ -164,11 +166,6 @@ const RULE_TRIGGERS = [
   { id: 'on_hit', label: '공격 시', target: 'target' },
   { id: 'always', label: '항상 (특성)', target: 'self' },
 ];
-
-// 스킬의 동작 줄(SkillActionTable): 스킬 하나에 여러 줄. BattleSkills.mlua가 실행한다.
-const SKILL_ACTIONS = ['damage', 'heal', 'effect'];
-const SKILL_TEAMS = ['enemy', 'ally', 'all'];
-const SKILL_KINDS = ['monster', 'build', 'base'];
 
 const EFFECT_FIELDS = [
   { key: 'EffectId', type: 'text', label: '효과 ID', required: true,
@@ -239,9 +236,6 @@ module.exports = {
   fieldsForKind,
   EFFECT_APPLIES,
   RULE_TRIGGERS,
-  SKILL_ACTIONS,
-  SKILL_TEAMS,
-  SKILL_KINDS,
   EFFECT_FIELDS,
   EFFECT_FIELD_BY_KEY,
   EFFECT_ID_PATTERN,
