@@ -102,3 +102,14 @@ button { white-space: nowrap; }
 .drop-preview td, .drop-preview th { padding: 4px 6px; text-align: left; border-bottom: 1px solid var(--line); }
 .drop-preview tr.muted td { color: var(--muted); }
 .drop-preview .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+
+/* 유닛 요약 표 */
+main.table-view { padding: 0; }
+.table-view .tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 54px; z-index: 1; }
+table.units { border-collapse: collapse; width: 100%; background: var(--panel); }
+table.units th, table.units td { padding: 4px 8px; text-align: left; border-bottom: 1px solid var(--line); }
+table.units th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+table.units td input[type=text], table.units td select { padding: 3px 6px; }
+table.units td input.num { max-width: 90px; }
+table.units td.changed { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+table.units .thumb { width: 36px; height: 36px; }

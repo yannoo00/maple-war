@@ -10,15 +10,13 @@ const savedText = (r) => `저장됨: ${r.changed.join(', ')} — Maker에서 ref
 
 export const MODES = {
   units: {
-    label: '유닛', newLabel: '새 유닛', api: 'unit', list: 'units', idKey: 'UnitId', file: 'units', cloneable: true,
+    label: '유닛', newLabel: '새 유닛', api: 'unit', list: 'units', idKey: 'UnitId', file: 'units',
     empty: '왼쪽에서 유닛을 고르거나 "새 유닛"을 누르세요.',
     noun: (draft, schema) => schema.kindLabels[draft.Kind],
     // effects = 이 유닛의 효과 규칙(UnitEffectTable). 시간표처럼 유닛 저장과 함께 저장된다.
     open: (item, schema) => ({ ...fromHeader(schema.header, item), effects: item._status.effects.map((r) => ({ ...r })) }),
-    blank(schema, kind, from) {
-      const draft = from ? fromHeader(schema.header, from) : withDefaults(schema.fields, fromHeader(schema.header), kind);
-      const effects = from ? from._status.effects.map((r) => ({ ...r })) : [];
-      return { ...draft, Kind: kind, UnitId: '', effects, ...(from && { '#Memo': '' }) };
+    blank(schema, kind) {
+      return { ...withDefaults(schema.fields, fromHeader(schema.header), kind), Kind: kind, UnitId: '', effects: [] };
     },
     payload: (draft) => draft,   // 스테이지 등장은 스테이지 모드에서 고치므로 유닛 저장은 스테이지 파일을 건드리지 않는다.
     savedText,
@@ -28,15 +26,14 @@ export const MODES = {
   },
 
   stages: {
-    label: '스테이지', newLabel: '새 스테이지', api: 'stage', list: 'stages', idKey: 'StageId', file: 'stages', cloneable: true,
+    label: '스테이지', newLabel: '새 스테이지', api: 'stage', list: 'stages', idKey: 'StageId', file: 'stages',
     empty: '왼쪽에서 스테이지를 고르거나 "새 스테이지"를 누르세요.',
     noun: () => '스테이지',
     open(item, schema) {
       const draft = fromHeader(schema.stageHeader.filter((h) => h !== 'LoopPool'), item);
       return { ...draft, waves: item._status.waves.map((w) => ({ ...w })), loopPool: [...item._status.pool] };
     },
-    blank(schema, kind, from) {
-      if (from) return { ...this.open(from, schema), StageId: '', Name: '', '#Memo': '' };
+    blank(schema) {
       const draft = fromHeader(schema.stageHeader.filter((h) => h !== 'LoopPool'));
       return { ...withDefaults(schema.stageFields, draft), waves: [], loopPool: [] };
     },
@@ -48,12 +45,11 @@ export const MODES = {
   },
 
   chests: {
-    label: '소환의 돌', newLabel: '새 소환의 돌', api: 'chest', list: 'chests', idKey: 'ChestId', file: 'chests', cloneable: true,
+    label: '소환의 돌', newLabel: '새 소환의 돌', api: 'chest', list: 'chests', idKey: 'ChestId', file: 'chests',
     empty: '왼쪽에서 소환의 돌을 고르거나 "새 소환의 돌"을 누르세요. 카드 수와 등급 확률을 여기서 조정합니다.',
     noun: () => '소환의 돌',
     open: (item, schema) => fromHeader(schema.chestHeader, item),
-    blank(schema, kind, from) {
-      if (from) return { ...fromHeader(schema.chestHeader, from), ChestId: '', Name: '', '#Memo': '' };
+    blank(schema) {
       return withDefaults(schema.chestFields, fromHeader(schema.chestHeader));
     },
     payload: (draft) => draft,
@@ -64,7 +60,7 @@ export const MODES = {
   },
 
   effects: {
-    label: '효과', newLabel: '새 효과', api: 'effect', list: 'effects', idKey: 'EffectId', file: 'effects', cloneable: false,
+    label: '효과', newLabel: '새 효과', api: 'effect', list: 'effects', idKey: 'EffectId', file: 'effects',
     empty: '왼쪽에서 효과를 고르거나 "새 효과"를 누르세요.',
     noun: () => '효과',
     open: (item, schema) => fromHeader(schema.effectHeader, item),

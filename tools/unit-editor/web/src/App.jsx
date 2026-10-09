@@ -7,6 +7,7 @@ import UnitForm, { UnitBadges } from './forms/UnitForm.jsx';
 import StageForm, { StageBadges } from './forms/StageForm.jsx';
 import EffectForm, { EffectBadges } from './forms/EffectForm.jsx';
 import ChestForm, { ChestBadges } from './forms/ChestForm.jsx';
+import UnitTable from './forms/UnitTable.jsx';
 
 const FORMS = {
   units: { Form: UnitForm, Badges: UnitBadges },
@@ -23,7 +24,8 @@ export default function App() {
   const [result, setResult] = useState(null);    // 검사/저장 결과 메시지
   const [filterKind, setFilterKind] = useState('');
   const [search, setSearch] = useState('');
-  const [newKind, setNewKind] = useState('monster');
+  const [view, setView] = useState('edit');     // 유닛 모드: 'edit' 목록+폼 / 'table' 요약 표
+  const [tableEdits, setTableEdits] = useState({});
   const { ask, dialog } = useConfirm();
 
   const m = MODES[mode];
@@ -46,15 +48,22 @@ export default function App() {
   const find = (d, id) => d[m.list].find((x) => x[m.idKey] === id);
   const show = (next, message = null) => { setEditing(next); setResult(message); setDirty(false); };
   const open = (item, d = data) => show({ draft: m.open(item, d.schema), isNew: false, originalId: item[m.idKey], enemyStages: item._status.enemyStages ?? [] });
-  const startNew = (from) => show({ draft: m.blank(data.schema, from?.Kind ?? newKind, from), isNew: true, originalId: null, enemyStages: [] });
+  const startNew = () => show({ draft: m.blank(data.schema, 'monster'), isNew: true, originalId: null, enemyStages: [] });
   const set = (key, value) => { setEditing((e) => ({ ...e, draft: { ...e.draft, [key]: value } })); setDirty(true); };
+  const setEdits = (fn) => {
+    const next = typeof fn === 'function' ? fn(tableEdits) : fn;
+    setTableEdits(next);
+    setDirty(Object.keys(next).length > 0);
+  };
 
   // 저장 안 한 변경이 있으면 물어보고 진행한다.
   const guard = async (fn) => {
     if (dirty && !(await ask('저장하지 않은 변경이 있습니다. 버리고 이동할까요?'))) return;
+    setTableEdits({});
     fn();
   };
-  const changeMode = (next) => guard(() => { setMode(next); show(null); });
+  const changeMode = (next) => guard(() => { setMode(next); setView('edit'); show(null); });
+  const changeView = (next) => guard(() => { setView(next); show(null); });
   const reload = () => guard(async () => {
     const d = await load();
     const item = editing && !editing.isNew && find(d, editing.originalId);
@@ -104,19 +113,24 @@ export default function App() {
           ))}
         </div>
         <span>
-          {mode === 'units' && (
-            <select value={newKind} onChange={(e) => setNewKind(e.target.value)}>
-              {schema.kinds.map((k) => <option key={k} value={k}>{schema.kindLabels[k]}</option>)}
-            </select>
-          )}
-          <button onClick={() => guard(() => startNew(null))}>{m.newLabel}</button>
-          {m.cloneable && <button disabled={!selected} onClick={() => guard(() => startNew(selected))}>복제</button>}
+          <button onClick={() => guard(() => { setView('edit'); startNew(); })}>{m.newLabel}</button>
         </span>
+        {mode === 'units' && (
+          <div className="mode">
+            <button className={view === 'edit' ? 'on' : ''} onClick={() => changeView('edit')}>편집</button>
+            <button className={view === 'table' ? 'on' : ''} onClick={() => changeView('table')}>표</button>
+          </div>
+        )}
         <span className="spacer" />
         <span className="muted">{data.files[m.file].replace(/\\/g, '/')}</span>
         <button onClick={reload}>다시 읽기</button>
       </header>
 
+      {mode === 'units' && view === 'table' ? (
+        <UnitTable data={data} edits={tableEdits} setEdits={setEdits} filterKind={filterKind} setFilterKind={setFilterKind}
+          search={search} setSearch={setSearch} onSaved={load}
+          onOpen={(item) => guard(() => { setView('edit'); open(item); })} />
+      ) : (
       <div className="layout">
         <Sidebar mode={mode} m={m} data={data} selectedId={editing?.originalId} filterKind={filterKind} setFilterKind={setFilterKind}
           search={search} setSearch={setSearch} onSelect={(item) => guard(() => open(item))} />
@@ -137,6 +151,7 @@ export default function App() {
           )}
         </main>
       </div>
+      )}
       {dialog}
     </>
   );
