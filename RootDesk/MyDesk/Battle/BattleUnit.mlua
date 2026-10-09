@@ -210,7 +210,8 @@ script BattleUnit extends Component
             self:SetMode("ATTACK")
             self.AttackTimer = self.AttackTimer - delta
             if self.AttackTimer <= 0 then
-                self.AttackTimer = self.AttackInterval
+                -- Effects can slow the attack (icy): the next attack comes later by 1 / the attack speed multiplier.
+                self.AttackTimer = self.AttackInterval / math.max(0.1, _BattleEffects:GetRate(self, "attackSpeed"))
                 -- Clients play the attack clip once and return to the stand clip when it ends, on their own.
                 self:SetAnim("attack")
                 self.PendingTarget = target
@@ -223,7 +224,11 @@ script BattleUnit extends Component
             self:SetMode("HOLD")
         else
             self:SetMode("MOVE")
-            self.Entity.MovementComponent:MoveToDirection(Vector2(dir, 0), delta)
+            -- Effects can slow the walk (icy); the walking speed is set again whenever the multiplier changes.
+            local movement = self.Entity.MovementComponent
+            local speed = self.WalkSpeed * _BattleEffects:GetRate(self, "moveSpeed")
+            if speed > 0 and math.abs(movement.InputSpeed - speed) > 0.001 then movement.InputSpeed = speed end
+            movement:MoveToDirection(Vector2(dir, 0), delta)
         end
     end
 
@@ -306,7 +311,6 @@ script BattleUnit extends Component
         end
         receiver:ReceiveEffect({
             id = effect.id,
-            type = effect.type,
             name = effect.name,
             duration = rule.duration or effect.duration,
             power = rule.power or effect.power,

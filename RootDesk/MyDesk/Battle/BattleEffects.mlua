@@ -3,16 +3,17 @@ script BattleEffects extends Logic
 
     -- Server-side home of every battle effect and of the one damage pipeline.
     --
-    -- An effect type (EffectTable.Type) is one entry of the registry built in GetDefs. Adding an effect = adding one
-    -- entry there; BattleUnit never branches on effect types. A unit keeps what is on it in unit._T.effects, keyed by
-    -- type: { type, id, power, chance, remain (nil = for life), source, sourceLife, acc }. Applying a type that is
-    -- already on the unit replaces the entry (the time is refreshed, nothing stacks).
+    -- Every EffectTable row (EffectId) is one entry of the registry built in GetDefs, keyed by that id: the row only
+    -- holds numbers (Duration, Power, Param), the entry is the behavior. Adding an effect = adding one entry here;
+    -- BattleUnit never branches on effects. A unit keeps what is on it in unit._T.effects, keyed by effect id:
+    -- { id, power, chance, remain (nil = for life), source, sourceLife, acc }. Applying an effect that is already on
+    -- the unit replaces the entry (the time is refreshed, nothing stacks).
     --
     -- Groups:
-    --   status  = on a unit for a while (curse, nullify, poison); may tick; shows an icon above the unit.
+    --   status  = on a unit for a while (curse, nullify, poison, icy); may tick; shows an icon above the unit.
     --   trait   = a unit's own permanent property, given by its 'always' rules (titan, tough, might, siege, swamp).
     --   instant = runs once when applied (blow, warp); nothing is kept.
-    -- A summon tower is a build with the spawn trait: every Duration seconds it spawns its Param unit at its own spot.
+    -- A summon tower is a build with a summon trait (summon_slime): every Duration seconds it spawns its Param unit.
     --
     -- Registry entry fields (all optional except group):
     --   blocks(entry, target)   -> true: the owner's hit on target does nothing            (attacker side)
@@ -21,6 +22,8 @@ script BattleEffects extends Logic
     --   immune = "<kind>"       -> the owner takes no damage of that kind and cannot receive effects tagged with it
     --   tag = "<kind>"          -> what immune is matched against when this effect is applied
     --   flag = "<name>"         -> a yes/no property other code asks for with HasFlag (no_knockback, siege)
+    --   attackSpeed(entry)      -> multiplier on the owner's attack speed (0.75 = attacks 25% slower)
+    --   moveSpeed(entry)        -> multiplier on the owner's walking speed
     --   onApply(unit, entry)    -> runs when applied
     --   onTick(unit, entry, dt) -> runs every frame while on the unit
     --
@@ -30,7 +33,7 @@ script BattleEffects extends Logic
 
     @ExecSpace("ServerOnly")
     method table GetDefs()
-        -- Returns the effect registry (type -> definition), built once.
+        -- Returns the effect registry (EffectId -> definition), built once.
         local defs = self._T.defs
         if defs ~= nil then return defs end
         defs = {}
@@ -90,9 +93,9 @@ script BattleEffects extends Logic
         -- swamp (늪지대): takes no poison damage and cannot be poisoned.
         defs["swamp"] = { group = "trait", immune = "poison" }
 
-        -- spawn (소환): every duration seconds the owner spawns one param unit (a UnitTable id) at its own position,
-        -- on its team and at its own card level. Used by summon towers (builds).
-        defs["spawn"] = { group = "trait", onTick = function(unit, entry, delta)
+        -- summon_slime (슬라임 소환): every duration seconds the owner spawns one param unit (a UnitTable id, slime) at its
+        -- own position, on its team and at its own card level. Used by summon towers (builds).
+        defs["summon_slime"] = { group = "trait", onTick = function(unit, entry, delta)
             if entry.param == "" or entry.duration <= 0 then return end
             entry.acc = entry.acc + delta
             if entry.acc < entry.duration then return end
@@ -109,6 +112,12 @@ script BattleEffects extends Logic
             log("[VRF] BattleEffects " .. unit.Entity.Name .. " spawned " .. entry.param .. " level=" .. tostring(level))
         end }
 
+        -- icy (냉기): attack speed and walking speed are reduced by power percent for the duration.
+        defs["icy"] = { group = "status",
+            attackSpeed = function(entry) return 1 - math.min(90, math.max(0, entry.power)) / 100 end,
+            moveSpeed = function(entry) return 1 - math.min(90, math.max(0, entry.power)) / 100 end,
+        }
+
         self._T.defs = defs
         return defs
     end
@@ -121,11 +130,11 @@ script BattleEffects extends Logic
 
     @ExecSpace("ServerOnly")
     method boolean Apply(any unit, table effect, any source)
-        -- Puts an effect on a unit. effect = { id, type, duration, power, chance, permanent }; source is the unit that
+        -- Puts an effect on a unit. effect = { id, duration, power, chance, param, permanent }; source is the unit that
         -- caused it (the unit itself for its own traits, nil for a skill). Returns true when it was applied.
-        local def = self:GetDefs()[effect.type]
+        local def = self:GetDefs()[effect.id]
         if def == nil then
-            log_warning("[BattleEffects] unknown effect type " .. tostring(effect.type) .. " in EffectTable row " .. tostring(effect.id))
+            log_warning("[BattleEffects] effect " .. tostring(effect.id) .. " has no implementation in BattleEffects")
             return false
         end
         if unit.IsDead or unit.Ready == false then return false end
@@ -133,7 +142,7 @@ script BattleEffects extends Logic
         if unit ~= source and unit.Kind ~= "monster" then return false end
         if unit.Kind == "base" then return false end
         if def.tag ~= nil and self:IsImmune(unit, def.tag) then
-            log("[BattleEffects] " .. unit.Entity.Name .. " is immune to " .. effect.type)
+            log("[BattleEffects] " .. unit.Entity.Name .. " is immune to " .. effect.id)
             return false
         end
         local effects = unit._T.effects
@@ -143,21 +152,21 @@ script BattleEffects extends Logic
         end
         local permanent = effect.permanent == true or def.group == "trait"
         local entry = {
-            type = effect.type, id = effect.id,
+            id = effect.id,
             power = effect.power or 0, chance = effect.chance or 100, duration = effect.duration or 0, param = effect.param or "",
             source = source, sourceLife = 0, acc = 0,
         }
         if source ~= nil then entry.sourceLife = source.Life end
         if permanent == false then entry.remain = entry.duration end
-        if def.group ~= "instant" then effects[effect.type] = entry end
+        if def.group ~= "instant" then effects[effect.id] = entry end
         local sourceName = "skill"
         if source ~= nil then sourceName = source.Entity.Name end
-        log("[BattleEffects] effect " .. tostring(effect.id) .. " (" .. effect.type .. ") " .. sourceName .. " -> " .. unit.Entity.Name .. " duration=" .. tostring(entry.duration) .. " power=" .. tostring(entry.power) .. " chance=" .. tostring(entry.chance) .. " permanent=" .. tostring(permanent))
+        log("[BattleEffects] effect " .. tostring(effect.id) .. " " .. sourceName .. " -> " .. unit.Entity.Name .. " duration=" .. tostring(entry.duration) .. " power=" .. tostring(entry.power) .. " chance=" .. tostring(entry.chance) .. " permanent=" .. tostring(permanent))
         -- Icon above the unit: statuses and instants (a short push stays readable for StatusIconMinSeconds); traits show none.
         if def.group ~= "trait" then
             local shown = math.max(entry.duration, _BattleConfig.StatusIconMinSeconds)
             if permanent then shown = 10000000 end
-            unit:ShowStatus(effect.type, shown)
+            unit:ShowStatus(effect.id, shown)
         end
         if def.onApply ~= nil then def.onApply(unit, entry) end
         return true
@@ -197,6 +206,20 @@ script BattleEffects extends Logic
             if def ~= nil and def.flag == flag then return true end
         end
         return false
+    end
+
+    @ExecSpace("ServerOnly")
+    method number GetRate(any unit, string field)
+        -- Product of the unit's effects' multipliers for field ("attackSpeed" / "moveSpeed"); 1 when none applies.
+        local effects = unit._T.effects
+        if effects == nil then return 1 end
+        local defs = self:GetDefs()
+        local rate = 1
+        for name, entry in pairs(effects) do
+            local def = defs[name]
+            if def ~= nil and def[field] ~= nil then rate = rate * def[field](entry) end
+        end
+        return rate
     end
 
     @ExecSpace("ServerOnly")

@@ -45,6 +45,8 @@ const FIELDS = [
     help: '영문 소문자·숫자·밑줄. 코드·시간표·플레이어 저장 데이터가 이 값을 키로 씀' },
   { key: 'Kind', group: 'id', type: 'enum', enum: KINDS, label: '종류', required: KINDS, kinds: KINDS },
   { key: 'Name', group: 'id', type: 'text', label: '표시 이름', required: KINDS, kinds: KINDS },
+  { key: 'Desc', group: 'id', type: 'text', label: '한 줄 소개', kinds: KINDS,
+    help: '게임 규칙과 무관한 카드 코멘트(하스스톤 카드 문구 느낌). 로비의 유닛 정보 창 맨 아래에 기울임 회색으로 나온다. 빈칸 = 안 보임' },
   { key: 'Rarity', group: 'id', type: 'enum', enum: ENUMS.Rarity, label: '등급', kinds: KINDS, default: 'normal',
     help: '카드 테두리 색만 결정' },
 
@@ -149,7 +151,7 @@ const FIELD_BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f]));
 const UNIT_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 // ---------- EffectTable ----------
-// One row = one effect: WHAT it does (Type is the behavior key BattleUnit:ReceiveEffect branches on, plus Duration / Power).
+// One row = one effect: WHAT it does (the effect id is the key in BattleEffects.GetDefs, plus Duration / Power).
 // Who gets it, when and with what chance is NOT here: each monster / build owns that as rules in UnitEffectTable, and a
 // rule may override Duration / Power. Applies says which targets the effect makes sense for (target = an enemy it hits,
 // self = the unit itself as a trait, both).
@@ -169,9 +171,7 @@ const RULE_TRIGGERS = [
 
 const EFFECT_FIELDS = [
   { key: 'EffectId', type: 'text', label: '효과 ID', required: true,
-    help: '영문 소문자·숫자·밑줄. 유닛의 효과 규칙(UnitEffectTable)이 이 값을 가리킴' },
-  { key: 'Type', type: 'text', label: '동작 타입', required: true,
-    help: '코드가 분기하는 키(BattleEffects.mlua의 등록부). 적에게 거는 것: nullify / curse / warp / blow / poison. 자신의 특성: might(괴력) / titan(타이탄) / tough(맷집) / siege(공성) / swamp(늪지대). 새 타입을 적으면 "미구현"으로 표시되고, 메모의 설명을 보고 Claude가 구현함' },
+    help: '코드(BattleEffects.mlua)가 이 ID로 동작을 찾는다. 새 ID는 "미구현"으로 저장되고 메모가 구현 스펙이 됨. 영문 소문자·숫자·밑줄. 유닛의 효과 규칙(UnitEffectTable)이 이 값을 가리킴' },
   { key: 'Name', type: 'text', label: '표시 이름', required: true },
   { key: 'Duration', type: 'number', label: '지속 시간(초) · 기본값', required: true, help: '유닛의 규칙이 덮어쓸 수 있음. nullify·curse: 효과 유지 / warp: 정지 시간 / blow: 밀리는 시간. 특성(always)으로 쓸 때는 무시됨(사는 동안 지속)' },
   { key: 'Power', type: 'number', label: '세기 · 기본값', default: '0', help: '유닛의 규칙이 덮어쓸 수 있음. warp·blow: 거리(사거리와 같은 단위) / curse: 공격력 감소 %(50 = 절반) / poison: 초당 피해 / might: 추가 피해 %(100 = 2배) / tough: 받는 피해 감소 %. 다른 타입은 의미를 메모에 적을 것' },
@@ -199,7 +199,7 @@ const STAGE_FIELDS = [
   { key: 'BaseHp', type: 'number', label: '적 기지 HP', required: true, help: '적 기지의 HP(스테이지 난이도). 플레이어 기지의 HP는 고른 기지와 강화 레벨로 정해짐' },
   { key: 'EnemyBase', type: 'baseunit', label: '적 기지', help: '적이 쓰는 기지(UnitTable의 기지). 빈칸 = 기본 기지(base). 기지 스킬이 있으면 적도 씀' },
   { key: 'RewardMeso', type: 'number', label: '클리어 보상 메소', default: '0' },
-  { key: 'RewardCards', type: 'number', label: '클리어 보상 카드 수', default: '0', help: '전투 결과에서 주는 카드 수 (BattleDirector가 읽음)' },
+  { key: 'RewardChest', type: 'chest', label: '클리어 보상 소환의 돌', help: '이 스테이지를 이기면 받는 소환의 돌(소환의 돌 모드의 돌). 빈칸 = 보상 없음' },
   { key: 'EntryCost', type: 'number', label: '입장 비용(입장권)', default: '0' },
   { key: 'UnlockStage', type: 'stage', label: '선행 스테이지', help: '이 스테이지를 클리어해야 열림. 비면 처음부터 열려 있음' },
   { key: 'LoopStartInterval', type: 'number', label: '반복 시작 간격(초)', default: '6', help: '시간표가 끝난 뒤 반복 풀에서 처음 뽑는 간격' },

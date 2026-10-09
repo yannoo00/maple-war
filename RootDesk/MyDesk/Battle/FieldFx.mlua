@@ -61,15 +61,20 @@ script FieldFx extends Logic
     @ExecSpace("ClientOnly")
     method void PlaySkillSound(table cfg)
         -- Plays a skill's own cast sound (SkillSoundRuid) at once, or skillSoundDelay seconds later. No sound when blank.
+        -- A multi-hit skill (BattleSkills GetSoundRepeat) plays it once per hit, interval seconds apart.
         local ruid = cfg.skillSoundRuid
         if ruid == nil or ruid == "" then return end
-        if cfg.skillSoundDelay <= 0 then
-            _BattleSound:PlayRuid(ruid, self.SkillSoundVolume)
-            return
+        local rule = _BattleSkills:GetSoundRepeat(cfg)
+        for n = 1, rule.times do
+            local at = cfg.skillSoundDelay + (n - 1) * rule.interval
+            if at <= 0 then
+                _BattleSound:PlayRuid(ruid, self.SkillSoundVolume)
+            else
+                _TimerService:SetTimerOnce(function()
+                    if isvalid(_UserService.LocalPlayer) then _BattleSound:PlayRuid(ruid, self.SkillSoundVolume) end
+                end, at)
+            end
         end
-        _TimerService:SetTimerOnce(function()
-            if isvalid(_UserService.LocalPlayer) then _BattleSound:PlayRuid(ruid, self.SkillSoundVolume) end
-        end, cfg.skillSoundDelay)
     end
 
     @ExecSpace("ClientOnly")

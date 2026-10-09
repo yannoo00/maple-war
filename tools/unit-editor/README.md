@@ -42,7 +42,7 @@ cd tools/unit-editor/web && npm install && npm run build   # 처음 한 번, 화
 
 ## 효과 편집
 
-효과(`EffectTable`)는 **무엇을 하는지**만 정한다: `Type`(동작), 지속 시간, 세기, `Applies`(target = 적에게 거는 효과 / self = 자신의 특성 / both), 아이콘. 확률 같은 적용 조건은 효과가 아니라 **몬스터·설치물이 가진 규칙**이다.
+효과(`EffectTable`) 한 행은 **수치**만 정한다: 지속 시간, 세기, `Applies`(target = 적에게 거는 효과 / self = 자신의 특성 / both), 아이콘. 확률 같은 적용 조건은 효과가 아니라 **몬스터·설치물이 가진 규칙**이다.
 
 유닛의 규칙은 `UnitEffectTable.csv`(한 유닛에 여러 줄)에 저장되고, 유닛 편집 화면의 "효과 규칙" 표에서 고친다(시간표처럼 유닛 저장과 함께 저장). 한 줄 = (효과, 시점, 대상, 확률, 지속·세기 덮어쓰기).
 
@@ -53,7 +53,7 @@ cd tools/unit-editor/web && npm install && npm run build   # 처음 한 번, 화
 
 효과의 `Applies`와 맞지 않는 규칙은 저장이 막힌다. 속성(`Attribute`)은 지금 어떤 규칙에도 쓰이지 않는다. 지속·세기를 비우면 효과 표의 값을 쓴다. `curse`의 세기는 공격력 감소 %(50 = 절반)다.
 
-상단 "효과" 모드에서 `EffectTable.csv`를 편집한다. `Type`이 코드의 분기 키라서, 코드(`BattleUnit:ReceiveEffect`)에 없는 타입을 적으면 **미구현 · 설명만 저장**으로 표시된다. 그 상태로 저장해 두고, 화면에 뜨는 요청 글을 복사해 Claude 세션에 붙이면 Claude가 메모의 설명대로 구현한다(절차는 `.claude/skills/add-unit/SKILL.md`). 구현된 타입 목록은 코드에서 자동으로 읽으므로 구현이 끝나면 배지가 "구현됨"으로 바뀐다.
+상단 "효과" 모드에서 `EffectTable.csv`를 편집한다. 효과 ID가 곧 코드(`Battle/BattleEffects.mlua`의 등록부) 항목의 이름이라서, 코드에 없는 ID를 저장하면 **미구현 · 설명만 저장**으로 표시된다. 그 상태로 저장해 두고, 화면에 뜨는 요청 글을 복사해 Claude 세션에 붙이면 Claude가 메모의 설명대로 구현한다(절차는 `.claude/skills/add-unit/SKILL.md`). 구현된 효과 목록은 코드에서 자동으로 읽으므로 구현이 끝나면 배지가 "구현됨"으로 바뀐다.
 
 ## 스킬
 
@@ -97,7 +97,7 @@ RUID 칸에 32자리 값을 넣으면 공개 리소스 API(`maplestoryworlds-res
 - 유닛 하나 = UnitTable 한 행. `.model`은 만들지 않는다(공용 `BattleUnit.model`).
 - 적/아군을 정하는 열은 없다. 카드 유닛은 `Starter=1`이면 처음부터 갖고, 아니어도 상자(`ChestTable`)에서 같은 등급의 모든 카드 유닛 중에 나온다(직접 구매 없음). 적 = 시간표(StageWaveTable) 또는 반복 풀(StageTable.LoopPool)에 있음. 툴은 이걸 배지로 보여 준다.
 - 종류에 맞지 않는 칸(예: 스킬의 MaxHp)은 비어 있어야 저장된다.
-- 군단: 몬스터 행의 `SpawnCount`가 2 이상이면 카드 한 장으로 그만큼 소환된다(첫 마리는 바로, 나머지는 0.25초 간격 — 게임의 `BattleConfig.MultiSpawnInterval`). 단일 몬스터와 군단은 서로 다른 카드이고, 마리당 능력치·RUID는 각 행의 값이다(복제해서 만들면 편하다). 비우면 1마리.
+- 군단: 몬스터 행의 `SpawnCount`가 2 이상이면 카드 한 장으로 그만큼 소환된다(첫 마리는 바로, 나머지는 0.25초 간격 — 게임의 `BattleConfig.MultiSpawnInterval`). 단일 몬스터와 군단은 서로 다른 카드이고, 마리당 능력치·RUID는 각 행의 값이다(비슷한 몬스터를 열어 값을 옮겨 적으면 편하다). 비우면 1마리.
 - 설치물은 `Speed=0` 고정, `MoveRuid`가 비면 `StandRuid`로 채운다.
 - `base` 행과 알 수 없는 열은 그대로 보존한다.
 

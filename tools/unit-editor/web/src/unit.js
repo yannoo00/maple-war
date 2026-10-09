@@ -29,6 +29,7 @@ export function sortUnits(list, key, dir, rarityOrder) {
 // 남아 "쓰지 않는 칸입니다" 오류가 나던 문제), 새로 쓰게 된 칸이 비어 있으면 그 칸의 기본값을 채운다.
 // 효과 규칙은 몬스터·설치물만 쓴다.
 export function adaptToKind(draft, kind, schema) {
+  if (!kind) return { ...draft, Kind: kind };
   const next = { ...draft, Kind: kind };
   for (const f of schema.fields) {
     if (f.key === 'Kind' || f.key === 'UnitId') continue;

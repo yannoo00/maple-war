@@ -37,7 +37,7 @@ function EffectRules({ draft, set, data }) {
                 <td>
                   <select value={r.effectId} onChange={(e) => update(i, { effectId: e.target.value })}>
                     <option value="">(선택)</option>
-                    {data.effects.map((e) => <option key={e.EffectId} value={e.EffectId}>{e.Name} ({e.EffectId} · {e.Type}{e._status.implemented ? '' : ' · 미구현'})</option>)}
+                    {data.effects.map((e) => <option key={e.EffectId} value={e.EffectId}>{e.Name} ({e.EffectId}{e._status.implemented ? '' : ' · 미구현'})</option>)}
                   </select>
                 </td>
                 <td>
@@ -67,7 +67,7 @@ function SpawnHint({ draft, battle }) {
   const total = (count - 1) * battle.multiSpawnInterval;
   return (
     <div className="muted" style={{ marginTop: 10 }}>
-      {count}마리가 {total.toFixed(2)}초에 걸쳐 나옵니다(간격 {battle.multiSpawnInterval}초 고정). 카드 마나 {draft.Cost || '?'} 한 번에 {count}마리가 모두 나옵니다. 마리당 능력치는 이 행의 값이니 코스트와 함께 균형을 맞추세요.
+      {count}마리가 {total.toFixed(2)}초에 걸쳐 나옵니다(간격 {battle.multiSpawnInterval}초 고정). 카드 마나 {draft.Cost || '?'} 한 번에 {count}마리가 모두 나옵니다. 마리당 능력치는 이 행의 값이니 마나 비용과 함께 균형을 맞추세요.
     </div>
   );
 }

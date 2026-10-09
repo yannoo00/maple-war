@@ -28,7 +28,7 @@ function EffectRow({ item: e }) {
   const st = e._status;
   return (
     <>
-      <div className="main"><div className="nm">{e.Name}</div><div className="id">{e.EffectId} · {e.Type} · {e.Duration}초</div></div>
+      <div className="main"><div className="nm">{e.Name}</div><div className="id">{e.EffectId} · {e.Duration}초</div></div>
       <div className="badges">
         {st.implemented ? <Badge type="ok">구현됨</Badge> : <Badge type="warn">미구현 · 설명만</Badge>}
         <Badge type="none">{st.usedBy.length ? `${st.usedBy.length}유닛` : '미사용'}</Badge>

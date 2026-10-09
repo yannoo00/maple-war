@@ -224,7 +224,7 @@ script BattleFx extends Logic
 
     @ExecSpace("ClientOnly")
     method table GetIconGlyph(string kind)
-        -- Returns the 8x8 glyph of an effect type: { color, rows } where "#" is a lit pixel. nil for unknown types.
+        -- Returns the 8x8 glyph of an effect id: { color, rows } where "#" is a lit pixel. nil = no icon.
         local glyphs = self._T.glyphs
         if glyphs == nil then
             glyphs = {
@@ -238,6 +238,9 @@ script BattleFx extends Logic
                 warp = { color = Color(0.4, 0.9, 1, 1), rows = {
                     "..####..", ".#....#.", "#......#", "#......#", "#......#", "#......#", ".#....#.", "..####.." } },
                 -- blow: orange arrow pointing back (left; the glyph is mirrored for the other team)
+                -- icy: light blue snowflake
+                icy = { color = Color(0.6, 0.9, 1, 1), rows = {
+                    "#..#..#.", ".#.#.#..", "..###...", "#######.", "..###...", ".#.#.#..", "#..#..#.", "........" } },
                 -- poison: green drop
                 poison = { color = Color(0.45, 0.95, 0.3, 1), rows = {
                     "...#....", "...#....", "..###...", "..###...", ".#####..", ".#####..", "..###...", "........" } },

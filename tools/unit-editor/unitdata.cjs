@@ -295,7 +295,7 @@ function validateEffectRules(unit, rules, data) {
       const applies = effect.Applies || 'target';
       if (applies === 'target' && r.target === 'self') errors.push(`${at}: "${effect.EffectId}"는 적에게 거는 효과(Applies=target)라 자신에게 쓸 수 없습니다`);
       if (applies === 'self' && r.target === 'target') errors.push(`${at}: "${effect.EffectId}"는 자신에게 쓰는 특성(Applies=self)이라 적에게 걸 수 없습니다`);
-      if (!implemented.includes(effect.Type)) warnings.push(`${at}: 효과 타입 "${effect.Type}"가 아직 코드에 구현되지 않아 전투에서 아무 일도 일어나지 않습니다`);
+      if (!implemented.includes(effect.EffectId)) warnings.push(`${at}: 효과 "${effect.EffectId}"가 아직 코드에 구현되지 않아 전투에서 아무 일도 일어나지 않습니다`);
     }
     const key = `${r.effectId}|${r.trigger}`;
     if (seen.has(key)) warnings.push(`${at}: 같은 효과·시점의 규칙이 두 번 있습니다 (각각 따로 판정됩니다)`);
@@ -463,7 +463,7 @@ function removeUnit(unitId, opts = {}) {
 // ---------- Effects ----------
 
 const BATTLE_EFFECTS_MLUA = path.join(ROOT, 'RootDesk', 'MyDesk', 'Battle', 'BattleEffects.mlua');
-const KNOWN_EFFECT_TYPES = ['nullify', 'curse', 'warp', 'blow', 'might', 'titan', 'tough', 'siege', 'poison', 'swamp'];
+const KNOWN_EFFECT_TYPES = ['nullify', 'curse', 'warp', 'blow', 'might', 'titan', 'tough', 'siege', 'poison', 'swamp', 'summon_slime', 'icy'];
 
 // 게임 코드의 `property number <name> = <value>`를 읽는다 (툴 미리보기가 게임과 같은 배율을 쓰도록). 못 읽으면 fallback.
 function readBattleNumber(file, name, fallback) {
@@ -475,7 +475,7 @@ function readBattleNumber(file, name, fallback) {
 const BATTLE_DIR = path.join(ROOT, 'RootDesk', 'MyDesk', 'Battle');
 
 function implementedEffectTypes() {
-  // Effect types the game code actually handles: every `defs["<type>"] = ...` entry of the registry in
+  // Effect ids the game code implements: every `defs["<effectId>"] = ...` entry of the registry in
   // BattleEffects.mlua (GetDefs). Falls back to the known list when the script cannot be read.
   try {
     const src = fs.readFileSync(BATTLE_EFFECTS_MLUA, 'utf8');
@@ -489,7 +489,7 @@ function implementedEffectTypes() {
 
 function effectStatus(effect, data, implemented) {
   const usedBy = [...new Set(data.unitEffects.records.filter((r) => r.EffectId === effect.EffectId).map((r) => r.UnitId))];
-  return { implemented: implemented.includes(effect.Type), usedBy };
+  return { implemented: implemented.includes(effect.EffectId), usedBy };
 }
 
 function normalizeEffect(input) {
@@ -519,10 +519,9 @@ function validateEffect(effect, data, opts = {}) {
   for (const k of Object.keys(effect)) {
     if (!schema.EFFECT_FIELD_BY_KEY[k] && !data.effects.header.includes(k)) errors.push(`"${k}"는 EffectTable에 없는 열입니다`);
   }
-  if (effect.Type && !schema.EFFECT_TYPE_PATTERN.test(effect.Type)) errors.push(`Type "${effect.Type}"는 영문 소문자·숫자·밑줄만 쓸 수 있습니다`);
-  if (effect.Type && !implemented.includes(effect.Type)) {
-    if (!effect['#Memo']) errors.push(`Type "${effect.Type}"는 아직 코드에 없는 타입입니다. 구현 스펙이 되도록 #Memo(효과 설명)를 꼭 적어 주세요`);
-    else warnings.push(`Type "${effect.Type}"는 아직 코드에 없습니다 (구현된 타입: ${implemented.join(', ')}). 저장은 되지만 전투에서는 아무 일도 일어나지 않습니다. 메모의 설명으로 Claude에게 구현을 요청하세요`);
+  if (effect.EffectId && !implemented.includes(effect.EffectId)) {
+    if (!effect['#Memo']) errors.push(`효과 "${effect.EffectId}"는 아직 코드에 없습니다. 구현 스펙이 되도록 #Memo(효과 설명)를 꼭 적어 주세요`);
+    else warnings.push(`효과 "${effect.EffectId}"는 아직 코드(BattleEffects.mlua)에 없습니다. 저장은 되지만 전투에서는 아무 일도 일어나지 않습니다. 메모의 설명으로 Claude에게 구현을 요청하세요`);
   }
   return { errors, warnings, implemented };
 }
@@ -562,7 +561,7 @@ function removeEffect(effectId, opts = {}) {
     writeTable(data.unitEffects);
     changed.push('UnitEffectTable.csv');
   }
-  const note = implementedEffectTypes().includes(existing.Type) ? `코드의 "${existing.Type}" 분기는 그대로 남아 있습니다` : '';
+  const note = implementedEffectTypes().includes(existing.EffectId) ? `코드(BattleEffects.mlua)의 "${existing.EffectId}" 항목은 그대로 남아 있습니다` : '';
   return { ok: true, removed: existing, clearedUnits: usedBy, changed, note };
 }
 
@@ -660,6 +659,10 @@ function validateStage(stage, waves, pool, data, opts = {}) {
   if (stage.UnlockStage) {
     if (stage.UnlockStage === stage.StageId) errors.push('UnlockStage가 자기 자신입니다');
     else if (!stageIds(data.stages).includes(stage.UnlockStage)) errors.push(`UnlockStage "${stage.UnlockStage}"가 StageTable에 없습니다`);
+  }
+  if (stage.RewardChest) {
+    const chestIds = require('./chestdata.cjs').list().map((c) => c.ChestId);   // chestdata가 이 파일을 쓰므로 호출할 때 불러온다
+    if (!chestIds.includes(stage.RewardChest)) errors.push(`RewardChest "${stage.RewardChest}"가 ChestTable에 없습니다 (${chestIds.join(', ')})`);
   }
   if (stage.EnemyBase) {
     const enemyBase = data.units.records.find((u) => u.UnitId === stage.EnemyBase);

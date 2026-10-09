@@ -118,7 +118,7 @@ switch (cmd) {
   case 'effect': {
     const [sub, target, ...more] = [arg, ...rest];
     if (sub === 'list') {
-      out(data.listEffects().map((e) => ({ EffectId: e.EffectId, Type: e.Type, Name: e.Name, Duration: e.Duration, Power: e.Power, implemented: e._status.implemented, usedBy: e._status.usedBy })));
+      out(data.listEffects().map((e) => ({ EffectId: e.EffectId, Name: e.Name, Duration: e.Duration, Power: e.Power, implemented: e._status.implemented, usedBy: e._status.usedBy })));
     } else if (sub === 'show') {
       const e = data.listEffects().find((x) => x.EffectId === target);
       if (!e) { console.error(`EffectId "${target}"가 없습니다`); process.exit(1); }

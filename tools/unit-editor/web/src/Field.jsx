@@ -36,8 +36,8 @@ function Input({ f, value, onChange, schema, data, selfId }) {
     const labels = schema.enumLabels[f.key] || {};
     return (
       <select value={value} onChange={set}>
-        <Options items={f.enum} value={value} empty={f.key === 'Kind' ? '' : '(빈칸)'} getValue={(e) => e}
-          getLabel={(e) => `${labels[e] || schema.kindLabels[e] || e} (${e})`} />
+        {f.key !== 'Kind' && <option value="">(빈칸)</option>}
+        {f.enum.map((e) => <option key={e} value={e}>{`${labels[e] || schema.kindLabels[e] || e} (${e})`}</option>)}
       </select>
     );
   }
@@ -45,7 +45,7 @@ function Input({ f, value, onChange, schema, data, selfId }) {
     return (
       <select value={value} onChange={set}>
         <Options items={data.effects} empty="(없음)" getValue={(e) => e.EffectId}
-          getLabel={(e) => `${e.Name} (${e.EffectId} · ${e.Type}${e._status.implemented ? '' : ' · 미구현'})`} />
+          getLabel={(e) => `${e.Name} (${e.EffectId}${e._status.implemented ? '' : ' · 미구현'})`} />
       </select>
     );
   }
@@ -63,6 +63,13 @@ function Input({ f, value, onChange, schema, data, selfId }) {
       <select value={value} onChange={set}>
         <Options items={data.stages.filter((s) => s.StageId !== selfId)} empty="(없음 · 처음부터 열림)"
           getValue={(s) => s.StageId} getLabel={(s) => `${s.Name} (${s.StageId})`} />
+      </select>
+    );
+  }
+  if (f.type === 'chest') {
+    return (
+      <select value={value} onChange={set}>
+        <Options items={data.chests} empty="(보상 없음)" getValue={(c) => c.ChestId} getLabel={(c) => `${c.Name} (${c.ChestId})`} />
       </select>
     );
   }
@@ -106,21 +113,8 @@ export default function Field({ field: f, value, onChange, kind, schema, data, s
   );
 }
 
-// 스키마가 모르는 CSV 열(다른 세션이 코드로 추가한 열)도 숨기지 않고 그대로 보여 주고 저장한다.
-export function ExtraFields({ header, known, draft, set }) {
-  const extra = header.filter((h) => !known.includes(h));
-  if (!extra.length) return null;
-  return (
-    <fieldset>
-      <legend>기타 열 (스키마에 없는 열 · 그대로 저장)</legend>
-      <div className="grid">
-        {extra.map((h) => (
-          <label key={h} className="f">
-            <span className="k">{h} <code>{h}</code></span>
-            <input type="text" value={draft[h] ?? ''} onChange={(e) => set(h, e.target.value)} />
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  );
+// 스키마가 모르는 CSV 열(다른 세션이 코드로 추가한 열)은 화면에 보이지 않는다. 사람이 고치는 값이 아니고, 폼의 값(draft)에
+// 표의 모든 열이 들어 있어서 저장할 때 원래 값 그대로 다시 쓰인다. 호출하는 폼은 그대로 두고 여기서 아무것도 그리지 않는다.
+export function ExtraFields() {
+  return null;
 }

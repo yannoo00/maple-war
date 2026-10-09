@@ -974,7 +974,8 @@ script LobbyUI extends Component
     @ExecSpace("ClientOnly")
     method void RenderUnitInfo(PlayerData data, string unitId)
         -- Fills the info popup: portrait, name, kind / rarity / level, stats at the current level, attack type,
-        -- attribute, effect, card progress, and the upgrade button (shown only when it can level up now).
+        -- attribute, effect, the one-line flavor text (Desc), card progress, and the upgrade button (shown only when it
+        -- can level up now).
         local window = self.unitInfoWindow
         if not isvalid(window) then return end
         local base = _BattleConfig:GetUnit(unitId)
@@ -1032,6 +1033,9 @@ script LobbyUI extends Component
             if attribute ~= "" then table.insert(lines, "속성  " .. attribute) end
         end
         self:SetChildText(window, "Stats", table.concat(lines, "\n"))
+        local desc = base.desc or ""
+        self:SetChildEnable(window, "Desc", desc ~= "")
+        if desc ~= "" then self:SetChildText(window, "Desc", desc) end
         if isBase then
             self:SetChildText(window, "Effect", self:DescribeBaseSkill(base))
         else
@@ -1102,17 +1106,18 @@ script LobbyUI extends Component
                 if rule.trigger == "on_hit" then
                     table.insert(parts, "공격 시 " .. self:FormatNumber(rule.chance) .. "%")
                     if duration > 0 then table.insert(parts, "지속 " .. self:FormatNumber(duration) .. "초") end
-                elseif effect.type == "might" then
+                elseif effect.id == "might" then
                     table.insert(parts, "공격마다 " .. self:FormatNumber(rule.chance) .. "%")
                 else
                     table.insert(parts, "항상 자신에게")
                 end
-                if (effect.type == "warp" or effect.type == "blow") and power > 0 then table.insert(parts, "거리 " .. self:FormatNumber(power)) end
-                if effect.type == "curse" and power > 0 then table.insert(parts, "공격력 -" .. self:FormatNumber(power) .. "%") end
-                if effect.type == "poison" and power > 0 then table.insert(parts, "초당 피해 " .. self:FormatNumber(power)) end
-                if effect.type == "might" and power > 0 then table.insert(parts, "피해 +" .. self:FormatNumber(power) .. "%") end
-                if effect.type == "tough" and power > 0 then table.insert(parts, "받는 피해 -" .. self:FormatNumber(power) .. "%") end
-                table.insert(lines, "효과  " .. effect.name .. " — " .. self:EffectTypeDescription(effect.type) .. " (" .. table.concat(parts, ", ") .. ")")
+                if (effect.id == "warp" or effect.id == "blow") and power > 0 then table.insert(parts, "거리 " .. self:FormatNumber(power)) end
+                if effect.id == "curse" and power > 0 then table.insert(parts, "공격력 -" .. self:FormatNumber(power) .. "%") end
+                if effect.id == "poison" and power > 0 then table.insert(parts, "초당 피해 " .. self:FormatNumber(power)) end
+                if effect.id == "might" and power > 0 then table.insert(parts, "피해 +" .. self:FormatNumber(power) .. "%") end
+                if effect.id == "icy" and power > 0 then table.insert(parts, "속도 -" .. self:FormatNumber(power) .. "%") end
+                if effect.id == "tough" and power > 0 then table.insert(parts, "받는 피해 -" .. self:FormatNumber(power) .. "%") end
+                table.insert(lines, "효과  " .. effect.name .. " — " .. self:EffectTypeDescription(effect.id) .. " (" .. table.concat(parts, ", ") .. ")")
             end
         end
         if #lines == 0 then return "효과  없음" end
@@ -1121,7 +1126,7 @@ script LobbyUI extends Component
 
     @ExecSpace("ClientOnly")
     method string EffectTypeDescription(string effectType)
-        -- One-line description of an effect behavior (see BattleEffects:GetDefs).
+        -- One-line description of an effect by its id (see BattleEffects:GetDefs).
         if effectType == "nullify" then return "맞은 몬스터의 공격이 이 유닛에게 통하지 않음" end
         if effectType == "curse" then return "맞은 몬스터의 공격력을 감소시킴" end
         if effectType == "warp" then return "맞은 몬스터를 즉시 뒤로 보내고 묶어 둠" end
@@ -1132,6 +1137,8 @@ script LobbyUI extends Component
         if effectType == "tough" then return "받는 피해가 줄어듦" end
         if effectType == "siege" then return "몬스터를 무시하고 건물과 기지만 공격" end
         if effectType == "swamp" then return "독 피해를 받지 않음" end
+        if effectType == "icy" then return "맞은 몬스터의 공격 속도와 이동 속도를 늦춤" end
+        if effectType == "summon_slime" then return "일정 시간마다 슬라임을 소환" end
         return effectType
     end
 

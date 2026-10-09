@@ -13,9 +13,9 @@ script BattleSkills extends Logic
     -- targets' own traits (tough ...) apply. A skill id with no entry falls back to SkillDamage on every enemy
     -- monster / build in range, with a warning.
 
-    @ExecSpace("ServerOnly")
     method table GetDefs()
-        -- Returns the skill registry (skill id -> { values, run(ctx) }), built once. ctx: see Cast.
+        -- Returns the skill registry (skill id -> { values, run(ctx), soundRepeat(cfg) optional }), built once. ctx:
+        -- see Cast. Built on both sides: the server runs `run`, clients only read `soundRepeat`.
         local defs = self._T.defs
         if defs ~= nil then return defs end
         defs = {}
@@ -78,8 +78,27 @@ script BattleSkills extends Logic
             end)
         end }
 
+        -- 매직클로: hits every enemy in range for SkillDamage, SkillValue1 times, SkillValue2 seconds apart, on the same
+        -- spot. The skill sound plays once per hit (see GetSoundRepeat).
+        defs["magic_claw"] = { values = "SkillDamage = 1타 피해, SkillValue1 = 타격 횟수(빈칸 = 2), SkillValue2 = 간격 초(빈칸 = 0.5). 타격마다 스킬 사운드 재생",
+            soundRepeat = function(cfg) return { times = cfg.skillValue1 or 2, interval = cfg.skillValue2 or 0.5 } end,
+            run = function(ctx)
+                self:Repeat(ctx, ctx.value1 or 2, ctx.value2 or 0.5, function()
+                    for _, unit in ipairs(self:FindTargets(ctx, "enemy", nil, 0)) do self:Damage(unit, ctx.damage) end
+                end)
+            end }
+
         self._T.defs = defs
         return defs
+    end
+
+    method table GetSoundRepeat(table cfg)
+        -- Returns how often a skill's sound plays: { times, interval } (once for most skills). Clients ask this from
+        -- FieldFx; only the entry's soundRepeat function runs there, never its server-side run.
+        local def = self:GetDefs()[cfg.id]
+        if def == nil or def.soundRepeat == nil then return { times = 1, interval = 0 } end
+        local rule = def.soundRepeat(cfg)
+        return { times = math.max(1, math.floor(rule.times)), interval = math.max(0, rule.interval) }
     end
 
     @ExecSpace("ServerOnly")
@@ -162,7 +181,7 @@ script BattleSkills extends Logic
             log_warning("[BattleSkills] unknown effect " .. effectId)
             return
         end
-        unit:ReceiveEffect({ id = effect.id, type = effect.type, name = effect.name, duration = effect.duration, power = effect.power, param = effect.param }, nil)
+        unit:ReceiveEffect({ id = effect.id, name = effect.name, duration = effect.duration, power = effect.power, param = effect.param }, nil)
     end
 
 end

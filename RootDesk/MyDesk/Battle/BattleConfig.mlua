@@ -117,6 +117,8 @@ script BattleConfig extends Logic
                     knockbackDistance = self:Num(ds:GetCell(i, "KnockbackDistance"), self.KnockbackDistance),
                     knockbackSeconds = self:Num(ds:GetCell(i, "KnockbackSeconds"), self.KnockbackSeconds),
                     name = ds:GetCell(i, "Name"),
+                    -- One-line flavor text shown in the lobby's unit info popup (no game rule reads it). "" = none.
+                    desc = self:OptText(ds:GetCell(i, "Desc")) or "",
                     rarity = self:OptText(ds:GetCell(i, "Rarity")) or "normal",
                     cost = self:Num(ds:GetCell(i, "Cost"), 0),
                     starter = self:Num(ds:GetCell(i, "Starter"), 0) > 0,
@@ -339,7 +341,7 @@ script BattleConfig extends Logic
         -- Returns every effect definition keyed by effect id, loaded once from EffectTable:
         -- { id, type, name, duration, power }. An effect only says WHAT it does; who gets it, when and with what chance
         -- is the owning unit's rule (GetUnitEffects), which may override duration / power.
-        -- type is the behavior (nullify / curse / warp / blow); duration 0 on an 'always' rule means "as long as it lives".
+        -- What an effect does is its code entry in BattleEffects (keyed by the effect id); the row holds its numbers.
         local effects = self._T.effects
         if effects ~= nil then return effects end
         effects = {}
@@ -351,7 +353,6 @@ script BattleConfig extends Logic
             if id ~= nil and id ~= "" then
                 effects[id] = {
                     id = id,
-                    type = ds:GetCell(i, "Type") or "",
                     name = ds:GetCell(i, "Name") or id,
                     duration = self:Num(ds:GetCell(i, "Duration"), 0),
                     power = self:Num(ds:GetCell(i, "Power"), 0),

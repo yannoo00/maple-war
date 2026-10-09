@@ -82,7 +82,7 @@ export default function App() {
     setTableEdits({});
     fn();
   };
-  const changeMode = (next) => guard(() => { setMode(next); setView('edit'); show(null); });
+  const changeMode = (next) => guard(() => { setMode(next); setView('edit'); setSearch(''); setFilterKind(''); show(null); });
   const changeView = (next) => guard(() => { setView(next); show(null); });
   const reload = () => guard(async () => {
     const d = await load();
@@ -120,7 +120,6 @@ export default function App() {
     load();
   };
 
-  const selected = editing && !editing.isNew ? find(data, editing.originalId) : null;
   const { schema } = data;
 
   return (

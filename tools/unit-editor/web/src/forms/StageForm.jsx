@@ -22,7 +22,7 @@ function UnitSelect({ units, schema, value, onChange }) {
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">(선택)</option>
-      {schema.kinds.map((k) => {
+      {schema.kinds.filter((k) => k !== 'base').map((k) => {   // 기지는 시간표·반복 풀로 소환하지 않는다
         const items = units.filter((u) => u.Kind === k);
         return items.length > 0 && (
           <optgroup key={k} label={schema.kindLabels[k]}>
