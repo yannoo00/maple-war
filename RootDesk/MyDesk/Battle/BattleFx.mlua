@@ -455,7 +455,10 @@ script BattleFx extends Logic
         self._T.seq = seq
         local from = source.TransformComponent.WorldPosition
         local to = target.TransformComponent.WorldPosition
-        local startY = from.y + (cfg.projectileY or self.ProjectileAimY) * _BattleConfig.UnitScale
+        local startY = self:FootY(source) + (cfg.projectileY or self.ProjectileAimY) * _BattleConfig.UnitScale
+        -- Aim height relative to the target's own position: base towers stand off the lane ground, so their aim is
+        -- measured from the ground like any unit (the shot flies level instead of climbing to the tower's pivot).
+        local aimOffset = self:FootY(target) - to.y + self.ProjectileAimY * _BattleConfig.UnitScale
         local shot = _SpawnService:SpawnByModelId(self.ProjectileModelId, "Shot_" .. tostring(seq), Vector3(from.x, startY, 0), map)
         if not isvalid(shot) then
             log_error("[BattleFx] projectile spawn failed model=" .. self.ProjectileModelId)
@@ -481,9 +484,28 @@ script BattleFx extends Logic
         end
         table.insert(shots, {
             entity = shot, target = target, name = source.Name, logged = logged,
-            sx = from.x, sy = startY, tx = to.x, ty = to.y + self.ProjectileAimY * _BattleConfig.UnitScale,
+            sx = from.x, sy = startY, tx = to.x, ty = to.y + aimOffset, aimOffset = aimOffset,
             elapsed = 0, duration = math.max(0.1, travelTime),
         })
+        if logged then log("[VRF] BattleFx projectile aim " .. target.Name .. " startY=" .. string.format("%.2f", startY) .. " aimY=" .. string.format("%.2f", to.y + aimOffset)) end
+    end
+
+    @ExecSpace("ClientOnly")
+    method number FootY(Entity entity)
+        -- Y a projectile height is measured from: the unit's own position, except for a base tower, which is placed
+        -- in the map off the lane, so its height counts from the lane ground (BattleDirector.GroundY) like the units.
+        local y = entity.TransformComponent.WorldPosition.y
+        ---@type BattleUnit
+        local unit = entity:GetComponent("script.BattleUnit")
+        if unit == nil or unit.UnitId == "" then return y end
+        local cfg = _BattleConfig:GetUnit(unit.UnitId)
+        if cfg == nil or cfg.kind ~= "base" then return y end
+        local parent = entity.Parent
+        if not isvalid(parent) then return y end
+        ---@type BattleDirector
+        local director = parent:GetComponent("script.BattleDirector")
+        if director == nil then return y end
+        return director.GroundY + _BattleConfig.SpawnYOffset
     end
 
     @ExecSpace("ClientOnly")
@@ -503,8 +525,10 @@ script BattleFx extends Logic
         local localScale = Vector3(-dir * size / parentScale.x, size / parentScale.y, 1)
         -- Offset columns are world units on screen from the target's feet (X toward the attacker's facing, Y up); they are
         -- divided by the target's own scale because the effect is attached to it. Blank Y = the projectile aim height.
+        -- Measured from FootY like projectiles, so a base tower is hit at the same height the shots arrive at.
         local worldY = cfg.hitEffectOffsetY
         if worldY == nil then worldY = self.ProjectileAimY * _BattleConfig.UnitScale end
+        worldY = worldY + self:FootY(target) - target.TransformComponent.WorldPosition.y
         local localOffset = Vector3(dir * (cfg.hitEffectOffsetX or 0) / parentScale.x, worldY / parentScale.y, 0)
         local serial = _EffectService:PlayEffectAttached(cfg.hitEffectRuid, target, localOffset, 0, localScale, false)
         local fx = attacker._T.fx
@@ -552,7 +576,7 @@ script BattleFx extends Logic
                 if isvalid(shot.target) then
                     local to = shot.target.TransformComponent.WorldPosition
                     shot.tx = to.x
-                    shot.ty = to.y + self.ProjectileAimY * _BattleConfig.UnitScale
+                    shot.ty = to.y + shot.aimOffset
                 end
                 local k = math.min(1, shot.elapsed / shot.duration)
                 if k >= 1 or not isvalid(shot.entity) then

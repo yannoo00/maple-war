@@ -120,7 +120,7 @@ const FIELDS = [
   { key: 'BarWidth', group: 'fx', type: 'number', label: 'HP 바 너비 (기지 전용)', kinds: ['base'] },
 
   { key: 'Attribute', group: 'monster', type: 'enum', enum: ENUMS.Attribute, label: '속성', kinds: ['monster'],
-    help: '지금은 어떤 규칙에도 쓰이지 않음(상성·효과 확률 없음). 나중을 위해 남겨 둔 칸' },
+    help: '기본 공격 상성: 유리한 상대에게 피해 +20%(전투 설정 AttributeBonus). 빛 ↔ 어둠은 서로에게 유리, 바람 → 물 → 화염 → 땅 → 바람 순으로 앞이 뒤에 유리. 불리해도 감소 없음. 기본 공격에만 적용(스킬·독 등 제외), 속성 없는 건물·기지는 주고받지 않음' },
   { key: 'KnockbackHpPercent', group: 'monster', type: 'number', label: '넉백 체력 구간(%)', kinds: ['monster'],
     help: '빈칸 = 공용 34. 0 = 넉백 없음' },
   { key: 'KnockbackDistance', group: 'monster', type: 'number', label: '넉백 거리', kinds: ['monster'], help: '빈칸 = 공용 0.8' },

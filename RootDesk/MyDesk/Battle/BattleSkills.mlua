@@ -40,20 +40,24 @@ script BattleSkills extends Logic
 
         -- 독구름: every enemy in range takes SkillDamage as poison damage every SkillValue2 seconds for SkillValue1 seconds.
         -- Poison damage: no attribute bonus, swamp units take none.
-        defs["poisoncloud"] = { values = "SkillDamage = 1회 피해, SkillValue1 = 지속 초(빈칸 = 10), SkillValue2 = 간격 초(빈칸 = 1)", run = function(ctx)
-            local interval = ctx.value2 or 1
-            self:Repeat(ctx, self:TickCount(ctx.value1 or 10, interval), interval, function()
-                for _, unit in ipairs(self:FindTargets(ctx, "enemy", nil, 0)) do _BattleEffects:DealHit(nil, unit, ctx.damage, "poison") end
-            end)
-        end }
+        defs["poisoncloud"] = { values = "SkillDamage = 1회 피해, SkillValue1 = 지속 초(빈칸 = 10), SkillValue2 = 간격 초(빈칸 = 1). 범위 이펙트는 지속 시간 동안 반복 재생",
+            effectDuration = function(cfg) return cfg.skillValue1 or 10 end,
+            run = function(ctx)
+                local interval = ctx.value2 or 1
+                self:Repeat(ctx, self:TickCount(ctx.value1 or 10, interval), interval, function()
+                    for _, unit in ipairs(self:FindTargets(ctx, "enemy", nil, 0)) do _BattleEffects:DealHit(nil, unit, ctx.damage, "poison") end
+                end)
+            end }
 
         -- 힐: every ally monster / build in range regains SkillDamage every SkillValue2 seconds for SkillValue1 seconds.
-        defs["heal"] = { values = "SkillDamage = 1회 회복량, SkillValue1 = 지속 초(빈칸 = 5), SkillValue2 = 간격 초(빈칸 = 1)", run = function(ctx)
-            local interval = ctx.value2 or 1
-            self:Repeat(ctx, self:TickCount(ctx.value1 or 5, interval), interval, function()
-                for _, unit in ipairs(self:FindTargets(ctx, "ally", nil, 0)) do unit:Heal(ctx.damage) end
-            end)
-        end }
+        defs["heal"] = { values = "SkillDamage = 1회 회복량, SkillValue1 = 지속 초(빈칸 = 5), SkillValue2 = 간격 초(빈칸 = 1). 범위 이펙트는 지속 시간 동안 반복 재생",
+            effectDuration = function(cfg) return cfg.skillValue1 or 5 end,
+            run = function(ctx)
+                local interval = ctx.value2 or 1
+                self:Repeat(ctx, self:TickCount(ctx.value1 or 5, interval), interval, function()
+                    for _, unit in ipairs(self:FindTargets(ctx, "ally", nil, 0)) do unit:Heal(ctx.damage) end
+                end)
+            end }
 
         -- 지진: every monster and build in range (both teams) takes SkillDamage, builds twice that; SkillValue1 hits,
         -- SkillValue2 seconds apart.
@@ -88,8 +92,46 @@ script BattleSkills extends Logic
                 end)
             end }
 
+        -- 버섯 호출: summons SkillValue1 monsters of the caster's team at the skill spot, SkillValue2 seconds apart, each
+        -- picked at random among the monsters whose name contains "버섯", at the skill card's level (one per pick, even
+        -- for a monster row with SpawnCount > 1).
+        defs["mushroom_spawn"] = { values = "SkillValue1 = 소환 수(빈칸 = 6), SkillValue2 = 간격 초(빈칸 = 0.25). 이름에 '버섯'이 든 몬스터 중 무작위, 스킬 카드 레벨로 소환",
+            run = function(ctx)
+                local pool = self:FindMonstersByName("버섯")
+                if #pool == 0 then
+                    log_warning("[BattleSkills] mushroom_spawn: no monster named like 버섯")
+                    return
+                end
+                local level = ctx.cfg.level or 1
+                self:Repeat(ctx, ctx.value1 or 6, ctx.value2 or 0.25, function()
+                    local unitId = pool[_UtilLogic:RandomIntegerRange(1, #pool)]
+                    local ok = ctx.director:SpawnUnit(ctx.team, unitId, ctx.x, _BattleConfig:GetUnitAtLevel(unitId, level))
+                    log("[VRF] BattleSkills mushroom_spawn " .. unitId .. " team=" .. tostring(ctx.team) .. " x=" .. string.format("%.1f", ctx.x) .. " level=" .. tostring(level) .. " ok=" .. tostring(ok))
+                end)
+            end }
+
         self._T.defs = defs
         return defs
+    end
+
+    method table FindMonstersByName(string text)
+        -- Returns the ids of every monster whose UnitTable name contains text (like SQL '%text%'), in table order.
+        local list = {}
+        for _, unit in pairs(_BattleConfig:GetUnits()) do
+            if unit.kind == "monster" and unit.name ~= nil and string.find(unit.name, text, 1, true) ~= nil then table.insert(list, unit) end
+        end
+        table.sort(list, function(a, b) return a.order < b.order end)
+        local ids = {}
+        for _, unit in ipairs(list) do table.insert(ids, unit.id) end
+        return ids
+    end
+
+    method number GetEffectDuration(table cfg)
+        -- Returns how long a lasting skill's area effect stays on screen, in seconds (0 = the clip plays once). Clients ask
+        -- this from FieldFx; only the entry's effectDuration function runs there, never its server-side run.
+        local def = self:GetDefs()[cfg.id]
+        if def == nil or def.effectDuration == nil then return 0 end
+        return math.max(0, def.effectDuration(cfg))
     end
 
     method table GetSoundRepeat(table cfg)

@@ -120,8 +120,13 @@ script FieldFx extends Logic
         local size = areaWidth / geo.width * (cfg.effectScale or 1)
         local x = centerX + (cfg.effectOffsetX or 0) - geo.offsetX * size
         local y = groundY + (cfg.effectOffsetY or 0) + geo.height * size * 0.5 - geo.offsetY * size
-        local serial = _EffectService:PlayEffect(ruid, player, Vector3(x, y, 0), 0, Vector3(size, size, 1), false)
-        log("[FieldFx] skill effect " .. tostring(cfg.id) .. " centerX=" .. string.format("%.2f", centerX) .. " width=" .. string.format("%.2f", areaWidth) .. " scale=" .. string.format("%.2f", size) .. " serial=" .. tostring(serial))
+        -- A lasting skill (heal, poison cloud ...) keeps its effect looping for the whole duration, then removes it.
+        local lasting = _BattleSkills:GetEffectDuration(cfg)
+        local serial = _EffectService:PlayEffect(ruid, player, Vector3(x, y, 0), 0, Vector3(size, size, 1), lasting > 0)
+        if lasting > 0 then
+            _TimerService:SetTimerOnce(function() _EffectService:RemoveEffect(serial) end, lasting)
+        end
+        log("[VRF] [FieldFx] skill effect lasting=" .. string.format("%.1f", lasting) .. " " .. tostring(cfg.id) .. " centerX=" .. string.format("%.2f", centerX) .. " width=" .. string.format("%.2f", areaWidth) .. " scale=" .. string.format("%.2f", size) .. " serial=" .. tostring(serial))
     end
 
     @ExecSpace("ClientOnly")
