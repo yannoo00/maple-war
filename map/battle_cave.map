@@ -1619,6 +1619,409 @@
                       "x": 0.0,
                       "y": 1.0
                     }
+                  },
+                  {
+                    "Length": 0.278926,
+                    "NextFootholdId": 53,
+                    "PreviousFootholdId": 0,
+                    "groupID": 8,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "ea5b329a-8c5d-4312-95f4-9bbcae067097",
+                    "Id": 52,
+                    "StartPoint": {
+                      "x": -12.2871,
+                      "y": 1.59
+                    },
+                    "EndPoint": {
+                      "x": -12.0171,
+                      "y": 1.66
+                    },
+                    "Variance": {
+                      "x": 0.967996836,
+                      "y": 0.250962377
+                    }
+                  },
+                  {
+                    "Length": 0.5508178,
+                    "NextFootholdId": 54,
+                    "PreviousFootholdId": 52,
+                    "groupID": 8,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "ea5b329a-8c5d-4312-95f4-9bbcae067097",
+                    "Id": 53,
+                    "StartPoint": {
+                      "x": -12.0171,
+                      "y": 1.66
+                    },
+                    "EndPoint": {
+                      "x": -11.4671,
+                      "y": 1.63
+                    },
+                    "Variance": {
+                      "x": 0.998515666,
+                      "y": -0.05446442
+                    }
+                  },
+                  {
+                    "Length": 0.117047563,
+                    "NextFootholdId": 55,
+                    "PreviousFootholdId": 53,
+                    "groupID": 8,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "ea5b329a-8c5d-4312-95f4-9bbcae067097",
+                    "Id": 54,
+                    "StartPoint": {
+                      "x": -11.4671,
+                      "y": 1.63
+                    },
+                    "EndPoint": {
+                      "x": -11.3571,
+                      "y": 1.59
+                    },
+                    "Variance": {
+                      "x": 0.9397941,
+                      "y": -0.341741085
+                    }
+                  },
+                  {
+                    "Length": 0.133415848,
+                    "NextFootholdId": 0,
+                    "PreviousFootholdId": 54,
+                    "groupID": 8,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "ea5b329a-8c5d-4312-95f4-9bbcae067097",
+                    "Id": 55,
+                    "StartPoint": {
+                      "x": -11.3571,
+                      "y": 1.59
+                    },
+                    "EndPoint": {
+                      "x": -11.2271,
+                      "y": 1.56
+                    },
+                    "Variance": {
+                      "x": 0.9743907,
+                      "y": -0.224861518
+                    }
+                  },
+                  {
+                    "Length": 0.194164455,
+                    "NextFootholdId": 57,
+                    "PreviousFootholdId": 0,
+                    "groupID": 9,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "705cbd65-690f-4940-9697-fa2ea9914b9b",
+                    "Id": 56,
+                    "StartPoint": {
+                      "x": -5.9665,
+                      "y": 1.5247
+                    },
+                    "EndPoint": {
+                      "x": -5.7765,
+                      "y": 1.5647
+                    },
+                    "Variance": {
+                      "x": 0.9785498,
+                      "y": 0.206010729
+                    }
+                  },
+                  {
+                    "Length": 0.25495097,
+                    "NextFootholdId": 58,
+                    "PreviousFootholdId": 56,
+                    "groupID": 9,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "705cbd65-690f-4940-9697-fa2ea9914b9b",
+                    "Id": 57,
+                    "StartPoint": {
+                      "x": -5.7765,
+                      "y": 1.5647
+                    },
+                    "EndPoint": {
+                      "x": -5.5265,
+                      "y": 1.6147
+                    },
+                    "Variance": {
+                      "x": 0.9805807,
+                      "y": 0.196115956
+                    }
+                  },
+                  {
+                    "Length": 0.190000057,
+                    "NextFootholdId": 59,
+                    "PreviousFootholdId": 57,
+                    "groupID": 9,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "705cbd65-690f-4940-9697-fa2ea9914b9b",
+                    "Id": 58,
+                    "StartPoint": {
+                      "x": -5.5265,
+                      "y": 1.6147
+                    },
+                    "EndPoint": {
+                      "x": -5.3365,
+                      "y": 1.6147
+                    },
+                    "Variance": {
+                      "x": 1.0,
+                      "y": 0.0
+                    }
+                  },
+                  {
+                    "Length": 0.269999981,
+                    "NextFootholdId": 0,
+                    "PreviousFootholdId": 58,
+                    "groupID": 9,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "705cbd65-690f-4940-9697-fa2ea9914b9b",
+                    "Id": 59,
+                    "StartPoint": {
+                      "x": -5.3365,
+                      "y": 1.6147
+                    },
+                    "EndPoint": {
+                      "x": -5.0665,
+                      "y": 1.6147
+                    },
+                    "Variance": {
+                      "x": 1.0,
+                      "y": 0.0
+                    }
+                  },
+                  {
+                    "Length": 0.5124449,
+                    "NextFootholdId": 61,
+                    "PreviousFootholdId": 0,
+                    "groupID": 10,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "3ac91930-ce4f-4833-88d7-2fa2a5f5ba87",
+                    "Id": 60,
+                    "StartPoint": {
+                      "x": -9.5744,
+                      "y": 2.7336
+                    },
+                    "EndPoint": {
+                      "x": -9.0844,
+                      "y": 2.8836
+                    },
+                    "Variance": {
+                      "x": 0.9561999,
+                      "y": 0.292714566
+                    }
+                  },
+                  {
+                    "Length": 0.920217454,
+                    "NextFootholdId": 62,
+                    "PreviousFootholdId": 60,
+                    "groupID": 10,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "3ac91930-ce4f-4833-88d7-2fa2a5f5ba87",
+                    "Id": 61,
+                    "StartPoint": {
+                      "x": -9.0844,
+                      "y": 2.8836
+                    },
+                    "EndPoint": {
+                      "x": -8.1644,
+                      "y": 2.9036
+                    },
+                    "Variance": {
+                      "x": 0.9997638,
+                      "y": 0.0217339732
+                    }
+                  },
+                  {
+                    "Length": 0.170879915,
+                    "NextFootholdId": 63,
+                    "PreviousFootholdId": 61,
+                    "groupID": 10,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "3ac91930-ce4f-4833-88d7-2fa2a5f5ba87",
+                    "Id": 62,
+                    "StartPoint": {
+                      "x": -8.1644,
+                      "y": 2.9036
+                    },
+                    "EndPoint": {
+                      "x": -8.0044,
+                      "y": 2.8436
+                    },
+                    "Variance": {
+                      "x": 0.9363292,
+                      "y": -0.351123422
+                    }
+                  },
+                  {
+                    "Length": 0.327566952,
+                    "NextFootholdId": 64,
+                    "PreviousFootholdId": 62,
+                    "groupID": 10,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "3ac91930-ce4f-4833-88d7-2fa2a5f5ba87",
+                    "Id": 63,
+                    "StartPoint": {
+                      "x": -8.0044,
+                      "y": 2.8436
+                    },
+                    "EndPoint": {
+                      "x": -7.6844,
+                      "y": 2.7736
+                    },
+                    "Variance": {
+                      "x": 0.976900041,
+                      "y": -0.213696569
+                    }
+                  },
+                  {
+                    "Length": 0.3201562,
+                    "NextFootholdId": 0,
+                    "PreviousFootholdId": 63,
+                    "groupID": 10,
+                    "layer": 1,
+                    "sortingLayerName": "MapLayer0",
+                    "attribute": {
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
+                      "isBlockVertical": false,
+                      "isDynamic": false,
+                      "isCustomFoothold": true,
+                      "inertiaOption": 0
+                    },
+                    "OwnerId": "3ac91930-ce4f-4833-88d7-2fa2a5f5ba87",
+                    "Id": 64,
+                    "StartPoint": {
+                      "x": -7.6844,
+                      "y": 2.7736
+                    },
+                    "EndPoint": {
+                      "x": -7.3744,
+                      "y": 2.6936
+                    },
+                    "Variance": {
+                      "x": 0.9682772,
+                      "y": -0.249878541
+                    }
                   }
                 ]
               },
@@ -6836,106 +7239,6 @@
         }
       },
       {
-        "id": "bb0b819e-3b7e-4b6b-83d4-0e1b5b565f0d",
-        "path": "/maps/battle_cave/AllyBase",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,script.BattleUnit,script.BattleSide",
-        "jsonString": {
-          "name": "AllyBase",
-          "path": "/maps/battle_cave/AllyBase",
-          "nameEditable": true,
-          "enable": true,
-          "visible": true,
-          "localize": false,
-          "displayOrder": 3,
-          "pathConstraints": "///",
-          "revision": 1,
-          "origin": {
-            "type": "Model",
-            "entry_id": "basetower",
-            "sub_entity_id": null,
-            "root_entity_id": "bb0b819e-3b7e-4b6b-83d4-0e1b5b565f0d",
-            "replaced_model_id": null
-          },
-          "modelId": "basetower",
-          "@components": [
-            {
-              "@type": "MOD.Core.TransformComponent",
-              "Rotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
-              },
-              "Position": {
-                "x": -13.4,
-                "y": -0.7634999,
-                "z": 0.0
-              },
-              "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
-              },
-              "Scale": {
-                "x": 0.65,
-                "y": 0.65,
-                "z": 1.0
-              },
-              "ZRotation": 0.0,
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.SpriteRendererComponent",
-              "ActionSheet": {},
-              "DrawMode": 0,
-              "EndFrameIndex": 2147483647,
-              "FlipX": false,
-              "FlipY": false,
-              "OrderInLayer": 0,
-              "PlayRate": 1.0,
-              "RenderSetting": 0,
-              "SortingLayer": "MapLayer0",
-              "SpriteRUID": "781d0548d4434877a044f77db08e2ffe",
-              "StartFrameIndex": 0,
-              "Color": {
-                "r": 1.0,
-                "g": 1.0,
-                "b": 1.0,
-                "a": 1.0
-              },
-              "Enable": true
-            },
-            {
-              "@type": "script.BattleUnit",
-              "Enable": true,
-              "KnockCount": 0,
-              "KnockRemain": 0.0,
-              "KnockSpeed": 0.0,
-              "KnockStartX": 0.0,
-              "KnockTarget": 0.0,
-              "WalkSpeed": 0.0,
-              "CurseRemain": 0.0,
-              "CurseRate": 1.0,
-              "NullifyRemain": 0.0,
-              "NullifyLife": 0,
-              "Ready": false,
-              "IsDead": false,
-              "Mode": "",
-              "AttackTimer": 0.0,
-              "HitTimer": 0.0,
-              "PendingLife": 0,
-              "HasProjectile": false,
-              "HasHitEffect": false
-            },
-            {
-              "@type": "script.BattleSide",
-              "Enable": true
-            }
-          ],
-          "@version": 1
-        }
-      },
-      {
         "id": "b6d47ee2-6ab9-49c0-8026-0b856e636a4a",
         "path": "/maps/battle_cave/EnemyBase",
         "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,script.BattleUnit,script.BattleSide",
@@ -6946,7 +7249,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 4,
+          "displayOrder": 3,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -6966,8 +7269,8 @@
                 "z": 0.0
               },
               "Position": {
-                "x": -2.39916539,
-                "y": -1.30956817,
+                "x": -2.64098024,
+                "y": -1.24500227,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -6977,8 +7280,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 0.8624323,
-                "y": 0.8624323,
+                "x": 1.16831923,
+                "y": 1.16831911,
                 "z": 1.0
               },
               "ZRotation": 0.0,
@@ -7014,10 +7317,6 @@
               "KnockStartX": 0.0,
               "KnockTarget": 0.0,
               "WalkSpeed": 0.0,
-              "CurseRemain": 0.0,
-              "CurseRate": 1.0,
-              "NullifyRemain": 0.0,
-              "NullifyLife": 0,
               "Ready": false,
               "IsDead": false,
               "Mode": "",
@@ -7046,7 +7345,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 5,
+          "displayOrder": 4,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -7066,8 +7365,8 @@
                 "z": 0.0
               },
               "Position": {
-                "x": -13.4,
-                "y": -1.148,
+                "x": -13.20558,
+                "y": -1.11246681,
                 "z": 0.0
               },
               "QuaternionRotation": {
@@ -7077,8 +7376,8 @@
                 "w": 1.0
               },
               "Scale": {
-                "x": 0.4,
-                "y": 0.4,
+                "x": 0.70384717,
+                "y": 0.70384717,
                 "z": 1.0
               },
               "ZRotation": 0.0,
@@ -7095,7 +7394,7 @@
               "PlayRate": 1.0,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer0",
-              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "SpriteRUID": "2c200582b13649069a1f8149c6430a49",
               "StartFrameIndex": 0,
               "Color": {
                 "r": 1.0,
@@ -7120,7 +7419,7 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 6,
+          "displayOrder": 5,
           "pathConstraints": "///",
           "revision": 1,
           "origin": {
@@ -7177,6 +7476,1203 @@
                 "b": 1.0,
                 "a": 1.0
               },
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "ea5b329a-8c5d-4312-95f4-9bbcae067097",
+        "path": "/maps/battle_cave/foothold-112",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.CustomFootholdComponent",
+        "jsonString": {
+          "name": "foothold-112",
+          "path": "/maps/battle_cave/foothold-112",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 6,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "Foothold",
+            "sub_entity_id": null,
+            "root_entity_id": "ea5b329a-8c5d-4312-95f4-9bbcae067097",
+            "replaced_model_id": null
+          },
+          "modelId": "foothold",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -11.7670774,
+                "y": 1.28000164,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "96c461a24c7444b5a91c285f093e44b8",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.CustomFootholdComponent",
+              "edgeLists": [
+                [
+                  {
+                    "x": -0.52,
+                    "y": 0.31
+                  },
+                  {
+                    "x": -0.25,
+                    "y": 0.38
+                  },
+                  {
+                    "x": 0.3,
+                    "y": 0.35
+                  },
+                  {
+                    "x": 0.41,
+                    "y": 0.31
+                  },
+                  {
+                    "x": 0.54,
+                    "y": 0.28
+                  }
+                ]
+              ],
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "705cbd65-690f-4940-9697-fa2ea9914b9b",
+        "path": "/maps/battle_cave/foothold-777",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.CustomFootholdComponent",
+        "jsonString": {
+          "name": "foothold-777",
+          "path": "/maps/battle_cave/foothold-777",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 7,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "Foothold",
+            "sub_entity_id": null,
+            "root_entity_id": "705cbd65-690f-4940-9697-fa2ea9914b9b",
+            "replaced_model_id": null
+          },
+          "modelId": "foothold",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -5.506521,
+                "y": 1.27471209,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "0aceae3e75184f4bb047e0fb85420585",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.CustomFootholdComponent",
+              "edgeLists": [
+                [
+                  {
+                    "x": -0.46,
+                    "y": 0.25
+                  },
+                  {
+                    "x": -0.27,
+                    "y": 0.29
+                  },
+                  {
+                    "x": -0.02,
+                    "y": 0.34
+                  },
+                  {
+                    "x": 0.17,
+                    "y": 0.34
+                  },
+                  {
+                    "x": 0.44,
+                    "y": 0.34
+                  }
+                ]
+              ],
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "3ac91930-ce4f-4833-88d7-2fa2a5f5ba87",
+        "path": "/maps/battle_cave/foothold-826",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,MOD.Core.CustomFootholdComponent",
+        "jsonString": {
+          "name": "foothold-826",
+          "path": "/maps/battle_cave/foothold-826",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 8,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "Foothold",
+            "sub_entity_id": null,
+            "root_entity_id": "3ac91930-ce4f-4833-88d7-2fa2a5f5ba87",
+            "replaced_model_id": null
+          },
+          "modelId": "foothold",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -8.484369,
+                "y": 2.51355124,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "acf7596a09c8430f970198b9702e6eba",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.CustomFootholdComponent",
+              "edgeLists": [
+                [
+                  {
+                    "x": -1.09,
+                    "y": 0.22
+                  },
+                  {
+                    "x": -0.6,
+                    "y": 0.37
+                  },
+                  {
+                    "x": 0.32,
+                    "y": 0.39
+                  },
+                  {
+                    "x": 0.48,
+                    "y": 0.33
+                  },
+                  {
+                    "x": 0.8,
+                    "y": 0.26
+                  },
+                  {
+                    "x": 1.11,
+                    "y": 0.18
+                  }
+                ]
+              ],
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "a235ad2b-212a-4bf2-b663-0b3de3f21541",
+        "path": "/maps/battle_cave/AllyPortal_1",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "AllyPortal_1",
+          "path": "/maps/battle_cave/AllyPortal_1",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 9,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "mapobject",
+            "sub_entity_id": null,
+            "root_entity_id": "973e0ff3-8cd1-4a02-b7a0-59bc85c8b18a",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -11.7680988,
+                "y": 1.849464,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 0.4,
+                "y": 0.4,
+                "z": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 1,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+              },
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "c3463b59-457a-4c96-85d9-48f1cbb8dd2f",
+        "path": "/maps/battle_cave/AllyPortal_2",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "AllyPortal_2",
+          "path": "/maps/battle_cave/AllyPortal_2",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 10,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "mapobject",
+            "sub_entity_id": null,
+            "root_entity_id": "973e0ff3-8cd1-4a02-b7a0-59bc85c8b18a",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -9.337296,
+                "y": 3.00563121,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 0.4,
+                "y": 0.4,
+                "z": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 1,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+              },
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "f95d18d5-d81a-4df8-b0d8-a55184839778",
+        "path": "/maps/battle_cave/EnemyPortal_1",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "EnemyPortal_1",
+          "path": "/maps/battle_cave/EnemyPortal_1",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 11,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "mapobject",
+            "sub_entity_id": null,
+            "root_entity_id": "c29aed72-1178-4334-88d1-e606d7b27897",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -5.50011253,
+                "y": 1.77427578,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 0.4,
+                "y": 0.4,
+                "z": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 1,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 0.0,
+                "b": 0.0,
+                "a": 1.0
+              },
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "ac3c1674-a80f-441b-bab1-9e503200a79b",
+        "path": "/maps/battle_cave/EnemyPortal_2",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "EnemyPortal_2",
+          "path": "/maps/battle_cave/EnemyPortal_2",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 12,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "mapobject",
+            "sub_entity_id": null,
+            "root_entity_id": "c29aed72-1178-4334-88d1-e606d7b27897",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -7.65941143,
+                "y": 2.96024513,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 0.4,
+                "y": 0.4,
+                "z": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 1,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+              },
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "e0da9d64-1ef1-4cac-9174-0cc28caaf38b",
+        "path": "/maps/battle_cave/object-2260",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "object-2260",
+          "path": "/maps/battle_cave/object-2260",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 13,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MapObject",
+            "sub_entity_id": null,
+            "root_entity_id": "e0da9d64-1ef1-4cac-9174-0cc28caaf38b",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -14.9259043,
+                "y": -1.15894556,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "057ba1c360be4714b3deafb61b33a418",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "0e0cd25e-dd9c-4132-93b1-dd828330dc06",
+        "path": "/maps/battle_cave/object-10317",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "object-10317",
+          "path": "/maps/battle_cave/object-10317",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 14,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MapObject",
+            "sub_entity_id": null,
+            "root_entity_id": "0e0cd25e-dd9c-4132-93b1-dd828330dc06",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -14.4610834,
+                "y": -1.07347369,
+                "z": 999.998047
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "378b744cfb204f068e680621273c8d40",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "fda88dc4-912c-40f8-aeeb-ce2804e02051",
+        "path": "/maps/battle_cave/object-12330",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "object-12330",
+          "path": "/maps/battle_cave/object-12330",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 15,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MapObject",
+            "sub_entity_id": null,
+            "root_entity_id": "fda88dc4-912c-40f8-aeeb-ce2804e02051",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -0.2840519,
+                "y": -1.04,
+                "z": -0.001
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "aec413da881c44fe83ac2f9a3161b4ed",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "ccc6de23-5f24-4e03-8204-220b8cfd2a97",
+        "path": "/maps/battle_cave/object-1594",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "object-1594",
+          "path": "/maps/battle_cave/object-1594",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 16,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MapObject",
+            "sub_entity_id": null,
+            "root_entity_id": "ccc6de23-5f24-4e03-8204-220b8cfd2a97",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -6.6317625,
+                "y": -1.08262563,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "d262915589b449eb90095a2d9299aff9",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "6857fbeb-7006-470b-b718-dbebc02b8fd8",
+        "path": "/maps/battle_cave/object-21342",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "object-21342",
+          "path": "/maps/battle_cave/object-21342",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 17,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MapObject",
+            "sub_entity_id": null,
+            "root_entity_id": "6857fbeb-7006-470b-b718-dbebc02b8fd8",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -4.73615551,
+                "y": -1.2189455,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "b3961cc6c89a419bbb4b7ff0db8b1842",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "a8f92c13-f688-4fb7-826a-10426ae0a587",
+        "path": "/maps/battle_cave/object-18204",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "object-18204",
+          "path": "/maps/battle_cave/object-18204",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 18,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MapObject",
+            "sub_entity_id": null,
+            "root_entity_id": "a8f92c13-f688-4fb7-826a-10426ae0a587",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -5.840107,
+                "y": -1.08726406,
+                "z": 999.998047
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "c8ffa32612f24db59b23fa54b8f9d532",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "92da3e19-d2b2-4e52-b3c4-493dd31272cb",
+        "path": "/maps/battle_cave/object-18312",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "object-18312",
+          "path": "/maps/battle_cave/object-18312",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 19,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MapObject",
+            "sub_entity_id": null,
+            "root_entity_id": "92da3e19-d2b2-4e52-b3c4-493dd31272cb",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -5.21549034,
+                "y": -0.9009448,
+                "z": 999.998047
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "3058690294ab4ba6b077e9323c52b84c",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "661808bb-3ba8-46fc-b4e0-f525fc255378",
+        "path": "/maps/battle_cave/object-2075",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "object-2075",
+          "path": "/maps/battle_cave/object-2075",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 20,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MapObject",
+            "sub_entity_id": null,
+            "root_entity_id": "661808bb-3ba8-46fc-b4e0-f525fc255378",
+            "replaced_model_id": null
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -8.650805,
+                "y": -0.3072641,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 2147483647,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "ff9d647e36da4ad78721ed23ff058730",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "4a82b188-a2a3-4a1a-9bd8-85e356d64a4d",
+        "path": "/maps/battle_cave/monster-872",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "monster-872",
+          "path": "/maps/battle_cave/monster-872",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 21,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "StaticMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "4a82b188-a2a3-4a1a-9bd8-85e356d64a4d",
+            "replaced_model_id": null
+          },
+          "modelId": "staticmonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -8.470983,
+                "y": -1.27452826,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "stand": "511b3cc9bfdc428a884e5197e29d7f8d",
+                "die": "6a0d7d644e3446b4a424d1d82c7a7b86",
+                "hit": "69ae6d486b2a47b19eea65a064400bdc"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "511b3cc9bfdc428a884e5197e29d7f8d",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "99b4a0dc-a638-4686-8940-509974bf650d",
+        "path": "/maps/battle_cave/monster-3554",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-3554",
+          "path": "/maps/battle_cave/monster-3554",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 22,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "99b4a0dc-a638-4686-8940-509974bf650d",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -14.3612375,
+                "y": -1.2249999,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "76d3f7ef201848a9ab6e181ad8aa7cb1",
+                "stand": "13850817e4664f64af5d279ed56a5e37",
+                "attack": "81c956ff3b4b4526b582cac1eb458f7d",
+                "die": "489826d3817745098f2f512a41a9e07e",
+                "hit": "1d8177ce97024d3fb5faf23d12ac99a6"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "13850817e4664f64af5d279ed56a5e37",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 2.35,
+                "y": 2.82
+              },
+              "ColliderOffset": {
+                "x": 0.125,
+                "y": 1.51
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "076a4f9c-188b-4d59-8b38-7d7f4645988e",
+        "path": "/maps/battle_cave/ChargeOrb",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.BasicParticleComponent",
+        "jsonString": {
+          "name": "ChargeOrb",
+          "path": "/maps/battle_cave/ChargeOrb",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 23,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "basicparticle",
+            "sub_entity_id": null,
+            "root_entity_id": null,
+            "replaced_model_id": null
+          },
+          "modelId": "basicparticle",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -5.645797,
+                "y": -0.6148386,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 1.0,
+                "y": 1.0,
+                "z": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.BasicParticleComponent",
+              "ParticleType": 49,
+              "Color": {
+                "r": 0.25,
+                "g": 0.5,
+                "b": 0.5,
+                "a": 1.0
+              },
+              "Loop": true,
+              "NeedMigration": false,
               "Enable": true
             }
           ],

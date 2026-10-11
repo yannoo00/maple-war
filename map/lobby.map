@@ -164,64 +164,6 @@
           ],
           "@version": 1
         }
-      },
-      {
-        "id": "8ecf5451-f243-493b-b90f-91ab674d2452",
-        "path": "/maps/lobby/item-728",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
-        "jsonString": {
-          "name": "item-728",
-          "path": "/maps/lobby/item-728",
-          "nameEditable": true,
-          "enable": true,
-          "visible": true,
-          "localize": false,
-          "displayOrder": 3,
-          "pathConstraints": "///",
-          "revision": 1,
-          "origin": {
-            "type": "Model",
-            "entry_id": "ItemAsset",
-            "sub_entity_id": null,
-            "root_entity_id": "8ecf5451-f243-493b-b90f-91ab674d2452",
-            "replaced_model_id": null
-          },
-          "modelId": "itemasset",
-          "@components": [
-            {
-              "@type": "MOD.Core.TransformComponent",
-              "Rotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
-              },
-              "Position": {
-                "x": 4.35409737,
-                "y": 1.56128168,
-                "z": 999.999
-              },
-              "QuaternionRotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "w": 1.0
-              },
-              "ZRotation": 0.0,
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.SpriteRendererComponent",
-              "ActionSheet": {},
-              "EndFrameIndex": 2147483647,
-              "RenderSetting": 0,
-              "SortingLayer": "MapLayer0",
-              "SpriteRUID": "f0a837e479104a488fa8c3003420b69d",
-              "StartFrameIndex": 0,
-              "Enable": true
-            }
-          ],
-          "@version": 1
-        }
       }
     ]
   }
