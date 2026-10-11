@@ -4,6 +4,16 @@ script BattleDirector extends Component
     -- Runs one battle on this map. Team-neutral: it keeps the clock, fills both sides' cost,
     -- validates and executes card requests, and decides the winner. It does not know whether
     -- a side is driven by a player (Commander) or by a stage AI (StageAI).
+    --
+    -- Field layout (read from the map, so it can be edited in Maker without code changes):
+    --   AllyBase / EnemyBase            = each side's base (BattleUnit + BattleSide). Only a base has HP; when it falls the
+    --                                     battle ends. The player's base is Papulatus.
+    --   AllyPortal, AllyPortal_1 ...    = team 1's spawn portals (up to BattleConfig.MaxPortals), EnemyPortal... = team 2's.
+    --                                     A portal has no HP and is never a target. Monsters come out of the portal the
+    --                                     player picked and walk toward the enemy side.
+    -- Floors: units only fight what stands on their own floor (heights within BattleConfig.FloorTolerance); a unit that
+    -- drops to another floor fights there. A unit that reaches an enemy portal on its floor attacks the enemy BASE
+    -- through it: the damage goes to the base's HP and clients show a particle flying from that portal to the base.
     @Sync property string State = "WAITING"
     @Sync property integer WinnerTeam = 0
     @Sync property integer RewardMeso = 0
@@ -12,12 +22,17 @@ script BattleDirector extends Component
     @Sync property string RewardCardsCsv = ""
     @Sync property number AllyBaseX = 0
     @Sync property number EnemyBaseX = 0
-    -- Where each side's units appear. Read from the map's portal entities (AllyPortal / EnemyPortal), so a portal moved
-    -- in Maker moves the spawn point with it; a map without them spawns SpawnOffsetX in front of the tower.
-    @Sync property number AllySpawnX = 0
-    @Sync property number EnemySpawnX = 0
-    property string AllyPortalName = "AllyPortal"
-    property string EnemyPortalName = "EnemyPortal"
+    -- Left and right end of the field (outermost base / portal plus BattleConfig.FieldEdgeMargin).
+    @Sync property number FieldMinX = 0
+    @Sync property number FieldMaxX = 0
+    -- Camera of this map, set per map in Maker (select the map entity > BattleDirector in the inspector):
+    -- CameraZoom = screen magnification in percent (100 = normal, 80 = wider view with smaller units; 30 ~ 500),
+    -- CameraOffsetY = how far the view is moved up (+) or down (-) in world units (1 = 100 px).
+    @Sync property number CameraZoom = 100
+    @Sync property number CameraOffsetY = 0
+    property string AllyPortalPrefix = "AllyPortal"
+    property string EnemyPortalPrefix = "EnemyPortal"
+    -- Fallback floor height (StageTable GroundY) for a map whose floor cannot be looked up.
     @Sync property number GroundY = -1.36
     property string UnitModelId = "battleunit"
     -- Unit entities come from the map's EntityPool (script.EntityPool on this same map entity): taken out on spawn,
@@ -38,6 +53,7 @@ script BattleDirector extends Component
         self._T.seq = 0
         self._T.sides = {}
         self._T.bases = {}
+        self._T.portalHitAt = {}
         self:BindSide(1, "AllyBase")
         self:BindSide(2, "EnemyBase")
         self:PreparePool()
@@ -57,12 +73,12 @@ script BattleDirector extends Component
         ---@type EntityPool
         local pool = self:GetPool()
         if pool == nil then
-            log_warning("[VRF] BattleDirector: no EntityPool on " .. self.Entity.Name .. ", units are spawned and destroyed directly")
+            log_warning("[BattleDirector] no EntityPool on " .. self.Entity.Name .. ", units are spawned and destroyed directly")
             return
         end
         pool:Prewarm(self.UnitPoolKey, self.UnitModelId, self.UnitPoolPrewarm)
         pool:SetHooks(self.UnitPoolKey, { "script.BattleUnit" })
-        log("[VRF] BattleDirector unit pool ready key=" .. self.UnitPoolKey .. " prewarm=" .. tostring(self.UnitPoolPrewarm))
+        log("[BattleDirector] unit pool ready key=" .. self.UnitPoolKey .. " prewarm=" .. tostring(self.UnitPoolPrewarm))
     end
 
     @ExecSpace("ServerOnly")
@@ -80,7 +96,7 @@ script BattleDirector extends Component
         -- Looks up the base entity of a team and remembers its BattleSide and BattleUnit.
         local entity = self.Entity:GetChildByName(entityName)
         if not isvalid(entity) then
-            log_error("[BattleDirector] base entity missing: " .. entityName)
+            log_error("[BattleDirector] base entity missing: " .. entityName .. " on " .. self.Entity.Name .. " (the battle cannot start without it)")
             return
         end
         self._T.sides[team] = entity:GetComponent("script.BattleSide")
@@ -115,6 +131,128 @@ script BattleDirector extends Component
         return reason == ""
     end
 
+    -- ===== Field geometry: portals and floors. No ExecSpace: the server and every client read the same map. =====
+
+    method table GetPortals(integer team)
+        -- Returns a team's spawn portals in name order (AllyPortal, AllyPortal_1, ...), at most BattleConfig.MaxPortals:
+        -- { index, name, entity, x, y, floorY }. x / y are the portal entity's position, floorY the height of the
+        -- floor under it (where units stand). Read once per side and kept; an empty result is looked up again.
+        local all = self._T.portals
+        if all == nil then
+            all = {}
+            self._T.portals = all
+        end
+        local cached = all[team]
+        if cached ~= nil then return cached end
+        local prefix = self.AllyPortalPrefix
+        if team ~= 1 then prefix = self.EnemyPortalPrefix end
+        local list = {}
+        for _, child in ipairs(self.Entity.Children:ToTable()) do
+            local name = child.Name
+            if isvalid(child) and child.Enable and (name == prefix or string.sub(name, 1, #prefix + 1) == prefix .. "_") then
+                local pos = child.TransformComponent.WorldPosition
+                table.insert(list, {
+                    name = name, entity = child, x = pos.x, y = pos.y,
+                    floorY = self:FloorYBelow(pos.x, pos.y, pos.y - _BattleConfig.PortalFootOffset),
+                })
+            end
+        end
+        table.sort(list, function(a, b) return a.name < b.name end)
+        while #list > _BattleConfig.MaxPortals do table.remove(list) end
+        for i, portal in ipairs(list) do portal.index = i end
+        if #list > 0 then all[team] = list end
+        return list
+    end
+
+    method any FloorYBelow(number x, number y, any fallback)
+        -- Returns the height of the first floor (foothold) at or below the point (x, y), or fallback when there is none
+        -- within reach. The ray starts a little above the point so a point lying on the floor still finds it.
+        local footholds = self.Entity.FootholdComponent
+        if not isvalid(footholds) then return fallback end
+        local hit = footholds:Raycast(Vector2(x, y + _BattleConfig.FloorProbeUp), Vector2(0, -1), _BattleConfig.FloorProbeDown)
+        if hit == nil then return fallback end
+        local a = hit.StartPoint
+        local b = hit.EndPoint
+        if math.abs(b.x - a.x) < 0.0001 then return math.max(a.y, b.y) end
+        local k = math.max(0, math.min(1, (x - a.x) / (b.x - a.x)))
+        return a.y + (b.y - a.y) * k
+    end
+
+    method number GetLowestFloorY()
+        -- Returns the height of the lowest floor a portal stands on (the fallback ground height when there are no portals).
+        local lowest = nil
+        for team = 1, 2 do
+            for _, portal in ipairs(self:GetPortals(team)) do
+                if lowest == nil or portal.floorY < lowest then lowest = portal.floorY end
+            end
+        end
+        if lowest == nil then return self.GroundY end
+        return lowest
+    end
+
+    method any FindFloorY(number x, number y)
+        -- Returns the floor a click at (x, y) means: the first floor at or below it, never one under the battlefield
+        -- (a click below the lowest lane counts as on that lane). nil when x has no floor at all.
+        return self:FloorYBelow(x, math.max(y, self:GetLowestFloorY()), nil)
+    end
+
+    method number SnapFloorY(number x, number y)
+        -- Returns the floor height a click at (x, y) means; y itself when no floor is found there.
+        local floorY = self:FindFloorY(x, y)
+        if floorY == nil then return y end
+        return floorY
+    end
+
+    method boolean SameFloor(number y1, number y2)
+        -- True when two heights belong to the same floor.
+        return math.abs(y1 - y2) <= _BattleConfig.FloorTolerance
+    end
+
+    method any FindPortalOnFloor(integer portalTeam, number x, number y, number range)
+        -- Returns portalTeam's portal on the floor of height y that is nearest to x and within range of it, or nil.
+        local best = nil
+        local bestDist = range
+        for _, portal in ipairs(self:GetPortals(portalTeam)) do
+            if self:SameFloor(portal.floorY, y) then
+                local dist = math.abs(portal.x - x)
+                if dist <= bestDist then
+                    best = portal
+                    bestDist = dist
+                end
+            end
+        end
+        return best
+    end
+
+    method integer GetDirection(integer team)
+        -- Returns the direction a team advances in: +1 for team 1 (rightwards), -1 for team 2.
+        if team == 1 then return 1 end
+        return -1
+    end
+
+    method number GetBaseX(integer team)
+        -- Returns the x position of a team's base.
+        if team == 1 then return self.AllyBaseX end
+        return self.EnemyBaseX
+    end
+
+    method number GetBackLimitX(integer team, number y)
+        -- Returns the x a team's unit standing on floor y is never pushed behind: its own portal on that floor, or its
+        -- own end of the field when the floor has none.
+        local portal = self:FindPortalOnFloor(team, self:GetBaseX(team), y, 100000)
+        if portal ~= nil then return portal.x end
+        if team == 1 then return self.FieldMinX end
+        return self.FieldMaxX
+    end
+
+    method boolean IsPastField(integer team, number x)
+        -- True when a unit of team walking forward has reached the far end of the field.
+        if team == 1 then return x >= self.FieldMaxX end
+        return x <= self.FieldMinX
+    end
+
+    -- ===== Battle flow =====
+
     @ExecSpace("ServerOnly")
     method void TryStartForArrivedPlayer(number delta)
         -- WAITING: prepares the battle when a player has entered this map, then starts it once that
@@ -127,6 +265,7 @@ script BattleDirector extends Component
             end
             return
         end
+        if self._T.bases[1] == nil or self._T.bases[2] == nil then return end
         local users = _UserService:GetUsersByMapComponent(self.Entity.MapComponent)
         if users == nil then return end
         for _, user in ipairs(users) do
@@ -137,7 +276,8 @@ script BattleDirector extends Component
                 if data == nil or data.Loaded == false then return end
                 local userId = user.PlayerComponent.UserId
                 local stageId = _MatchService:GetEntryStage(userId)
-                if stageId == "" then stageId = "stage1" end
+                -- A test play started on this map has no entry: it plays the first stage of the table.
+                if stageId == "" then stageId = _BattleConfig:GetStageIds()[1] or "" end
                 self:Prepare(userId, stageId)
                 return
             end
@@ -146,7 +286,7 @@ script BattleDirector extends Component
 
     @ExecSpace("ServerOnly")
     method void Prepare(string userId, string stageId)
-        -- Publishes what the client needs to load this battle (stage, ground height, tower positions) and starts waiting for its ready signal.
+        -- Publishes what the client needs to load this battle (stage, ground height, field positions) and starts waiting for its ready signal.
         self.PlayerUserId = userId
         self.StageId = stageId
         local stage = _BattleConfig:GetStage(stageId)
@@ -160,21 +300,25 @@ script BattleDirector extends Component
 
     @ExecSpace("ServerOnly")
     method void ReadFieldPositions()
-        -- Reads the tower positions and the spawn points from the map entities and publishes them to the clients.
+        -- Reads the base and portal positions from the map entities and publishes the field's extent to the clients.
         self.AllyBaseX = self._T.bases[1].Entity.TransformComponent.WorldPosition.x
         self.EnemyBaseX = self._T.bases[2].Entity.TransformComponent.WorldPosition.x
-        self.AllySpawnX = self:ReadSpawnX(self.AllyPortalName, self.AllyBaseX + _BattleConfig.SpawnOffsetX)
-        self.EnemySpawnX = self:ReadSpawnX(self.EnemyPortalName, self.EnemyBaseX - _BattleConfig.SpawnOffsetX)
-        log("[VRF] BattleDirector field allyBaseX=" .. string.format("%.2f", self.AllyBaseX) .. " enemyBaseX=" .. string.format("%.2f", self.EnemyBaseX) .. " allySpawnX=" .. string.format("%.2f", self.AllySpawnX) .. " enemySpawnX=" .. string.format("%.2f", self.EnemySpawnX))
-    end
-
-    @ExecSpace("ServerOnly")
-    method number ReadSpawnX(string portalName, number fallbackX)
-        -- Returns the x of the map's portal entity of that name, or fallbackX when the map has none.
-        local portal = self.Entity:GetChildByName(portalName, false)
-        if isvalid(portal) then return portal.TransformComponent.WorldPosition.x end
-        log_warning("[BattleDirector] no " .. portalName .. " on " .. self.Entity.Name .. ", spawning in front of the tower")
-        return fallbackX
+        local minX = math.min(self.AllyBaseX, self.EnemyBaseX)
+        local maxX = math.max(self.AllyBaseX, self.EnemyBaseX)
+        local counts = {}
+        for team = 1, 2 do
+            local portals = self:GetPortals(team)
+            counts[team] = #portals
+            for _, portal in ipairs(portals) do
+                minX = math.min(minX, portal.x)
+                maxX = math.max(maxX, portal.x)
+                log("[BattleDirector] portal team=" .. tostring(team) .. " #" .. tostring(portal.index) .. " " .. portal.name .. " x=" .. string.format("%.2f", portal.x) .. " y=" .. string.format("%.2f", portal.y) .. " floorY=" .. string.format("%.2f", portal.floorY))
+            end
+            if #portals == 0 then log_warning("[BattleDirector] team " .. tostring(team) .. " has no portal on " .. self.Entity.Name .. ", its units appear in front of its base") end
+        end
+        self.FieldMinX = minX - _BattleConfig.FieldEdgeMargin
+        self.FieldMaxX = maxX + _BattleConfig.FieldEdgeMargin
+        log("[BattleDirector] field allyBaseX=" .. string.format("%.2f", self.AllyBaseX) .. " enemyBaseX=" .. string.format("%.2f", self.EnemyBaseX) .. " x=" .. string.format("%.2f", self.FieldMinX) .. "~" .. string.format("%.2f", self.FieldMaxX) .. " portals=" .. tostring(counts[1]) .. "/" .. tostring(counts[2]))
     end
 
     @ExecSpace("ServerOnly")
@@ -194,6 +338,7 @@ script BattleDirector extends Component
             if unit.Kind ~= "base" and isvalid(unit.Entity) then self:ReleaseUnitEntity(unit.Entity) end
         end
         self._T.units = {}
+        self._T.portalHitAt = {}
         -- Leave ENDED before clearing the result so clients never see "ended with no winner".
         self.State = "WAITING"
         self.Elapsed = 0
@@ -217,11 +362,11 @@ script BattleDirector extends Component
         local baseCfgs = {}
         baseCfgs[1] = _BattleConfig:GetBaseAtLevel(playerBaseId, playerBaseLevel)
         local stage = _BattleConfig:GetStage(stageId)
-        local enemyBaseId = _BattleConfig.DefaultBaseId
+        local enemyBaseId = _BattleConfig.DefaultEnemyBaseId
         if stage ~= nil then enemyBaseId = stage.enemyBase end
         baseCfgs[2] = _BattleConfig:GetBaseAtLevel(enemyBaseId, 1)
         if stage ~= nil then
-            baseCfgs[2].maxHp = stage.baseHp
+            if baseCfgs[2] ~= nil then baseCfgs[2].maxHp = stage.baseHp end
             -- Each stage map has its own ground height (tile sets differ).
             self.GroundY = stage.groundY
         else
@@ -231,15 +376,26 @@ script BattleDirector extends Component
             log_error("[BattleDirector] no base definition (default base " .. _BattleConfig.DefaultBaseId .. ")")
             return
         end
+        if self._T.bases[1] == nil or self._T.bases[2] == nil then
+            log_error("[BattleDirector] this map has no AllyBase / EnemyBase, battle not started")
+            return
+        end
         for team = 1, 2 do
             local base = self._T.bases[team]
-            if base ~= nil then
-                base:Setup(team, baseCfgs[team].id, baseCfgs[team], self, 0)
-                table.insert(self._T.units, base)
-            end
+            -- Team 1 is the player: its base plays its row's clips. The stage AI's base keeps its map sprite.
+            base.UseRowClips = team == 1
+            base:Setup(team, baseCfgs[team].id, baseCfgs[team], self)
+            table.insert(self._T.units, base)
         end
-        log("[VRF] BattleDirector bases player=" .. baseCfgs[1].id .. " hp=" .. string.format("%.0f", baseCfgs[1].maxHp) .. " enemy=" .. baseCfgs[2].id .. " hp=" .. string.format("%.0f", baseCfgs[2].maxHp))
-        -- Tower and portal positions come from the map, so they can be moved in Maker without code changes.
+        -- A player's base is drawn with its own clip when its row has one (Papulatus): sized from the row and turned to
+        -- face the enemy. The stage AI's base keeps the sprite and size it was given in the map.
+        local playerCfg = baseCfgs[1]
+        if playerCfg.standRuid ~= nil and playerCfg.standRuid ~= "" then
+            local size = playerCfg.scale * _BattleConfig.UnitScale
+            self._T.bases[1].Entity.TransformComponent.Scale = Vector3(-self:GetDirection(1) * size, size, 1)
+        end
+        log("[BattleDirector] bases player=" .. baseCfgs[1].id .. " hp=" .. string.format("%.0f", baseCfgs[1].maxHp) .. " enemy=" .. baseCfgs[2].id .. " hp=" .. string.format("%.0f", baseCfgs[2].maxHp))
+        -- Base and portal positions come from the map, so they can be moved in Maker without code changes.
         self:ReadFieldPositions()
 
         -- The player's side plays the deck and unit levels from their saved data.
@@ -284,102 +440,93 @@ script BattleDirector extends Component
         self.Elapsed = self.Elapsed + delta
         for _, side in pairs(self._T.sides) do
             side:Tick(delta)
-            self:TickBaseSkill(side)
+            self:TickBaseSkills(side)
+        end
+    end
+
+    -- ===== Base skills (up to three per base) =====
+
+    @ExecSpace("ServerOnly")
+    method void TickBaseSkills(any side)
+        -- Fires a side's base skills by themselves when they are automatic: a passive skill, or any skill of the stage
+        -- AI's side. A player's active skill waits for UseBaseSkill. Nothing is cast while no enemy is on the field.
+        ---@type BattleSide
+        local s = side
+        for index, skill in ipairs(s:GetBaseSkills()) do
+            if s:IsBaseSkillReady(index) and (skill.type == "passive" or s.FreePlay) then
+                local target = self:FindNearestEnemy(s.Team)
+                if target == nil then return end
+                local pos = target.Entity.TransformComponent.WorldPosition
+                self:CastBaseSkill(s, index, pos.x, pos.y)
+            end
         end
     end
 
     @ExecSpace("ServerOnly")
-    method void TickBaseSkill(any side)
-        -- Fires a side's base skill by itself when it is automatic: a passive skill, or any skill of the stage AI's side.
-        -- A player's active skill waits for UseBaseSkill. Nothing is cast while no enemy is on the field.
-        ---@type BattleSide
-        local s = side
-        if s.BaseSkillId == "" or s:IsBaseSkillReady() == false then return end
-        if s.BaseSkillType ~= "passive" and s.FreePlay == false then return end
-        local targetX = self:FindNearestEnemyX(s.Team)
-        if targetX == nil then return end
-        self:CastBaseSkill(s, targetX)
-    end
-
-    @ExecSpace("ServerOnly")
-    method any FindNearestEnemyX(integer team)
-        -- Returns the x of the living enemy monster / build closest to this team's base, or nil when there is none.
+    method any FindNearestEnemy(integer team)
+        -- Returns the living enemy monster / build closest to this team's base (any floor), or nil when there is none.
         local baseX = self:GetBaseX(team)
-        local bestX = nil
+        local best = nil
         local bestDist = nil
         for _, unit in ipairs(self._T.units) do
             if unit.Team ~= team and unit.Kind ~= "base" and unit.IsDead == false and isvalid(unit.Entity) then
-                local x = unit.Entity.TransformComponent.WorldPosition.x
-                local dist = math.abs(x - baseX)
+                local dist = math.abs(unit.Entity.TransformComponent.WorldPosition.x - baseX)
                 if bestDist == nil or dist < bestDist then
                     bestDist = dist
-                    bestX = x
+                    best = unit
                 end
             end
         end
-        return bestX
+        return best
     end
 
     @ExecSpace("ServerOnly")
-    method boolean UseBaseSkill(integer team, number targetX)
-        -- Player path: uses the side's active base skill at targetX when its cooldown is over (no mana cost).
+    method boolean UseBaseSkill(integer team, integer index, number targetX, number targetY)
+        -- Player path: uses the side's active base skill in a slot at the target when its cooldown is over (no mana cost).
         if self.State ~= "PLAYING" then return false end
         ---@type BattleSide
         local side = self._T.sides[team]
-        if side == nil or side.BaseSkillId == "" or side.BaseSkillType ~= "active" then return false end
-        if side:IsBaseSkillReady() == false then
-            log("[BattleDirector] team " .. tostring(team) .. " base skill not ready")
+        if side == nil then return false end
+        local skill = side:GetBaseSkills()[index]
+        if skill == nil or skill.type ~= "active" then return false end
+        if side:IsBaseSkillReady(index) == false then
+            log("[BattleDirector] team " .. tostring(team) .. " base skill " .. tostring(index) .. " not ready")
             return false
         end
-        self:CastBaseSkill(side, targetX)
+        return self:CastBaseSkill(side, index, targetX, targetY)
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean CastBaseSkill(any side, integer index, number targetX, number targetY)
+        -- Runs a base skill exactly like a skill card played for free: the skill's own code, plus the effect on every
+        -- client. Then that skill's cooldown starts. Returns true when it was cast.
+        ---@type BattleSide
+        local s = side
+        local skill = s:GetBaseSkills()[index]
+        if skill == nil then return false end
+        local floorY = self:SnapFloorY(targetX, targetY)
+        if self:PlayUnit(s.Team, skill.id, targetX, floorY, 1, 0) == false then return false end
+        s:StartBaseSkillCooldown(index)
+        self:NotifySkillCast(skill.id, targetX, floorY)
+        log("[BattleDirector] base skill team=" .. tostring(s.Team) .. " slot=" .. tostring(index) .. " " .. skill.id .. " x=" .. string.format("%.1f", targetX) .. " floorY=" .. string.format("%.2f", floorY))
         return true
     end
 
-    @ExecSpace("ServerOnly")
-    method void CastBaseSkill(any side, number targetX)
-        -- Runs the base's skill exactly like a skill card played for free: the skill unit's area damage, plus the effect
-        -- on every client. Then the base skill's cooldown starts.
-        ---@type BattleSide
-        local s = side
-        if self:PlayUnit(s.Team, s.BaseSkillId, targetX, 1) == false then return end
-        s:StartBaseSkillCooldown()
-        self:NotifySkillCast(s.BaseSkillId, targetX)
-        log("[VRF] BattleDirector base skill team=" .. tostring(s.Team) .. " " .. s.BaseSkillId .. " x=" .. string.format("%.1f", targetX))
-    end
-
     @ExecSpace("Multicast")
-    method void NotifySkillCast(string unitId, number targetX)
-        -- Clients: show a skill's effect at targetX (base skills have no hand card to trigger it).
+    method void NotifySkillCast(string unitId, number targetX, number floorY)
+        -- Clients: show a skill's effect at the target (base skills have no hand card to trigger it).
         local cfg = _BattleConfig:GetUnit(unitId)
         if cfg == nil then return end
-        _FieldFx:PlaySkillEffect(cfg, targetX)
+        _FieldFx:PlaySkillEffect(cfg, targetX, floorY)
     end
 
-    @ExecSpace("ServerOnly")
-    method number GetSpawnX(integer team)
-        -- Returns the x where a team's units appear (its portal).
-        if team == 1 then return self.AllySpawnX end
-        return self.EnemySpawnX
-    end
+    -- ===== Cards =====
 
     @ExecSpace("ServerOnly")
-    method number GetBaseX(integer team)
-        -- Returns the x position of a team's base tower.
-        if team == 1 then return self.AllyBaseX end
-        return self.EnemyBaseX
-    end
-
-    @ExecSpace("ServerOnly")
-    method integer GetDirection(integer team)
-        -- Returns the direction a team advances in: +1 for team 1 (rightwards), -1 for team 2.
-        if team == 1 then return 1 end
-        return -1
-    end
-
-    @ExecSpace("ServerOnly")
-    method boolean UseCard(integer team, integer handIndex, string unitId, number targetX)
+    method boolean UseCard(integer team, integer handIndex, string unitId, number targetX, number targetY, integer portalIndex)
         -- Player path: plays the card in a hand slot. unitId is the card the client saw there; a mismatch (the hand
         -- changed in between) is rejected so a quick double tap never plays the card that replaced it.
+        -- A monster comes out of the side's portal portalIndex; a build / skill goes to (targetX, targetY).
         -- Validates the cost, plays the card, then cycles it to the back of the queue. Returns true when played.
         if self.State ~= "PLAYING" then return false end
         ---@type BattleSide
@@ -397,33 +544,47 @@ script BattleDirector extends Component
             log("[BattleDirector] team " .. tostring(team) .. " card " .. unitId .. " rejected: " .. reason)
             return false
         end
-        if self:PlayUnit(team, unitId, targetX, side:GetUnitLevel(unitId)) == false then return false end
+        if self:PlayUnit(team, unitId, targetX, targetY, side:GetUnitLevel(unitId), portalIndex) == false then return false end
         side:PayCard(cfg)
         side:CycleCard(handIndex)
-        log("[BattleDirector] team " .. tostring(team) .. " card used slot=" .. tostring(handIndex) .. " " .. unitId .. " cost=" .. string.format("%.0f", side.Cost))
+        log("[BattleDirector] team " .. tostring(team) .. " card used slot=" .. tostring(handIndex) .. " " .. unitId .. " portal=" .. tostring(portalIndex) .. " cost=" .. string.format("%.0f", side.Cost))
         return true
     end
 
     @ExecSpace("ServerOnly")
-    method boolean PlayUnit(integer team, string unitId, number targetX, integer level)
+    method table GetSpawnPoint(integer team, integer portalIndex)
+        -- Returns where a team's monster appears: { x, floorY } of its portal portalIndex (0 or out of range = a random
+        -- one). A map without portals for that team spawns in front of its base on the fallback ground height.
+        local portals = self:GetPortals(team)
+        if #portals == 0 then
+            return { x = self:GetBaseX(team) + self:GetDirection(team) * _BattleConfig.SpawnOffsetX, floorY = self.GroundY }
+        end
+        local index = portalIndex
+        if index < 1 or index > #portals then index = _UtilLogic:RandomIntegerRange(1, #portals) end
+        return portals[index]
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean PlayUnit(integer team, string unitId, number targetX, number targetY, integer level, integer portalIndex)
         -- Executes a card for a team at the given unit level, without cost checks
-        -- (UseCard validates first; the stage AI calls this directly).
+        -- (UseCard validates first; the stage AI and base skills call this directly).
         if self.State ~= "PLAYING" then return false end
         local cfg = _BattleConfig:GetUnitAtLevel(unitId, level)
         if cfg == nil then
             log_error("[BattleDirector] unknown unit " .. unitId)
             return false
         end
-        local dir = self:GetDirection(team)
-        local spawnX = self:GetSpawnX(team)
         if cfg.kind == "monster" then
             -- One card can bring several copies (SpawnCount): the first at once, the rest MultiSpawnInterval apart,
-            -- each at the card's level.
-            if self:SpawnUnit(team, unitId, spawnX, cfg) == false then return false end
+            -- each at the card's level and out of the same portal.
+            local point = self:GetSpawnPoint(team, portalIndex)
+            local spawnX = point.x
+            local floorY = point.floorY
+            if self:SpawnUnit(team, unitId, spawnX, floorY, cfg) == false then return false end
             for n = 2, cfg.spawnCount do
                 _TimerService:SetTimerOnce(function()
                     if isvalid(self.Entity) and self.State == "PLAYING" then
-                        self:SpawnUnit(team, unitId, spawnX, _BattleConfig:GetUnitAtLevel(unitId, level))
+                        self:SpawnUnit(team, unitId, spawnX, floorY, _BattleConfig:GetUnitAtLevel(unitId, level))
                     end
                 end, _BattleConfig.MultiSpawnInterval * (n - 1))
             end
@@ -432,29 +593,53 @@ script BattleDirector extends Component
             end
             return true
         elseif cfg.kind == "build" then
-            -- Builds go on the team's own half: between its spawn point and the middle of the field.
-            local middle = (self.AllyBaseX + self.EnemyBaseX) * 0.5
-            local x = math.max(math.min(spawnX, middle), math.min(math.max(spawnX, middle), targetX))
-            return self:SpawnUnit(team, unitId, x, cfg)
+            -- Builds go anywhere on the field: on the floor under the chosen point. A point with no floor under it is refused.
+            local x = math.max(self.FieldMinX, math.min(self.FieldMaxX, targetX))
+            local floorY = self:FindFloorY(x, targetY)
+            if floorY == nil then
+                log("[BattleDirector] build " .. unitId .. " refused: no floor under x=" .. string.format("%.2f", x) .. " y=" .. string.format("%.2f", targetY))
+                return false
+            end
+            return self:SpawnUnit(team, unitId, x, floorY, cfg)
         elseif cfg.kind == "skill" then
             -- The effect starts on the clients right away; _BattleSkills runs what the skill does (its code entry),
-            -- starting SkillHitDelay seconds later, at the moment the effect visually hits.
-            _BattleSkills:Cast(self, team, cfg, targetX)
+            -- starting SkillHitDelay seconds later, at the moment the effect visually hits. It reaches the floor under the target.
+            _BattleSkills:Cast(self, team, cfg, targetX, self:SnapFloorY(targetX, targetY))
             return true
         end
         return false
     end
 
     @ExecSpace("ServerOnly")
-    method boolean SpawnUnit(integer team, string unitId, number spawnX, table cfg)
-        -- Spawns a monster or build at spawnX with the given (level-scaled) definition and registers it. Returns false on failure.
-        local goalBase = self._T.bases[3 - team]
-        local goalX = spawnX
-        if goalBase ~= nil then goalX = goalBase.Entity.TransformComponent.WorldPosition.x end
+    method boolean PlayUnitAuto(integer team, string unitId, integer level)
+        -- Stage AI path: plays a card where an AI would. A monster comes out of a random portal of the team, a build goes
+        -- in front of a random portal, a skill lands on the enemy closest to the team's base (not cast when there is none).
+        local cfg = _BattleConfig:GetUnit(unitId)
+        if cfg == nil then
+            log_error("[BattleDirector] unknown unit " .. tostring(unitId))
+            return false
+        end
+        if cfg.kind == "build" then
+            local point = self:GetSpawnPoint(team, 0)
+            return self:PlayUnit(team, unitId, point.x + self:GetDirection(team) * _BattleConfig.BuildAutoOffset, point.floorY, level, 0)
+        elseif cfg.kind == "skill" then
+            local target = self:FindNearestEnemy(team)
+            if target == nil then return false end
+            local pos = target.Entity.TransformComponent.WorldPosition
+            if self:PlayUnit(team, unitId, pos.x, pos.y, level, 0) == false then return false end
+            self:NotifySkillCast(unitId, pos.x, self:SnapFloorY(pos.x, pos.y))
+            return true
+        end
+        return self:PlayUnit(team, unitId, 0, 0, level, 0)
+    end
 
+    @ExecSpace("ServerOnly")
+    method boolean SpawnUnit(integer team, string unitId, number spawnX, number floorY, table cfg)
+        -- Spawns a monster or build standing on floorY at spawnX with the given (level-scaled) definition and registers it.
+        -- Returns false on failure.
         self._T.seq = self._T.seq + 1
         local name = unitId .. "_" .. tostring(self._T.seq)
-        local pos = Vector3(spawnX, self.GroundY + _BattleConfig.SpawnYOffset, 0)
+        local pos = Vector3(spawnX, floorY + _BattleConfig.SpawnYOffset, 0)
         -- From the pool when the map has one (a parked entity is reused, or the pool spawns a new one); else a direct spawn.
         local entity = nil
         ---@type EntityPool
@@ -474,57 +659,89 @@ script BattleDirector extends Component
             log_error("[BattleDirector] model has no BattleUnit: " .. self.UnitModelId)
             return false
         end
-        unit:Setup(team, unitId, cfg, self, goalX)
+        unit:Setup(team, unitId, cfg, self)
         table.insert(self._T.units, unit)
-        log("[BattleDirector] spawned " .. name .. " team=" .. tostring(team) .. " x=" .. string.format("%.1f", spawnX) .. " units=" .. tostring(#self._T.units))
+        log("[BattleDirector] spawned " .. name .. " team=" .. tostring(team) .. " x=" .. string.format("%.2f", spawnX) .. " floorY=" .. string.format("%.2f", floorY) .. " units=" .. tostring(#self._T.units))
         return true
     end
 
-    @ExecSpace("ServerOnly")
-    method void CastAreaDamage(integer targetTeam, number centerX, number radius, number damage)
-        -- Damages every living monster/build of targetTeam within radius of centerX (bases are immune).
-        local hits = {}
-        for _, unit in ipairs(self._T.units) do
-            if unit.Team == targetTeam and unit.Kind ~= "base" and unit.IsDead == false and isvalid(unit.Entity) then
-                if math.abs(unit.Entity.TransformComponent.WorldPosition.x - centerX) <= radius then
-                    table.insert(hits, unit)
-                end
-            end
-        end
-        for _, unit in ipairs(hits) do unit:TakeDamage(damage) end
-        log("[BattleDirector] area damage x=" .. string.format("%.1f", centerX) .. " hits=" .. tostring(#hits))
-    end
+    -- ===== Targets =====
 
     @ExecSpace("ServerOnly")
-    method BattleUnit FindTarget(integer team, number x, number range)
-        -- Returns the nearest living target (monster / build / base) of the opposing team within range, or nil.
+    method any FindTarget(integer team, number x, number y, number range)
+        -- Returns what a unit of team standing at (x, y) can attack within range: the nearest living enemy monster /
+        -- build on its floor, or the enemy base when an enemy portal on its floor is within range (the base is attacked
+        -- through its portals; the portal itself is never a target). nil when there is nothing.
         local best = nil
         local bestDist = range
         for _, unit in ipairs(self._T.units) do
-            if unit.Team ~= team and unit.IsDead == false and isvalid(unit.Entity) then
-                local dist = math.abs(unit.Entity.TransformComponent.WorldPosition.x - x)
-                if dist <= bestDist then
-                    best = unit
-                    bestDist = dist
+            if unit.Team ~= team and unit.Kind ~= "base" and unit.IsDead == false and isvalid(unit.Entity) then
+                local pos = unit.Entity.TransformComponent.WorldPosition
+                if self:SameFloor(pos.y, y) then
+                    local dist = math.abs(pos.x - x)
+                    if dist <= bestDist then
+                        best = unit
+                        bestDist = dist
+                    end
                 end
             end
+        end
+        local base = self._T.bases[3 - team]
+        if base ~= nil and base.IsDead == false and base.Ready then
+            local portal = self:FindPortalOnFloor(3 - team, x, y, range)
+            if portal ~= nil and math.abs(portal.x - x) < bestDist then best = base end
+            if portal ~= nil and best == nil then best = base end
         end
         return best
     end
 
     @ExecSpace("ServerOnly")
-    method table FindTargetsInRange(integer team, number x, number range)
-        -- Returns every living target (monster / build / base) of the opposing team within range of x,
-        -- for area attacks. Same distance rule as FindTarget.
+    method table FindTargetsInRange(integer team, number x, number y, number range)
+        -- Returns every living target of the opposing team within range of (x, y) on that floor, for area attacks:
+        -- monsters and builds, plus the enemy base when one of its portals on that floor is in range.
         local targets = {}
         for _, unit in ipairs(self._T.units) do
-            if unit.Team ~= team and unit.IsDead == false and isvalid(unit.Entity) then
-                if math.abs(unit.Entity.TransformComponent.WorldPosition.x - x) <= range then
-                    table.insert(targets, unit)
-                end
+            if unit.Team ~= team and unit.Kind ~= "base" and unit.IsDead == false and isvalid(unit.Entity) then
+                local pos = unit.Entity.TransformComponent.WorldPosition
+                if self:SameFloor(pos.y, y) and math.abs(pos.x - x) <= range then table.insert(targets, unit) end
             end
         end
+        local base = self._T.bases[3 - team]
+        if base ~= nil and base.IsDead == false and base.Ready and self:FindPortalOnFloor(3 - team, x, y, range) ~= nil then
+            table.insert(targets, base)
+        end
         return targets
+    end
+
+    @ExecSpace("ServerOnly")
+    method Vector2 GetAimPoint(integer team, any target, number x, number y)
+        -- Returns the point a unit of team at (x, y) aims at to hit target: the target's own position, or for the enemy
+        -- base the enemy portal on the attacker's floor (its x and floor height) that the attack goes through.
+        if target.Kind == "base" then
+            local portal = self:FindPortalOnFloor(target.Team, x, y, 100000)
+            if portal ~= nil then return Vector2(portal.x, portal.floorY) end
+        end
+        local pos = target.Entity.TransformComponent.WorldPosition
+        return Vector2(pos.x, pos.y)
+    end
+
+    @ExecSpace("ServerOnly")
+    method void ShowPortalHit(integer baseTeam, number x, number y)
+        -- A base was just damaged through its portal near (x, y): clients fly a particle from that portal to the base.
+        -- One portal announces at most one hit per BattleConfig.PortalHitInterval seconds.
+        local portal = self:FindPortalOnFloor(baseTeam, x, y, 100000)
+        if portal == nil then return end
+        local key = tostring(baseTeam) .. ":" .. tostring(portal.index)
+        local last = self._T.portalHitAt[key]
+        if last ~= nil and self.Elapsed - last < _BattleConfig.PortalHitInterval then return end
+        self._T.portalHitAt[key] = self.Elapsed
+        self:NotifyPortalHit(baseTeam, portal.index)
+    end
+
+    @ExecSpace("Multicast")
+    method void NotifyPortalHit(integer baseTeam, integer portalIndex)
+        -- Clients: an attack on baseTeam's base went through its portal portalIndex (presentation only).
+        _BattleFx:OnPortalHit(self, baseTeam, portalIndex)
     end
 
     @ExecSpace("ServerOnly")
@@ -573,4 +790,3 @@ script BattleDirector extends Component
     end
 
 end
--- build cache bump

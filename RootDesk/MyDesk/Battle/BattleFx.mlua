@@ -26,9 +26,27 @@ script BattleFx extends Logic
     property string UnitMaterial = "UnitDefault"
     property number UnitSoundVolume = 0.5
     -- Effect icons above a unit's head: small pixel glyphs (one per effect type) drawn with the HP bar model.
-    property number IconSize = 0.22
+    property number IconSize = 0.26
     property number IconGap = 0.04
-    property number IconPixels = 8
+    property number IconPixels = 12
+    -- Unpainted icon pixels are IconBackColor (white); the outermost ring of unpainted pixels is IconBorderColor (black).
+    -- Painted pixels always keep their own color, so an icon can draw over the ring or the background.
+    property Color IconBackColor = Color(1, 1, 1, 1)
+    property Color IconBorderColor = Color(0, 0, 0, 1)
+    -- Client-local particle entity (BasicParticleComponent); its particle type and color are set when it is spawned.
+    property string ParticleModelId = "battleparticle"
+    -- A build that is still preparing (BattleUnit.BuildReadyAt): the ChargeOrb particle plays on it and a progress bar
+    -- above it fills up until it is done. BuildOrbY = orb height above the build's feet (authored units x UnitScale).
+    property Color BuildOrbColor = Color(0.25, 0.5, 0.5, 1)
+    property number BuildOrbY = 0.6
+    property number BuildOrbScale = 1
+    property Color BuildBarColor = Color(1, 0.8, 0.2, 1)
+    -- A hit on a base through one of its portals: a particle flies from that portal to the base and vanishes there
+    -- (BattleDirector.NotifyPortalHit). PortalHitAimY = height above the base's position it flies to.
+    property Color PortalHitColor = Color(0.25, 0.47, 0.5, 1)
+    property number PortalHitScale = 0.64
+    property number PortalHitAimY = 0.8
+    property integer PortalHitMax = 16
 
     @ExecSpace("ClientOnly")
     method void RegisterUnit(BattleUnit unit)
@@ -206,8 +224,9 @@ script BattleFx extends Logic
 
     @ExecSpace("ClientOnly")
     method void RemoveBar(table rec, string reason)
-        -- Destroys a unit's HP bar entity.
+        -- Destroys a unit's HP bar entity (and its effect icons and build-in-progress visuals).
         self:RemoveIcons(rec)
+        self:RemoveBuild(rec)
         local bar = rec.bar
         if bar == nil then return end
         if rec.hpLabel ~= nil then
@@ -223,8 +242,58 @@ script BattleFx extends Logic
     end
 
     @ExecSpace("ClientOnly")
+    method table ParsePixelIcon(string text)
+        -- Parses an EffectTable PixelIcon cell: "RRGGBB RRGGBB;row/row/..." (IconPixels rows of IconPixels characters; "." is transparent,
+        -- "0"-"f" pick a color of the list, 0 = first). Returns { colors = { Color }, rows = { string } }, nil when malformed.
+        -- The cell is written by the operations tool (tools/unit-editor); keep both parsers in step.
+        local sep = string.find(text, ";", 1, true)
+        if sep == nil then return nil end
+        local colors = {}
+        for hex in string.gmatch(string.sub(text, 1, sep - 1), "%x%x%x%x%x%x") do
+            local r = tonumber(string.sub(hex, 1, 2), 16)
+            local g = tonumber(string.sub(hex, 3, 4), 16)
+            local b = tonumber(string.sub(hex, 5, 6), 16)
+            table.insert(colors, Color(r / 255, g / 255, b / 255, 1))
+        end
+        local rows = {}
+        for row in string.gmatch(string.sub(text, sep + 1), "[^/]+") do
+            if string.len(row) ~= self.IconPixels then return nil end
+            table.insert(rows, row)
+        end
+        if #rows ~= self.IconPixels then return nil end
+        return { colors = colors, rows = rows }
+    end
+
+    @ExecSpace("ClientOnly")
     method table GetIconGlyph(string kind)
-        -- Returns the 8x8 glyph of an effect id: { color, rows } where "#" is a lit pixel. nil = no icon.
+        -- Returns the icon of an effect id: { rows, colors } (per-pixel colors, from EffectTable.PixelIcon) or
+        -- { rows, color } where "#" is a lit pixel (built-in glyph). The table cell wins; nil = no icon.
+        local cache = self._T.dataGlyphs
+        if cache == nil then
+            cache = {}
+            self._T.dataGlyphs = cache
+        end
+        local entry = cache[kind]
+        if entry == nil then
+            entry = {}
+            local effect = _BattleConfig:GetEffect(kind)
+            if effect ~= nil and effect.pixelIcon ~= nil and effect.pixelIcon ~= "" then
+                local parsed = self:ParsePixelIcon(effect.pixelIcon)
+                if parsed ~= nil then
+                    entry.glyph = parsed
+                else
+                    log_error("[BattleFx] EffectTable.PixelIcon of " .. kind .. " is malformed; using the built-in icon")
+                end
+            end
+            cache[kind] = entry
+        end
+        if entry.glyph ~= nil then return entry.glyph end
+        return self:GetBuiltInGlyph(kind)
+    end
+
+    @ExecSpace("ClientOnly")
+    method table GetBuiltInGlyph(string kind)
+        -- Fallback icons for effects whose PixelIcon cell is blank: { color, rows } where "#" is a lit pixel.
         local glyphs = self._T.glyphs
         if glyphs == nil then
             glyphs = {
@@ -311,19 +380,33 @@ script BattleFx extends Logic
             return
         end
         local n = self.IconPixels
-        pixel:ResetWithColor(n, n, Color(0, 0, 0, 0.75))
+        pixel:ResetWithColor(n, n, self.IconBackColor)
         pixel.SortingLayer = "MapLayer0"
         pixel.OrderInLayer = 11
         -- Allies face right, so their "back" is to the left; enemies are mirrored.
         local mirror = rec.unit.Team ~= 1
+        -- A glyph smaller than the icon (the 8x8 built-in ones) is centered; its own width is mirrored.
+        local g = #glyph.rows
+        local off = math.floor((n - g) / 2)
         local pixels = {}
         for y = 1, n do
-            local row = glyph.rows[y] or ""
+            local row = glyph.rows[y - off] or ""
             for x = 1, n do
-                local sx = x
-                if mirror then sx = n + 1 - x end
-                local lit = string.sub(row, sx, sx) == "#"
-                pixels[(y - 1) * n + x] = lit and glyph.color or Color(0, 0, 0, 0.75)
+                local sx = x - off
+                if mirror then sx = g + 1 - sx end
+                local ch = ""
+                if sx >= 1 and sx <= g then ch = string.sub(row, sx, sx) end
+                local color = nil
+                if glyph.colors ~= nil then
+                    if ch ~= "." and ch ~= "" then color = glyph.colors[(tonumber(ch, 16) or 0) + 1] end
+                elseif ch == "#" then
+                    color = glyph.color
+                end
+                if color == nil then
+                    local onRing = x == 1 or x == n or y == 1 or y == n
+                    if onRing then color = self.IconBorderColor else color = self.IconBackColor end
+                end
+                pixels[(y - 1) * n + x] = color
             end
         end
         pixel:SetPixels(pixels)
@@ -423,9 +506,11 @@ script BattleFx extends Logic
     end
 
     @ExecSpace("ClientOnly")
-    method void OnAttackFired(BattleUnit attacker, Entity target, number travelTime)
+    method void OnAttackFired(BattleUnit attacker, Entity target, number travelTime, number aimX, number aimY, boolean throughPortal)
         -- An attack started: plays the attacker's attack effect and attack sound, and for a unit with a
         -- projectile spawns a client-local projectile that flies to the target during the hit delay.
+        -- throughPortal = the enemy base is attacked through its portal standing at (aimX, aimY): the projectile
+        -- flies to that portal instead of to the base itself.
         local cfg = _BattleConfig:GetUnit(attacker.UnitId)
         if cfg == nil then return end
         local source = attacker.Entity
@@ -455,10 +540,15 @@ script BattleFx extends Logic
         self._T.seq = seq
         local from = source.TransformComponent.WorldPosition
         local to = target.TransformComponent.WorldPosition
-        local startY = self:FootY(source) + (cfg.projectileY or self.ProjectileAimY) * _BattleConfig.UnitScale
-        -- Aim height relative to the target's own position: base towers stand off the lane ground, so their aim is
-        -- measured from the ground like any unit (the shot flies level instead of climbing to the tower's pivot).
-        local aimOffset = self:FootY(target) - to.y + self.ProjectileAimY * _BattleConfig.UnitScale
+        local follow = target
+        if throughPortal then
+            -- The portal does not move, so the shot flies to a fixed point.
+            to = Vector3(aimX, aimY, 0)
+            follow = nil
+        end
+        local startY = source.TransformComponent.WorldPosition.y + (cfg.projectileY or self.ProjectileAimY) * _BattleConfig.UnitScale
+        -- Aim height above the target's feet (or above the floor the portal stands on).
+        local aimOffset = self.ProjectileAimY * _BattleConfig.UnitScale
         local shot = _SpawnService:SpawnByModelId(self.ProjectileModelId, "Shot_" .. tostring(seq), Vector3(from.x, startY, 0), map)
         if not isvalid(shot) then
             log_error("[BattleFx] projectile spawn failed model=" .. self.ProjectileModelId)
@@ -483,11 +573,137 @@ script BattleFx extends Logic
             self._T.shots = shots
         end
         table.insert(shots, {
-            entity = shot, target = target, name = source.Name, logged = logged,
+            entity = shot, target = follow, name = source.Name, logged = logged,
             sx = from.x, sy = startY, tx = to.x, ty = to.y + aimOffset, aimOffset = aimOffset,
             elapsed = 0, duration = math.max(0.1, travelTime),
         })
-        if logged then log("[VRF] BattleFx projectile aim " .. target.Name .. " startY=" .. string.format("%.2f", startY) .. " aimY=" .. string.format("%.2f", to.y + aimOffset)) end
+        if logged then log("[BattleFx] projectile aim " .. target.Name .. " throughPortal=" .. tostring(throughPortal) .. " startY=" .. string.format("%.2f", startY) .. " aimY=" .. string.format("%.2f", to.y + aimOffset)) end
+    end
+
+    @ExecSpace("ClientOnly")
+    method Entity SpawnParticle(Entity map, string name, Vector3 pos, any particleType, Color color, number scale)
+        -- Creates a client-local looping particle entity of the given BasicParticleType on the map.
+        local entity = _SpawnService:SpawnByModelId(self.ParticleModelId, name, pos, map)
+        if not isvalid(entity) then
+            log_error("[BattleFx] particle spawn failed model=" .. self.ParticleModelId)
+            return nil
+        end
+        entity.TransformComponent.Scale = Vector3(scale, scale, 1)
+        local particle = entity.BasicParticleComponent
+        if isvalid(particle) then
+            particle.ParticleType = particleType
+            particle.Color = color
+            particle.Loop = true
+            particle.SortingLayer = "MapLayer0"
+            particle.OrderInLayer = 12
+            particle:Play()
+        end
+        return entity
+    end
+
+    @ExecSpace("ClientOnly")
+    method void UpdateBuild(table rec)
+        -- A build that is still preparing shows the ChargeOrb particle on it and a progress bar above it that fills
+        -- until BuildReadyAt; both are removed when the preparation ends (or the build is destroyed first).
+        ---@type BattleUnit
+        local unit = rec.unit
+        local now = _UtilLogic.ServerElapsedSeconds
+        local building = unit.BuildSeconds > 0 and unit.BuildReadyAt > now and unit.Hp > 0
+        if building == false then
+            if rec.build ~= nil then self:RemoveBuild(rec) end
+            return
+        end
+        local pos = rec.entity.TransformComponent.WorldPosition
+        local build = rec.build
+        if build == nil then
+            local map = rec.entity.CurrentMap
+            if not isvalid(map) then return end
+            local seq = (self._T.seq or 0) + 1
+            self._T.seq = seq
+            build = { filled = -1 }
+            rec.build = build
+            build.orb = self:SpawnParticle(map, "BuildOrb_" .. tostring(seq), Vector3(pos.x, pos.y, 0), BasicParticleType.ChargeOrb, self.BuildOrbColor, self.BuildOrbScale)
+            local bar = _SpawnService:SpawnByModelId(self.HpBarModelId, "BuildBar_" .. tostring(seq), Vector3(pos.x, pos.y, 0), map)
+            if isvalid(bar) and isvalid(bar.PixelRendererComponent) then
+                local width = self.BarCells + 2
+                local height = 4
+                bar.PixelRendererComponent:ResetWithColor(width, height, Color(0, 0, 0, 0.9))
+                bar.PixelRendererComponent.SortingLayer = "MapLayer0"
+                bar.PixelRendererComponent.OrderInLayer = 11
+                bar.TransformComponent.Scale = Vector3(self.DefaultBarWidth * _BattleConfig.UnitScale / (width * self.PixelUnit), self.BarHeight / (height * self.PixelUnit), 1)
+                build.bar = bar
+            end
+            log("[BattleFx] build started " .. rec.name .. " seconds=" .. tostring(unit.BuildSeconds))
+        end
+        local barY = rec.offsetY or self.DefaultBarY * _BattleConfig.UnitScale
+        if isvalid(build.orb) then build.orb.TransformComponent.WorldPosition = Vector3(pos.x, pos.y + self.BuildOrbY * _BattleConfig.UnitScale, 0) end
+        if isvalid(build.bar) then
+            build.bar.TransformComponent.WorldPosition = Vector3(pos.x, pos.y + barY, 0)
+            local ratio = math.max(0, math.min(1, 1 - (unit.BuildReadyAt - now) / unit.BuildSeconds))
+            local cells = self.BarCells
+            local filled = math.floor(ratio * cells)
+            if filled ~= build.filled then
+                build.filled = filled
+                local border = Color(0, 0, 0, 0.9)
+                local empty = Color(0.2, 0.2, 0.22, 0.9)
+                local width = cells + 2
+                local height = 4
+                local pixels = {}
+                for py = 1, height do
+                    for px = 1, width do
+                        local color = border
+                        if px > 1 and px < width and py > 1 and py < height then
+                            if px - 1 <= filled then color = self.BuildBarColor else color = empty end
+                        end
+                        pixels[(py - 1) * width + px] = color
+                    end
+                end
+                build.bar.PixelRendererComponent:SetPixels(pixels)
+            end
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void RemoveBuild(table rec)
+        -- Removes a build's preparation visuals (orb particle and progress bar).
+        local build = rec.build
+        if build == nil then return end
+        rec.build = nil
+        if isvalid(build.orb) then build.orb:Destroy() end
+        if isvalid(build.bar) then build.bar:Destroy() end
+        log("[BattleFx] build visuals removed " .. rec.name)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void OnPortalHit(BattleDirector director, integer baseTeam, integer portalIndex)
+        -- baseTeam's base was hit through its portal portalIndex: a particle appears at that portal, flies to the base
+        -- and vanishes when it gets there, so the player sees that hitting a portal hurts the base.
+        if director == nil or not isvalid(director.Entity) then return end
+        local map = director.Entity
+        local portal = director:GetPortals(baseTeam)[portalIndex]
+        local baseName = "AllyBase"
+        if baseTeam ~= 1 then baseName = "EnemyBase" end
+        local base = map:GetChildByName(baseName)
+        if portal == nil or not isvalid(base) then return end
+        local orbs = self._T.orbs
+        if orbs == nil then
+            orbs = {}
+            self._T.orbs = orbs
+        end
+        if #orbs >= self.PortalHitMax then return end
+        local seq = (self._T.seq or 0) + 1
+        self._T.seq = seq
+        local entity = self:SpawnParticle(map, "PortalHit_" .. tostring(seq), Vector3(portal.x, portal.y, 0), BasicParticleType.FlamethrowerToony, self.PortalHitColor, self.PortalHitScale)
+        if not isvalid(entity) then return end
+        local to = base.TransformComponent.WorldPosition
+        table.insert(orbs, {
+            entity = entity, base = base, sx = portal.x, sy = portal.y, tx = to.x, ty = to.y + self.PortalHitAimY,
+            elapsed = 0, duration = math.max(0.1, _BattleConfig.PortalHitSeconds),
+        })
+        if self._T.portalHitLogged ~= true then
+            self._T.portalHitLogged = true
+            log("[BattleFx] portal hit particle team=" .. tostring(baseTeam) .. " portal=" .. tostring(portalIndex) .. " -> " .. baseName)
+        end
     end
 
     @ExecSpace("ClientOnly")
@@ -555,6 +771,7 @@ script BattleFx extends Logic
                     end
                     if rec.ready ~= true then self:EnsureBar(rec) end
                     self:UpdateIcons(rec)
+                    self:UpdateBuild(rec)
                     if rec.bar ~= nil then
                         local pos = rec.entity.TransformComponent.WorldPosition
                         if pos.x ~= rec.px or pos.y ~= rec.py then
@@ -585,6 +802,22 @@ script BattleFx extends Logic
                     table.remove(shots, i)
                 else
                     shot.entity.TransformComponent.WorldPosition = Vector3(shot.sx + (shot.tx - shot.sx) * k, shot.sy + (shot.ty - shot.sy) * k, 0)
+                end
+            end
+        end
+
+        -- Portal-hit particles fly from their portal to the base and are removed on arrival.
+        local orbs = self._T.orbs
+        if orbs ~= nil then
+            for i = #orbs, 1, -1 do
+                local orb = orbs[i]
+                orb.elapsed = orb.elapsed + delta
+                local k = math.min(1, orb.elapsed / orb.duration)
+                if k >= 1 or not isvalid(orb.entity) or not isvalid(orb.base) then
+                    if isvalid(orb.entity) then orb.entity:Destroy() end
+                    table.remove(orbs, i)
+                else
+                    orb.entity.TransformComponent.WorldPosition = Vector3(orb.sx + (orb.tx - orb.sx) * k, orb.sy + (orb.ty - orb.sy) * k, 0)
                 end
             end
         end

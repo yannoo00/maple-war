@@ -78,6 +78,30 @@ cd tools/unit-editor/web && npm install && npm run build   # 처음 한 번, 화
 - `Guarantee` = 첫 장 보장 등급, `PriceMeso` = 상점 가격(0 = 판매 안 함), `Rarity` = 돌의 등급(테두리 색), `IconRuid` = 이 돌만 쓸 아이콘(빈칸 = `BattleConfig.SummonStoneIconRuid` 기본 아이콘).
 - 스테이지 보상(`StageTable.RewardChest`)이 쓰는 돌은 목록에 "보상" 배지가 붙는다. 지우면 그 보상 칸이 비워진다.
 
+## 썸네일 따로 지정하기
+
+모든 편집 항목에 `IconRuid`(썸네일, 선택)가 있다. **빈칸이면 기본값을 그대로 쓴다.**
+
+| 항목 | 빈칸일 때(기본값) | 지정하면 |
+|---|---|---|
+| 몬스터·설치물 | stand 클립의 썸네일 | 그 RUID(스프라이트)가 목록·카드·덱에 나옴 (게임 `BattleConfig.GetIconRuid`와 같은 규칙) |
+| 스킬 | 범위 이펙트의 썸네일 | 〃 |
+| 기지 | (기지는 원래 스프라이트 RUID를 직접 지정) | 〃 |
+| 소환의 돌 | 기본 소환의 돌 아이콘 | 이 돌만 다른 그림 |
+| 스테이지 | 그림 없음 | 이 툴의 스테이지 목록에 표시. **게임 화면에는 아직 쓰이지 않음** |
+| 효과 | 도트 아이콘(아래) | 이 툴의 효과 목록 썸네일. 전투 화면의 머리 위 아이콘은 도트 아이콘만 씀 |
+
+## 효과 도트 아이콘 (12×12)
+
+효과 편집 화면의 **도트 아이콘** 편집기에서 전투 화면(유닛 머리 위)에 뜨는 아이콘을 직접 찍는다. `EffectTable.PixelIcon` 열에 저장된다.
+
+- 칸 클릭·드래그로 찍고, 우클릭 또는 "지우개"로 지운다. 색은 팔레트(최대 16색)에서 고르고, "색 바꾸기"로 색을 바꾼다. ↑↓←→ 이동, 좌우 반전, 모두 지우기.
+- 미리보기: 실제 크기(12px), 아군(3배), 적(좌우 반전, 3배). 적 유닛에게는 아이콘이 좌우 반전되어 나온다.
+- 게임 모양: 안 찍은 칸은 **흰 바탕**, 바깥 한 줄(안 찍은 칸만)은 **검정 테두리**다. 찍은 칸은 자기 색이 우선이라 테두리·바탕 위에도 그릴 수 있다. 색은 `BattleFx.IconBackColor` / `IconBorderColor`.
+- 형식: `"RRGGBB RRGGBB;줄/줄/…"` — 12줄 × 12글자, `.`은 투명, `0`~`f`는 색 번호. 아무것도 안 찍으면 빈칸 = 코드(`BattleFx.GetBuiltInGlyph`)의 기본 아이콘, 코드에도 없으면 아이콘 없음.
+- 게임이 읽는 곳: `BattleConfig.GetEffects`(`pixelIcon`) → `BattleFx.ParsePixelIcon` / `GetIconGlyph`. 파서 규칙을 바꾸면 `schema.cjs`의 `parsePixelIcon`, `web/src/pixelIcon.js`, `BattleFx.ParsePixelIcon` 세 곳을 같이 고친다.
+- 크기(12×12)는 `BattleFx.IconPixels`와 `schema.cjs`의 `PIXEL_ICON_SIZE`, `web/src/pixelIcon.js`의 `SIZE`가 같아야 한다.
+
 ## RUID 미리보기
 
 RUID 칸에 32자리 값을 넣으면 공개 리소스 API(`maplestoryworlds-resourcesearch-new.nexon.com`)에서 타입·이름·썸네일(GIF/PNG)을 가져와 칸 아래에 보여 준다. 목록의 작은 그림은 stand 클립(스킬은 범위 이펙트)이다. 인터넷이 없으면 미리보기만 비고 저장은 된다.

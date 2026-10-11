@@ -29,7 +29,7 @@ const GROUPS = [
   { id: 'card', label: '카드', kinds: KINDS },
   { id: 'combat', label: '전투 수치', kinds: ['monster', 'build', 'base'] },
   { id: 'timing', label: '공격 타이밍 (화면 보고 맞추는 값)', kinds: ['monster', 'build'] },
-  { id: 'clip', label: '애니메이션 RUID', kinds: ['monster', 'build'] },
+  { id: 'clip', label: '애니메이션 RUID', kinds: ['monster', 'build', 'base'] },
   { id: 'fx', label: '공격 연출 (클라이언트 전용)', kinds: ['monster', 'build', 'base'] },
   { id: 'monster', label: '속성 · 넉백 (몬스터 전용)', kinds: ['monster'] },
   { id: 'base', label: '기지 (마나 · 스킬 · 판매)', kinds: ['base'] },
@@ -51,8 +51,8 @@ const FIELDS = [
     help: '카드 테두리 색만 결정' },
 
   { key: 'Cost', group: 'card', type: 'number', label: '소환 마나', required: CARD_KINDS, kinds: CARD_KINDS },
-  { key: 'IconRuid', group: 'card', type: 'ruid', label: '카드 아이콘 (스킬·기지)', kinds: ['skill', 'base'],
-    help: '카드·덱에 보이는 그림. 스킬은 빈칸 = 범위 이펙트의 썸네일. 기지는 스프라이트 RUID(카드 목록·덱의 기지 칸에 나옴)' },
+  { key: 'IconRuid', group: 'card', type: 'ruid', label: '썸네일 / 카드 아이콘', kinds: KINDS,
+    help: '카드·덱·이 툴의 목록에 보이는 그림. 빈칸 = 기본값: 몬스터·설치물은 stand 클립의 썸네일, 스킬은 범위 이펙트의 썸네일. 기지는 스프라이트 RUID(필수에 가까움: 카드 목록·덱의 기지 칸에 나옴)' },
   { key: 'SpawnCount', group: 'card', type: 'int', label: '한 번에 소환하는 수', kinds: ['monster'],
     help: '빈칸 = 1마리. 2 이상이면 카드 한 장으로 여러 마리(군단): 첫 마리는 바로, 나머지는 0.25초 간격(전투 설정 MultiSpawnInterval). 마리당 능력치는 이 행의 값' },
   { key: 'Starter', group: 'card', type: 'bool', label: '스타터 지급', kinds: KINDS, default: '0',
@@ -73,22 +73,24 @@ const FIELDS = [
   { key: 'AttackInterval', group: 'combat', type: 'number', label: '공격 간격(초)', required: ['monster', 'build'], kinds: ['monster', 'build'] },
   { key: 'Speed', group: 'combat', type: 'number', label: '이동 속도', required: ['monster', 'build'], kinds: ['monster', 'build'],
     help: '설치물은 0. 실제 = 값 × SpeedScale(0.5)' },
-  { key: 'Scale', group: 'combat', type: 'number', label: '크기 배율', kinds: ['monster', 'build'], default: '1',
-    help: '실제 = 값 × UnitScale(0.65)' },
+  { key: 'Scale', group: 'combat', type: 'number', label: '크기 배율', kinds: ['monster', 'build', 'base'], default: '1',
+    help: '실제 = 값 × UnitScale(0.65). 기지는 StandRuid가 있을 때만 쓰임(없으면 맵에 놓인 크기 그대로)' },
+  { key: 'BuildSeconds', group: 'combat', type: 'number', label: '준비 시간(초)', kinds: ['build'],
+    help: '설치 후 이 시간 동안은 공격·특성이 꺼진 무방비 상태(피해는 받음). ChargeOrb 파티클과 진행 막대가 뜬다. 빈칸·0 = 즉시 완성' },
 
   { key: 'AttackPlayRate', group: 'timing', type: 'number', label: '공격 클립 재생 속도', kinds: ['monster', 'build'], default: '1',
     help: '공격 모션은 한 번 재생되고 끝나면 알아서 stand로 돌아감. 이 값은 그 모션의 빠르기' },
   { key: 'AttackHitDelay', group: 'timing', type: 'number', label: '타격 시점(초)', kinds: ['monster', 'build'], default: '0',
     help: '공격 시작부터 피해까지. 투사체 비행 시간도 이 값' },
 
-  { key: 'StandRuid', group: 'clip', type: 'ruid', label: 'stand', required: ['monster', 'build'], kinds: ['monster', 'build'],
+  { key: 'StandRuid', group: 'clip', type: 'ruid', label: 'stand', required: ['monster', 'build'], kinds: ['monster', 'build', 'base'],
     help: '비면 화면에 안 보임. 상점 아이콘 썸네일에도 사용' },
-  { key: 'MoveRuid', group: 'clip', type: 'ruid', label: 'move', required: ['monster'], kinds: ['monster', 'build'],
+  { key: 'MoveRuid', group: 'clip', type: 'ruid', label: 'move', required: ['monster'], kinds: ['monster', 'build', 'base'],
     help: '설치물은 비우면 stand와 같은 값으로 저장' },
-  { key: 'AttackRuid', group: 'clip', type: 'ruid', label: 'attack1', required: ['monster', 'build'], kinds: ['monster', 'build'] },
-  { key: 'DieRuid', group: 'clip', type: 'ruid', label: 'die1', required: ['monster', 'build'], kinds: ['monster', 'build'],
+  { key: 'AttackRuid', group: 'clip', type: 'ruid', label: 'attack1', required: ['monster', 'build'], kinds: ['monster', 'build', 'base'] },
+  { key: 'DieRuid', group: 'clip', type: 'ruid', label: 'die1', required: ['monster', 'build'], kinds: ['monster', 'build', 'base'],
     help: '사망 후 0.6초 재생 뒤 파괴' },
-  { key: 'HitRuid', group: 'clip', type: 'ruid', label: 'hit1 (피격)', kinds: ['monster'],
+  { key: 'HitRuid', group: 'clip', type: 'ruid', label: 'hit1 (피격)', kinds: ['monster', 'base'],
     help: '넉백·날려버리기 때 재생. 없으면 서 있는 모습으로 밀림' },
 
   { key: 'ProjectileRuid', group: 'fx', type: 'ruid', label: '투사체 (attack1/info/ball)', kinds: ['monster', 'build'],
@@ -150,6 +152,12 @@ const FIELDS = [
   { key: 'BaseSkillType', group: 'base', type: 'enum', enum: ENUMS.BaseSkillType, label: '스킬 종류', kinds: ['base'], default: 'active',
     help: '능동 = 플레이어가 HUD 버튼으로 조준해 씀(적 기지는 쿨타임이 끝나면 자동). 패시브 = 쿨타임이 끝날 때마다 자동으로 가장 가까운 적에게' },
   { key: 'BaseSkillCooldown', group: 'base', type: 'number', label: '스킬 쿨타임(초)', kinds: ['base'], help: '전투 시작부터 첫 사용까지도 이 시간' },
+  { key: 'BaseSkill2', group: 'base', type: 'text', label: '기지 스킬 2 (스킬 유닛 id)', kinds: ['base'], help: '2번째 기지 스킬. 빈칸 = 없음. HUD 스킬 칸 2' },
+  { key: 'BaseSkill2Type', group: 'base', type: 'enum', enum: ENUMS.BaseSkillType, label: '스킬 2 종류', kinds: ['base'] },
+  { key: 'BaseSkill2Cooldown', group: 'base', type: 'number', label: '스킬 2 쿨타임(초)', kinds: ['base'] },
+  { key: 'BaseSkill3', group: 'base', type: 'text', label: '기지 스킬 3 (스킬 유닛 id)', kinds: ['base'], help: '3번째 기지 스킬. 빈칸 = 없음. HUD 스킬 칸 3' },
+  { key: 'BaseSkill3Type', group: 'base', type: 'enum', enum: ENUMS.BaseSkillType, label: '스킬 3 종류', kinds: ['base'] },
+  { key: 'BaseSkill3Cooldown', group: 'base', type: 'number', label: '스킬 3 쿨타임(초)', kinds: ['base'] },
   { key: 'ProductId', group: 'base', type: 'text', label: '월드 상품 ID', kinds: ['base'], help: 'Worldcoin으로 파는 월드 상품의 ID. 빈칸 = 판매 안 함(카드에 "준비 중")' },
   { key: 'EnemyOnly', group: 'base', type: 'bool', label: '적 전용', kinds: ['base'], default: '0', help: '1 = 플레이어의 카드 목록에 나오지 않고 스테이지의 적 기지로만 쓰임' },
 
@@ -188,7 +196,9 @@ const EFFECT_FIELDS = [
   { key: 'Applies', type: 'enum', enum: EFFECT_APPLIES, label: '쓸 수 있는 대상', default: 'target',
     help: '적에게 거는 효과면 target, 자신의 특성이면 self, 둘 다 되면 both. 유닛의 규칙이 이 값과 맞지 않으면 저장이 막힘' },
   { key: 'Param', type: 'text', label: '글자 값', help: '숫자로 못 적는 값이 필요한 타입만. spawn: 소환할 유닛 ID(몬스터)' },
-  { key: 'IconRuid', type: 'ruid', label: '아이콘', help: '효과에 걸린 유닛 머리 위에 뜨는 그림. 빈칸 = 코드의 기본 픽셀 아이콘' },
+  { key: 'IconRuid', type: 'ruid', label: '썸네일 (이 툴의 목록용)', help: '이 툴의 효과 목록에 보이는 그림. 빈칸 = 아래 도트 아이콘(없으면 빈 칸). 전투 화면의 머리 위 아이콘에는 쓰이지 않음 — 그쪽은 도트 아이콘' },
+  { key: 'PixelIcon', type: 'pixelicon', label: '도트 아이콘 (전투 화면 · 유닛 머리 위)',
+    help: '효과에 걸린 유닛 머리 위에 뜨는 12×12 도트 그림. 아래 편집기에서 직접 찍는다. 안 찍은 칸은 흰 바탕, 바깥 한 줄은 검정 테두리로 나온다(찍으면 그 색이 우선). 빈칸 = 코드(BattleFx.GetIconGlyph)의 기본 도트 아이콘, 코드에도 없으면 아이콘 없음' },
   { key: '#Memo', type: 'memo', label: '효과 설명 (구현 스펙)',
     help: '코드는 읽지 않음. 미구현 타입이면 이 설명이 Claude에게 넘길 구현 스펙이 됨: 누구에게, 얼마 동안, 무엇이 일어나는지' },
 ];
@@ -212,6 +222,7 @@ const STAGE_FIELDS = [
   { key: 'RewardChest', type: 'chest', label: '클리어 보상 소환의 돌', help: '이 스테이지를 이기면 받는 소환의 돌(소환의 돌 모드의 돌). 빈칸 = 보상 없음' },
   { key: 'EntryCost', type: 'number', label: '입장 비용(입장권)', default: '0' },
   { key: 'UnlockStage', type: 'stage', label: '선행 스테이지', help: '이 스테이지를 클리어해야 열림. 비면 처음부터 열려 있음' },
+  { key: 'IconRuid', type: 'ruid', label: '썸네일 (선택)', help: '이 툴의 스테이지 목록에 보이는 그림(스프라이트 RUID). 빈칸 = 그림 없음. 전투·로비 화면에는 아직 쓰이지 않음' },
   { key: 'LoopStartInterval', type: 'number', label: '반복 시작 간격(초)', default: '6', help: '시간표가 끝난 뒤 반복 풀에서 처음 뽑는 간격' },
   { key: 'LoopMinInterval', type: 'number', label: '반복 최소 간격(초)', default: '3', help: '뽑을 때마다 0.3초씩 줄어들어 이 값까지' },
   { key: '#Memo', type: 'memo', label: '메모', help: '코드가 읽지 않음' },
@@ -222,6 +233,37 @@ const STAGE_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 const EFFECT_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
 const EFFECT_TYPE_PATTERN = /^[a-z][a-z0-9_]*$/;
+
+// ---------- 효과 도트 아이콘 (EffectTable.PixelIcon) ----------
+// 전투 화면에서 효과에 걸린 유닛 머리 위에 뜨는 12x12 도트 그림(BattleFx.IconPixels = 12, 화면에서 약 26px라 이보다 크게 찍으면
+// 점이 서브픽셀로 뭉개진다). 한 칸 = "색 목록;줄들":  "ff4d4d ffd166;0......0/.1....1./..." — 색은 RRGGBB 16진수를 공백으로 구분(최대 16개),
+// 줄은 "/"로 구분한 12줄 × 12글자, 글자 "."는 투명, "0"~"f"는 색 목록의 번호. 게임(BattleFx.ParsePixelIcon)도 같은 규칙으로 읽는다.
+const PIXEL_ICON_SIZE = 12;
+const PIXEL_ICON_MAX_COLORS = 16;
+
+function parsePixelIcon(text) {
+  // 반환: { ok: true, colors: ['ff4d4d', ...], rows: ['........', ...] } 또는 { ok: false, error }. 빈 문자열은 ok(빈 아이콘).
+  const s = text == null ? '' : String(text).trim();
+  if (s === '') return { ok: true, colors: [], rows: Array(PIXEL_ICON_SIZE).fill('.'.repeat(PIXEL_ICON_SIZE)), empty: true };
+  const parts = s.split(';');
+  if (parts.length !== 2) return { ok: false, error: '도트 아이콘 형식이 아닙니다 ("색 목록;줄/줄/..." 이어야 함)' };
+  const colors = parts[0].trim() === '' ? [] : parts[0].trim().split(/\s+/);
+  if (colors.length > PIXEL_ICON_MAX_COLORS) return { ok: false, error: `색은 최대 ${PIXEL_ICON_MAX_COLORS}개입니다 (현재 ${colors.length}개)` };
+  const badColor = colors.find((c) => !/^[0-9a-fA-F]{6}$/.test(c));
+  if (badColor) return { ok: false, error: `색 "${badColor}"가 RRGGBB 16진수가 아닙니다` };
+  const rows = parts[1].split('/');
+  if (rows.length !== PIXEL_ICON_SIZE) return { ok: false, error: `도트 아이콘은 ${PIXEL_ICON_SIZE}줄이어야 합니다 (현재 ${rows.length}줄)` };
+  for (const [i, row] of rows.entries()) {
+    if (row.length !== PIXEL_ICON_SIZE) return { ok: false, error: `${i + 1}번째 줄이 ${PIXEL_ICON_SIZE}글자가 아닙니다 (현재 ${row.length}글자)` };
+    for (const ch of row) {
+      if (ch === '.') continue;
+      const idx = parseInt(ch, 16);
+      if (!/^[0-9a-f]$/.test(ch)) return { ok: false, error: `${i + 1}번째 줄에 알 수 없는 글자 "${ch}"가 있습니다 (".", 0-9, a-f만)` };
+      if (idx >= colors.length) return { ok: false, error: `${i + 1}번째 줄이 없는 색 번호 "${ch}"를 씁니다 (색은 ${colors.length}개)` };
+    }
+  }
+  return { ok: true, colors: colors.map((c) => c.toLowerCase()), rows };
+}
 
 // The kinds this tool edits. Other kinds (base) are preserved in the CSV but never touched.
 function isEditableKind(kind) {
@@ -253,4 +295,7 @@ module.exports = {
   STAGE_FIELDS,
   STAGE_FIELD_BY_KEY,
   STAGE_ID_PATTERN,
+  PIXEL_ICON_SIZE,
+  PIXEL_ICON_MAX_COLORS,
+  parsePixelIcon,
 };

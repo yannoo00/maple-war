@@ -55,9 +55,10 @@ script BattleEffects extends Logic
         defs["warp"] = { group = "instant", onApply = function(unit, entry)
             local pos = unit.Entity.TransformComponent.WorldPosition
             local dir = unit:GetDirection()
-            local baseX = unit.Director:GetBaseX(unit.Team)
+            -- Never behind its own portal on this floor (or its own end of the field).
+            local backX = unit.Director:GetBackLimitX(unit.Team, pos.y)
             local newX = pos.x - dir * entry.power * _BattleConfig.RangeScale
-            if (newX - baseX) * dir < 0.3 then newX = baseX + dir * 0.3 end
+            if (newX - backX) * dir < 0.3 then newX = backX + dir * 0.3 end
             unit.Entity.MovementComponent:SetWorldPosition(Vector2(newX, pos.y))
             unit:StartKnockback(0, entry.duration, false)
         end }
@@ -111,7 +112,8 @@ script BattleEffects extends Logic
                 log_warning("[BattleEffects] spawn trait of " .. unit.UnitId .. " names " .. entry.param .. ", which is not a monster")
                 return
             end
-            director:SpawnUnit(unit.Team, entry.param, unit.Entity.TransformComponent.WorldPosition.x, cfg)
+            local at = unit.Entity.TransformComponent.WorldPosition
+            director:SpawnUnit(unit.Team, entry.param, at.x, director:SnapFloorY(at.x, at.y), cfg)
             log("[VRF] BattleEffects " .. unit.Entity.Name .. " spawned " .. entry.param .. " level=" .. tostring(level))
         end }
 

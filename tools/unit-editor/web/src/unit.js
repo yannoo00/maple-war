@@ -1,7 +1,9 @@
-// 목록·시간표·칩에 쓰는 유닛 그림: 스킬은 카드 아이콘 또는 범위 이펙트, 나머지는 stand 클립.
+// 목록·시간표·칩에 쓰는 유닛 그림. 따로 정한 썸네일(IconRuid)이 있으면 그것, 없으면 기본값:
+// 스킬은 범위 이펙트, 나머지는 stand 클립 (게임의 BattleConfig.GetIconRuid와 같은 규칙).
 export function unitIconRuid(u) {
   if (!u) return '';
-  return u.Kind === 'skill' ? u.IconRuid || u.EffectRuid : u.StandRuid;
+  if (u.IconRuid) return u.IconRuid;
+  return u.Kind === 'skill' ? u.EffectRuid : u.StandRuid;
 }
 
 // 목록·표 정렬. 같은 값이면 보조 기준(등급순이면 마나, 마나순이면 등급)과 이름으로 이어서 정렬한다.

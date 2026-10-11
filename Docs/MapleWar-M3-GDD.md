@@ -1,7 +1,7 @@
 # 메이플 워 (가칭) — 횡스크롤 라인 대전 기획서 (GDD, M3)
 
 > 🔖 **AI note — resuming?** If you're reading this in a new session to continue/resume this game, load the `msw-planning` skill FIRST and follow its resume flow (read `MapleWar-Roadmap.md` + `Archive/As-built.md` → reconstruct state → reconcile) — don't edit or implement straight from this doc. **Before touching any `⬜/🟡/✅` state or running a completion, Read the skill's `references/build-management.md` IN FULL.** (스킬이 없는 PC에서는 `Archive/As-built.md`의 "로컬 워크스페이스" 규칙을 따른다.)
-> Last updated: 2026-10-09 / Stage: Phase 4 (전투 기본기) 진행 중 — Phase 1·2 done, Phase 3은 출시 환경의 실제 결제 확인만 남음, Phase 5 (기지 시스템) 구현함·테스트 대기(전부 🟡, Maker 미연결로 실행 확인 못 함), Phase 6 (PC로 연다) not started
+> Last updated: 2026-10-11 / Stage: Phase 6 (다중 포탈·파풀라투스) 구현함·테스트 대기(전부 🟡, 런타임 미검증 — 2026-10-11부터 Maker 런타임 검증은 사용자가 직접 한다) — Phase 1·2 done, Phase 3은 출시 환경의 실제 결제 확인만 남음, Phase 4 (전투 기본기)·Phase 5 (기지 시스템) 테스트 대기, Phase 7 (PC로 연다) not started
 
 ## 1. One-line concept
 > "캠페인에 들어갈 때 입장권을 쓴다. 입장권은 시간이 지나면 차오르고, 모자라면 Worldcoin으로 산다. 이 재화 틀은 이후 대전의 메이플 코인이 그대로 쓴다. PC로 열기 전에 전투의 기본기를 '냥코 대전쟁' 골격에 맞춰 올린다(첫 단계: 공격 타입 4종). 또 기지(베이스캠프)를 고정값이 아닌 고르고 키우는 것으로 바꾼다: 노말~레전더리 기지를 Worldcoin으로 사고, 기지마다 HP·마나·전용 스킬이 다르며, 메소로 영구 강화한다. 여기까지 되면 PC로 연다."
@@ -34,6 +34,13 @@
 | 기지 스킬 | **능동 스킬** = 마나 0짜리 기존 스킬 카드 한 장과 같다: 모델·데이터는 기존 스킬(`UnitTable` 스킬 행)을 그대로 쓰고, 기지가 쿨타임을 들고 있다가 쿨타임이 끝나면 쓸 수 있다. **패시브 스킬** = 지속 시간이 무제한인 스킬을 계속 발동하고 있는 것과 같다 | 사용자 결정 2026-10-09 |
 | 적 기지 | 적 기지의 종류는 **스테이지가 지정**한다(`StageTable.EnemyBase`). cave 맵의 적 기지(발록 기지)는 스킬을 쓴다 | 사용자 결정 2026-10-09 |
 | 기지 종류 수(이번 범위) | 기본 기지 1 + 샘플 2~3종. 나머지는 운영툴로 데이터만 추가 | 사용자 결정 2026-10-09 |
+| 다중 포탈 (2026-10-11) | 전장은 한 줄이 아니다. 맵마다 진영별 소환 포탈이 1~4개(`AllyPortal`, `AllyPortal_1`… / `EnemyPortal`…)이고 층(발판)이 나뉜다. 플레이어는 **몬스터 카드 선택 → 내 포탈 클릭** 순서로 소환한다(포탈이 1개면 바로 소환). 포탈 단축키는 없음 | 사용자 결정 2026-10-11. 기존 "한 줄 전장" 전제를 대체 |
+| 같은 층 규칙 | 교전은 x 거리로만 판정하되 **같은 층(높이 차 `BattleConfig.FloorTolerance` 이내)에 있는 적만** 대상이다. 위층에서 떨어진 유닛은 아래층 전투에 합류한다. 스킬도 조준한 층의 유닛만 맞는다 | 사용자 결정 2026-10-11 |
+| 파풀라투스 = base | 플레이어의 기지는 파풀라투스다(기본 기지 `base` 행의 모습·이름). **부서지는 것은 base뿐**이고 승패 규칙은 그대로다. **포탈은 HP가 없고 공격 대상이 아니며 부서지지 않는다** | 사용자 결정 2026-10-11 |
+| 포탈을 통한 base 공격 | 유닛이 자기 층의 적 포탈에 닿으면 멈춰서 **적 base의 HP**를 깎는다(A안). 그때마다 그 포탈에서 파티클(FlamethrowerToony)이 생겨 base로 날아가 닿으면 사라진다 | 사용자 결정 2026-10-11 |
+| 건물 | 아무 곳에나 지을 수 있다(자기 진영 절반 제한 폐지, 클릭한 지점 아래의 발판에 선다). 대신 **준비 시간**(`UnitTable.BuildSeconds`, 건물마다 다름) 동안은 공격·특성이 꺼진 무방비 상태로 피해만 받는다. 준비 중에는 ChargeOrb 파티클과 진행 막대를 띄운다 | 사용자 결정 2026-10-11 |
+| 기지 스킬 3칸 | 기지 스킬은 1개가 아니라 **최대 3개**(`BaseSkill` / `BaseSkill2` / `BaseSkill3`, 각자 종류·쿨타임). HUD 우측 하단의 스킬 칸 3개(Maker 프리셋 `SkillQuickSlot`)로 쓴다. 파풀라투스의 3개는 임시 배정(번개·힐·블리자드) | 사용자 결정 2026-10-11 |
+| 스테이지 시작 | `stage1`~`stage5`는 없앴고 캠페인은 `henesys_1`부터 시작한다. 쓰던 맵(`battle`, `battle3`, `battle4`)은 남겨 둔다(나중에 고쳐 씀) | 사용자 결정 2026-10-11 |
 | 원칙 | 밸런스·모바일 점검은 이 마일스톤에서 하지 않음. 연출은 클라이언트만 | `Archive/As-built.md` Standing rules |
 
 ## 3. Core loop (one session)
@@ -177,7 +184,22 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 - 🟡 기지 콘텐츠: 위 샘플 기지 4종 + `cave_1`~`cave_5` 스테이지의 적 기지 = 발록 기지(메테오)  ⚠️ needs user test: 능력치·스킬·쿨타임 수치는 전부 AI 잠정값. 샘플 기지는 모두 같은 타워 그림을 쓴다(기지별 외형은 `StandRuid`·모델 작업이 따로 필요)
 - 🟡 운영툴: 유닛 편집에 '기지' 종류(기지 칸 그룹)·탭·목록 표시, 스테이지 편집에 '적 기지' 선택, 시간표에 기지가 들어가지 않게 검사  ⚠️ needs user test: 브라우저에서 기지 행 편집·저장, 스테이지의 적 기지 선택
 
-### Phase 6 — "PC로 연다"
+### Phase 6 — "여러 포탈과 층, 파풀라투스"
+> 2026-10-11 사용자 기획 전달, 같은 날 구현. **런타임 미검증**(정적 검증만: 스크립트 진단 오류 0, 빌더 lint 통과). 아래 🟡는 전부 사용자가 Maker에서 확인할 항목이다.
+- 🟡 포탈·층 기반 전장: `BattleDirector`가 맵의 포탈을 이름으로 모으고(`GetPortals`), 발판 레이캐스트로 포탈 아래 층 높이를 구한다(`FloorYBelow`). 대상 탐색(`FindTarget` / `FindTargetsInRange`)·스킬(`BattleSkills.FindTargets`)에 같은 층 조건. 유닛은 고정 목표 없이 전진하고 전장 끝에서 멈춘다  ⚠️ needs user test: 위층 유닛이 발판 끝에서 떨어져 아래층에서 싸우는지, `FloorTolerance` 0.7이 경사 발판에서 적당한지, 시작 로그 `[BattleDirector] portal team=… floorY=…`의 층 높이
+- 🟡 포탈을 통한 base 공격과 파티클: 같은 층의 적 포탈이 사거리에 들면 base를 대상으로 삼고, 투사체는 포탈로 날아가며, 피해가 들어갈 때마다 포탈 → base 파티클(`NotifyPortalHit`, `BattleFx:OnPortalHit`, 포탈당 0.2초에 1개)  ⚠️ needs user test: 파티클의 모양·크기·방향·속도(0.45초), 위층 포탈에서 base HP가 깎이는지
+- 🟡 포탈 선택 소환: 몬스터 카드 → 내 포탈 강조(`FieldFx:ShowPortalMarks`) → 포탈 클릭(`Commander:PickPortal`, 반경 1.0) → 그 포탈에서 소환. 적(스테이지 AI)은 무작위 포탈  ⚠️ needs user test: 강조 표시의 모습, 클릭 판정 반경, 안내 문구
+- 🟡 건물: 아무 곳에나 설치(클릭 지점 아래 발판, 발판 없는 곳은 거부), 준비 시간(`BuildSeconds`: 자쿰 8 / 허수아비 2 / 네펜데스 4 / 슬라임 소환석 6 — 전부 잠정값) 동안 무방비, ChargeOrb + 진행 막대  ⚠️ needs user test: 고스트가 발판에 붙는지, 오브·막대의 위치와 크기, 준비 중 피해·파괴, 완료 후 공격·소환 시작
+- 🟡 파풀라투스: 기본 기지 `base` 행 = 파풀라투스(클립 5종은 cave 맵 샘플에서), 플레이어 base만 행의 클립으로 그린다(`BattleUnit.UseRowClips`), 적의 기본 기지는 새 행 `base_enemy`(스킬 없음, 맵의 스프라이트 유지). 전투 맵의 `AllyBase`를 파풀라투스 그림·바닥 높이로 옮김  ⚠️ needs user test: 크기(Scale 1 × 0.65)·방향·HP 바 높이(BarY 3), 덱 화면의 기지 카드 그림
+- 🟡 기지 스킬 3칸: `BattleSide.BaseSkillsCsv`, HUD `SkillQuickSlot/slot_01~03`(아이콘·방사형 쿨타임 음영·남은 초), 조준은 클릭한 층  ⚠️ needs user test: 칸 3개의 표시와 클릭, 쿨타임 음영, 스킬 이펙트가 조준한 층에 나오는지
+- 🟡 맵: 모든 전투 맵의 적 포탈을 빨간 톤으로, `battle_cave`에 `AllyBase` 배치·샘플 3개(파풀라투스 몬스터, ChargeOrb, FlamethrowerToony) 비활성  ⚠️ needs user test: Maker에서 맵 모양. 사용자 작업으로 남은 것: 나머지 맵의 2층 발판과 두 번째 포탈(타일·발판은 Maker에서만 그릴 수 있음)
+- 🟡 `stage1`~`stage5` 삭제(표 2개), 전투 맵에서 바로 시작한 테스트 플레이의 기본 스테이지 = 표의 첫 스테이지
+- 🟡 운영툴: `BuildSeconds`, `BaseSkill2`·`BaseSkill3`(종류·쿨타임) 칸, 기지 행의 클립·크기 칸 허용
+- ⬜ 스테이지 시간표에서 적의 포탈 지정(`StageWaveTable.Lane`, 지금은 무작위)
+- ⬜ 파풀라투스 전용 스킬 3종 확정과 구현(지금은 기존 스킬 임시 배정), 파풀라투스의 공격·피격·사망 모션 연결(클립은 행에 들어 있음)
+- ⬜ 위층이 높은 맵의 카메라 세로 범위 점검
+
+### Phase 7 — "PC로 연다"
 - ⬜ 출시 설정: 최대 인원, 플레이 가능 기기 PC (사용자 작업)
 - ⬜ 로드맵 Backlog의 "M2 이월 확인" 항목 훑기 (사용자 테스트)
 - ⬜ 출시 기준 점검: 신규 유저가 설명 없이 첫 판을 이길 수 있는가 — 스테이지 1 수치 조정이 필요한지 사용자와 결정
@@ -194,7 +216,8 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 | `EffectTable` (기본값) | `EffectId, Type, Name, Duration, Power, ChanceEarth, ChanceWater, ChanceFire, ChanceWind, ChanceLight, ChanceDark, #Memo` |
 | `UnitTable` (추가, 기지 행 `Kind = base`) | `ManaStart, ManaMaxRate, ManaRegenRate, ManaLevelStart, BaseSkill, BaseSkillType(active / passive), BaseSkillCooldown, ProductId, EnemyOnly` — 기지 행이 쓰는 칸: `UnitId, Kind, Name, Rarity, Starter, MaxHp, IconRuid, BarY, BarWidth` + 위 9열 + `#Memo` (나머지 전투 칸은 비움) |
 | `BaseLevelTable` (신규) | `Level, HpRate, ManaUpgradeDiscount, ManaLevelBonus, UpgradeCost, #Memo` |
-| `StageTable` (추가) | `EnemyBase`(`UnitTable`의 기지 id, 빈칸 = 기본 기지 `base`) |
+| `StageTable` (추가) | `EnemyBase`(`UnitTable`의 기지 id, 빈칸 = 적 기본 기지 `base_enemy`). `GroundY`는 층 높이를 찾지 못했을 때의 대체값으로만 쓰인다 |
+| `UnitTable` (추가, 2026-10-11) | `BuildSeconds`(건물의 준비 시간, 빈칸·0 = 즉시), `BaseSkill2`·`BaseSkill2Type`·`BaseSkill2Cooldown`·`BaseSkill3`·`BaseSkill3Type`·`BaseSkill3Cooldown`(기지의 2·3번째 스킬). 기지 행도 `StandRuid` 등 클립 칸과 `Scale`을 쓸 수 있다 |
 | `UnitTable` (추가) | `EffectDuration`, `EffectPower`, `EffectChanceEarth`~`EffectChanceDark` (효과 표 기본값의 유닛별 덮어쓰기, 빈칸 = 기본값. 몬스터·설치물) |
 
 **몬스터 한 종을 추가할 때 필요한 정보**
@@ -245,3 +268,6 @@ States: ⬜ not started · 🟡 implemented (untested) · ✅ tested.
 | 2026-10-09 | Modify | 기지 선택 방식을 별도 '기지' 화면에서 "카드 목록의 카드 + 덱의 별도 기지 1칸"으로 변경(Phase 5의 '기지' 화면 항목을 '덱 화면의 기지 카드'로 교체, 플레이어 데이터·운영툴 항목에 반영) | 사용자 요청 | 모두 ⬜인 항목의 문구 수정이라 상태 변화 없음. 기지 칸은 10장 한도·손패와 무관. §2·§4·§5·§6·§8에 반영 |
 | 2026-10-09 | Modify | Phase 5 구현 중 설계 두 가지를 바꿈: ① 기지 정의를 별도 `BaseTable` 대신 `UnitTable`의 `Kind = base` 행으로(카드 목록·등급 테두리·정렬·운영툴 재사용), 보유 기지도 `UnitsCsv`에 같이 저장 ② 구매 지급은 `ShopProductTable` 확장 대신 기지의 `ProductId`를 `CurrencyShop`이 찾는 방식. Phase 5의 '기지 구매' 항목을 '구매 지급'(🟡)과 '월드 상품 등록'(⬜, 사용자 확인 필요)으로 나눔 | 구현 단순화(새 표·새 저장 필드 최소화) | 항목 전부 🟡(⚠️ Maker 미연결로 실행 확인 못 함). `BattleConfig`·`PlayerData`·`BattleSide`·`BattleDirector`·`Commander`·`CurrencyShop`·`BattleHUD`·`LobbyUI`·`FieldFx`와 데이터 3종(`UnitTable`·`StageTable`·`BaseLevelTable`), 운영툴 스키마·화면 수정. 기존 `base` 행은 사용하지 않는 칸을 비움 |
 | 2026-10-09 | Modify | 마나 레벨 한도를 플레이어 공통(상점에서 메소로 구매, `PlayerData.CostLevelCap`)에서 **기지별**로 변경: `UnitTable.ManaLevelStart`(기지 행, 샘플은 기본 3 / 숲 3 / 마법사 4 / 석상 2 / 발록 5) + `BaseLevelTable.ManaLevelBonus`(강화 레벨별 누적 0,0,1,2,3,4,5,6,7,7). 상점의 한도 구매 버튼·`RequestUnlockCostLevel`·저장 필드 `costCap` 삭제, 기지 정보 창에 한도 표시, 운영툴 칸 추가 | 사용자 요청(중요 수정) | 이전 M2에서 만든 "한도 해금(메소)" 기능이 사라진다(`CostLevelTable.UnlockMeso` 열은 쓰이지 않게 됨, 값은 그대로). 기존 계정의 저장된 `costCap`은 무시된다. ⚠️ needs user test: Maker refresh 후 상점 화면(버튼이 없어졌는지, 빌드 오류 없음), 기지별 한도 |
+| 2026-10-11 | Modify | **핵심 결정 변경**: 한 줄 전장 → 다중 포탈·층 전장, 기지 = 파풀라투스, 포탈을 통한 base 공격(A안), 건물은 아무 곳에나 + 준비 시간, 기지 스킬 1개 → 최대 3개. 새 Phase 6 "여러 포탈과 층, 파풀라투스"를 넣고 "PC로 연다"는 Phase 7로 번호만 바꿈 | 사용자 기획 전달(베이스 캠프 → 파풀라투스) | Phase 5의 '기지 스킬'·'전투 HUD 기지 스킬 버튼'·'전투 적용' 항목은 구현이 바뀌었다(단일 스킬 속성 4개 → `BaseSkillsCsv`, 우하단 단일 버튼 → 스킬 칸 3개, 소환 지점 x 하나 → 포탈 목록). 이 항목들은 원래 🟡였고 그대로 🟡(재확인 필요). 바뀐 스크립트: `BattleConfig`·`BattleDirector`·`BattleUnit`·`BattleSide`·`BattleSkills`·`BattleEffects`·`StageAI`·`Commander`·`FieldFx`·`BattleFx`·`BattleHUD`·`LobbyUI`. 사라진 것: `BattleDirector.AllySpawnX`·`EnemySpawnX`, `BattleUnit.GoalX`, 건물 설치 불가 영역 음영, `BattleSide.BaseSkillId` 등 4개 |
+| 2026-10-11 | Remove | `stage1`~`stage5`를 `StageTable`·`StageWaveTable`에서 삭제. 캠페인은 `henesys_1`부터 | 사용자 요청 | 맵 `battle`·`battle3`·`battle4`는 남김(사용자가 나중에 고쳐 씀). 기존 계정의 클리어 기록에 남은 `stage1`~`5`는 쓰이지 않을 뿐 해가 없다 |
+| 2026-10-11 | Modify | 검증 방식: Maker 런타임 검증(play·로그·스크린샷)은 AI가 하지 않고 사용자가 직접 한다(`CLAUDE.md`). AI는 스크립트 진단과 코드 리뷰까지만 | 사용자 결정 | 새 항목은 AI가 ✅로 올릴 수 없다. 사용자의 확인 보고로만 ✅ |

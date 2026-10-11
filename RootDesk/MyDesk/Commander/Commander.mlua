@@ -2,10 +2,13 @@
 script Commander extends Component
 
     property number ScrollSpeed = 8
+    -- Lobby: name of the map entity the fixed view is centred on (optional; see HoldLobbyView).
+    property string LobbyCameraName = "LobbyCamera"
     @HideFromInspector property number CamX = -16.8
+    -- What waits for a click on the battlefield: 0 = nothing, 1..HandSize = the card in that hand slot (a monster card
+    -- waits for one of my portals, a build / skill card for a position), BaseSkillSlot + n = base skill n is being aimed.
     @HideFromInspector property integer PendingSlot = 0
-    -- PendingSlot value that means "aiming the base skill" instead of a hand slot.
-    property integer BaseSkillSlot = 99
+    property integer BaseSkillSlot = 100
 
     @ExecSpace("ClientOnly")
     method void OnBeginPlay()
@@ -24,9 +27,21 @@ script Commander extends Component
         if not isvalid(map) then return end
         ---@type BattleDirector
         local director = map:GetComponent("script.BattleDirector")
-        if director == nil or director.AllyBaseX == director.EnemyBaseX then return end
+        if director == nil then
+            self:HoldLobbyView(map)
+            return
+        end
+        if director.AllyBaseX == director.EnemyBaseX then return end
+        -- This map's zoom (BattleDirector.CameraZoom, percent): a lower zoom shows a wider part of the field.
+        local zoom = math.max(30, math.min(500, director.CameraZoom))
+        local camera = self.Entity.CameraComponent
+        if isvalid(camera) and math.abs(camera.ZoomRatio - zoom) > 0.01 then
+            camera.ZoomRatio = zoom
+            self._T.camReady = false
+            log("[Commander] camera zoom " .. tostring(zoom) .. "% offsetY=" .. tostring(director.CameraOffsetY))
+        end
         -- Camera range: keep both towers inside the screen. If the whole field fits, min == max and the view is fixed.
-        local reach = _BattleConfig.ScreenHalfWidth - _BattleConfig.FieldMargin
+        local reach = _BattleConfig.ScreenHalfWidth * 100 / zoom - _BattleConfig.FieldMargin
         local center = (director.AllyBaseX + director.EnemyBaseX) * 0.5
         local camMin = math.min(center, director.AllyBaseX + reach)
         local camMax = math.max(center, director.EnemyBaseX - reach)
@@ -42,11 +57,35 @@ script Commander extends Component
             local nextX = self.CamX + move * self.ScrollSpeed * delta
             self.CamX = math.max(camMin, math.min(camMax, nextX))
         end
-        local camera = self.Entity.CameraComponent
         if isvalid(camera) then
             local px = self.Entity.TransformComponent.WorldPosition.x
-            camera.CameraOffset = Vector2(self.CamX - px, 0)
+            camera.CameraOffset = Vector2(self.CamX - px, director.CameraOffsetY)
         end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void HoldLobbyView(Entity map)
+        -- Lobby (a map without a battle): the view must not move. The player entity is invisible but still has a body, and
+        -- the camera follows it, so a falling body drags the view down and back. Gravity is switched off and the body is
+        -- stopped where it is; the view then stays put. A map entity named LobbyCameraName, when the map has one, is
+        -- what the view is centred on (move it in Maker to frame the lobby).
+        local body = self.Entity.RigidbodyComponent
+        if isvalid(body) and body.Gravity ~= 0 then
+            body.Gravity = 0
+            body:SetForce(Vector2(0, 0))
+            body.MoveVelocity = Vector2(0, 0)
+            log("[Commander] lobby view held: gravity off at y=" .. string.format("%.2f", self.Entity.TransformComponent.WorldPosition.y))
+        end
+        local camera = self.Entity.CameraComponent
+        if not isvalid(camera) then return end
+        local offset = Vector2(0, 0)
+        local marker = map:GetChildByName(self.LobbyCameraName)
+        if isvalid(marker) then
+            local here = self.Entity.TransformComponent.WorldPosition
+            local to = marker.TransformComponent.WorldPosition
+            offset = Vector2(to.x - here.x, to.y - here.y)
+        end
+        camera.CameraOffset = offset
     end
 
     @ExecSpace("ClientOnly")
@@ -74,8 +113,18 @@ script Commander extends Component
     end
 
     @ExecSpace("ClientOnly")
+    method any GetBattleDirector()
+        -- Client: returns the BattleDirector of the map this player is on, or nil outside a battle.
+        local map = self.Entity.CurrentMap
+        if not isvalid(map) then return nil end
+        return map:GetComponent("script.BattleDirector")
+    end
+
+    @ExecSpace("ClientOnly")
     method void SelectSlot(integer slot)
-        -- Plays the monster card in a hand slot at once; build and skill cards wait for a battlefield position.
+        -- Selects the card in a hand slot. A monster card then waits for a click on one of my portals (it is played at
+        -- once when my side has a single portal); build and skill cards wait for a battlefield position. Selecting the
+        -- waiting slot again cancels.
         ---@type BattleSide
         local side = self:GetMySide()
         if side == nil then return end
@@ -84,30 +133,85 @@ script Commander extends Component
         local cfg = _BattleConfig:GetUnit(unitId)
         if cfg == nil then return end
         if cfg.kind == "monster" then
-            self.PendingSlot = 0
-            self:RequestUseCard(slot, unitId, 0)
-        else
-            self.PendingSlot = slot
-            self._T.pendingUnit = unitId
-            log("[Commander] targeting slot=" .. tostring(slot) .. " " .. unitId)
+            ---@type BattleDirector
+            local director = self:GetBattleDirector()
+            local portals = {}
+            if director ~= nil then portals = director:GetPortals(side.Team) end
+            if #portals <= 1 then
+                self.PendingSlot = 0
+                self:RequestUseCard(slot, unitId, 0, 0, 1)
+                return
+            end
         end
-    end
-
-    @ExecSpace("ClientOnly")
-    method void SelectBaseSkill()
-        -- Starts aiming the base skill (a free skill card with a cooldown); pressing again cancels. The touch that
-        -- follows picks the position, like a skill card from the hand.
-        ---@type BattleSide
-        local side = self:GetMySide()
-        if side == nil or side.BaseSkillId == "" or side.BaseSkillType ~= "active" then return end
-        if self.PendingSlot == self.BaseSkillSlot then
+        if self.PendingSlot == slot then
             self.PendingSlot = 0
             return
         end
-        if _UtilLogic.ServerElapsedSeconds < side.BaseSkillReadyAt then return end
-        self.PendingSlot = self.BaseSkillSlot
-        self._T.pendingUnit = side.BaseSkillId
-        log("[VRF] Commander targeting base skill " .. side.BaseSkillId)
+        self.PendingSlot = slot
+        self._T.pendingUnit = unitId
+        log("[Commander] targeting slot=" .. tostring(slot) .. " " .. unitId .. " kind=" .. cfg.kind)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void SelectBaseSkill(integer index)
+        -- Starts aiming the base skill in a slot (a free skill card with a cooldown); pressing it again cancels. The
+        -- touch that follows picks the position, like a skill card from the hand.
+        ---@type BattleSide
+        local side = self:GetMySide()
+        if side == nil then return end
+        local skill = side:GetBaseSkills()[index]
+        if skill == nil or skill.type ~= "active" then return end
+        local pending = self.BaseSkillSlot + index
+        if self.PendingSlot == pending then
+            self.PendingSlot = 0
+            return
+        end
+        if _UtilLogic.ServerElapsedSeconds < skill.readyAt then return end
+        self.PendingSlot = pending
+        self._T.pendingUnit = skill.id
+        log("[Commander] targeting base skill " .. tostring(index) .. " " .. skill.id)
+    end
+
+    @ExecSpace("ClientOnly")
+    method any GetPendingUnit()
+        -- Client: returns the unit definition of what is waiting for a battlefield click (a hand card or a base skill), or nil.
+        local slot = self.PendingSlot
+        if slot == 0 then return nil end
+        ---@type BattleSide
+        local side = self:GetMySide()
+        if side == nil then return nil end
+        local unitId = ""
+        if slot > self.BaseSkillSlot then
+            local skill = side:GetBaseSkills()[slot - self.BaseSkillSlot]
+            if skill ~= nil then unitId = skill.id end
+        else
+            unitId = side:GetHandIds()[slot] or ""
+        end
+        if unitId == "" then return nil end
+        return _BattleConfig:GetUnit(unitId)
+    end
+
+    @ExecSpace("ClientOnly")
+    method integer PickPortal(Vector2 world)
+        -- Returns the index of my portal a battlefield click at world picks (the nearest one within
+        -- BattleConfig.PortalPickRadius), or 0 when the click is not on a portal.
+        ---@type BattleSide
+        local side = self:GetMySide()
+        ---@type BattleDirector
+        local director = self:GetBattleDirector()
+        if side == nil or director == nil then return 0 end
+        local best = 0
+        local bestDist = _BattleConfig.PortalPickRadius
+        for _, portal in ipairs(director:GetPortals(side.Team)) do
+            local dx = portal.x - world.x
+            local dy = portal.y - world.y
+            local dist = math.sqrt(dx * dx + dy * dy)
+            if dist <= bestDist then
+                best = portal.index
+                bestDist = dist
+            end
+        end
+        return best
     end
 
     @ExecSpace("ClientOnly")
@@ -131,23 +235,34 @@ script Commander extends Component
     @ExecSpace("ClientOnly")
     @EventSender("Service", "InputService")
     handler HandleScreenTouchEvent(ScreenTouchEvent event)
-        -- While targeting, a battlefield touch (not on UI) picks the position for the build or skill card.
+        -- While something waits for a target, a battlefield touch (not on UI) gives it: a monster card takes the portal
+        -- that was clicked (a click elsewhere keeps waiting), a build / skill card and a base skill take the position.
         if self.Entity ~= _UserService.LocalPlayer then return end
         if self.PendingSlot == 0 then return end
         if _InputService:IsPointerOverUI() then return end
         local world = _UILogic:ScreenToWorldPosition(event.TouchPoint)
         local slot = self.PendingSlot
-        self.PendingSlot = 0
-        if slot == self.BaseSkillSlot then
-            self:RequestUseBaseSkill(world.x)
+        if slot > self.BaseSkillSlot then
+            self.PendingSlot = 0
+            self:RequestUseBaseSkill(slot - self.BaseSkillSlot, world.x, world.y)
             return
         end
-        self:RequestUseCard(slot, self._T.pendingUnit or "", world.x)
+        local unitId = self._T.pendingUnit or ""
+        local cfg = _BattleConfig:GetUnit(unitId)
+        if cfg ~= nil and cfg.kind == "monster" then
+            local portalIndex = self:PickPortal(world)
+            if portalIndex == 0 then return end
+            self.PendingSlot = 0
+            self:RequestUseCard(slot, unitId, 0, 0, portalIndex)
+            return
+        end
+        self.PendingSlot = 0
+        self:RequestUseCard(slot, unitId, world.x, world.y, 0)
     end
 
     @ExecSpace("Server")
-    method void RequestUseBaseSkill(number targetX)
-        -- Asks the battle director to use this player's active base skill at targetX (the cooldown is checked there).
+    method void RequestUseBaseSkill(integer index, number targetX, number targetY)
+        -- Asks the battle director to use this player's active base skill in a slot at the target (the cooldown is checked there).
         if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
         ---@type BattleDirector
         local director = self:GetDirector()
@@ -155,7 +270,7 @@ script Commander extends Component
         ---@type BattleSide
         local side = director:GetSideByUser(senderUserId)
         if side == nil then return end
-        director:UseBaseSkill(side.Team, targetX)
+        director:UseBaseSkill(side.Team, index, targetX, targetY)
     end
 
     @ExecSpace("Server")
@@ -172,8 +287,9 @@ script Commander extends Component
     end
 
     @ExecSpace("Server")
-    method void RequestUseCard(integer slot, string unitId, number targetX)
+    method void RequestUseCard(integer slot, string unitId, number targetX, number targetY, integer portalIndex)
         -- Asks the battle director to play the card the client saw in a hand slot and reports the result back.
+        -- portalIndex = the portal a monster card comes out of; (targetX, targetY) = where a build / skill card goes.
         if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
         ---@type BattleDirector
         local director = self:GetDirector()
@@ -181,8 +297,8 @@ script Commander extends Component
         ---@type BattleSide
         local side = director:GetSideByUser(senderUserId)
         if side == nil then return end
-        if director:UseCard(side.Team, slot, unitId, targetX) then
-            self:OnCardUsed(slot, unitId, targetX, senderUserId)
+        if director:UseCard(side.Team, slot, unitId, targetX, targetY, portalIndex) then
+            self:OnCardUsed(slot, unitId, targetX, director:SnapFloorY(targetX, targetY), senderUserId)
         end
     end
 
@@ -305,14 +421,14 @@ script Commander extends Component
     end
 
     @ExecSpace("Client")
-    method void OnCardUsed(integer slot, string unitId, number targetX)
+    method void OnCardUsed(integer slot, string unitId, number targetX, number floorY)
         -- Client-side presentation for a played card: the card sound and the skill effect.
         -- (The hand refill itself arrives through the synced BattleSide.HandCsv.)
         local cfg = _BattleConfig:GetUnit(unitId)
         _BattleSound:Play("card")
         if cfg ~= nil and cfg.kind == "skill" then
             -- The effect is placed over the actual damage area by FieldFx.
-            _FieldFx:PlaySkillEffect(cfg, targetX)
+            _FieldFx:PlaySkillEffect(cfg, targetX, floorY)
         end
         log("[Commander] card used slot=" .. tostring(slot) .. " " .. unitId)
     end

@@ -1,16 +1,21 @@
 @Logic
 script FieldFx extends Logic
 
-    -- Client-only battlefield visuals that are not tied to one unit: the targeting preview shown while a
-    -- build or skill card waits for a position (ghost of the build, shaded no-build area, skill range box).
-    -- The spawn portals are map entities (AllyPortal / EnemyPortal), placed and edited in each battle map.
+    -- Client-only battlefield visuals that are not tied to one unit: what is shown while a card waits for a click
+    -- (a monster card: glowing marks on my portals; a build card: its ghost standing on the floor under the cursor;
+    -- a skill card or base skill: its range box on that floor), and the skill effects.
+    -- The spawn portals are map entities (AllyPortal... / EnemyPortal...), placed and edited in each battle map.
     property string SpriteModelId = "battleprojectile"
     property string RectModelId = "battlehpbar"
     -- Clip of the portals placed in the maps; preloaded with the battle clips, and the build ghost's first sprite.
     property string PortalRuid = "a21d539161dd42c8b13dc60e3680357a"
     property number PixelUnit = 0.01
-    property number ShadeHeight = 4.0
     property number SkillBoxHeight = 1.2
+    -- Marks over my portals while a monster card waits for one: this much larger than the portal, pulsing.
+    property number PortalMarkScale = 1.25
+    property number PortalMarkPulse = 0.12
+    property number PortalMarkSpeed = 6
+    property Color PortalMarkColor = Color(1, 0.9, 0.25, 0.75)
     -- Volume of a skill's own cast sound (UnitTable SkillSoundRuid).
     property number SkillSoundVolume = 0.6
 
@@ -78,21 +83,16 @@ script FieldFx extends Logic
     end
 
     @ExecSpace("ClientOnly")
-    method void PlaySkillEffect(table cfg, number centerX)
+    method void PlaySkillEffect(table cfg, number centerX, number floorY)
         -- Plays a skill's effect so that it visually covers the damage area: centred on centerX,
-        -- as wide as the area (2 x radius), standing on the ground. Effect clips keep their pivot wherever the
+        -- as wide as the area (2 x radius), standing on the floor of height floorY. Effect clips keep their pivot wherever the
         -- original skill needed it (often far to one side), so the offset is computed from the clip's largest frame.
         self:PlaySkillSound(cfg)
         local ruid = cfg.effectRuid
         if ruid == nil or ruid == "" then return end
         local player = _UserService.LocalPlayer
         if not isvalid(player) then return end
-        local groundY = _BattleConfig.GroundY
-        if isvalid(player.CurrentMap) then
-            ---@type BattleDirector
-            local director = player.CurrentMap:GetComponent("script.BattleDirector")
-            if director ~= nil then groundY = director.GroundY end
-        end
+        local groundY = floorY
         if self._T.effectGeo == nil then self._T.effectGeo = {} end
         local geo = self._T.effectGeo[ruid]
         if geo == nil then
@@ -136,9 +136,46 @@ script FieldFx extends Logic
         if fx == nil or fx.previewShown == false then return end
         fx.previewShown = false
         if isvalid(fx.ghost) then fx.ghost:SetVisible(false) end
-        if isvalid(fx.shadeLeft) then fx.shadeLeft:SetVisible(false) end
-        if isvalid(fx.shadeRight) then fx.shadeRight:SetVisible(false) end
         if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
+        self:HidePortalMarks(fx)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void HidePortalMarks(table fx)
+        -- Hides the marks over my portals.
+        if fx.marks == nil then return end
+        for _, mark in ipairs(fx.marks) do
+            if isvalid(mark) then mark:SetVisible(false) end
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void ShowPortalMarks(table fx, Entity map, table portals, number delta)
+        -- Shows a pulsing mark over each of my portals (a copy of the portal's own sprite, a little larger and tinted),
+        -- so the player sees where the waiting monster card can come out.
+        if fx.marks == nil then fx.marks = {} end
+        fx.markTime = (fx.markTime or 0) + delta
+        local pulse = self.PortalMarkScale + self.PortalMarkPulse * math.sin(fx.markTime * self.PortalMarkSpeed)
+        for i, portal in ipairs(portals) do
+            local mark = fx.marks[i]
+            if not isvalid(mark) then
+                local ruid = self.PortalRuid
+                local sprite = portal.entity.SpriteRendererComponent
+                if isvalid(sprite) and sprite.SpriteRUID ~= nil and sprite.SpriteRUID ~= "" then ruid = sprite.SpriteRUID end
+                mark = self:SpawnSprite(map, "PortalMark" .. tostring(i), ruid, 9)
+                fx.marks[i] = mark
+                if isvalid(mark) then mark.SpriteRendererComponent.Color = self.PortalMarkColor end
+            end
+            if isvalid(mark) then
+                local size = portal.entity.TransformComponent.Scale
+                mark.TransformComponent.Scale = Vector3(size.x * pulse, size.y * pulse, 1)
+                mark.TransformComponent.WorldPosition = Vector3(portal.x, portal.y, 0)
+                mark:SetVisible(true)
+            end
+        end
+        for i = #portals + 1, #fx.marks do
+            if isvalid(fx.marks[i]) then fx.marks[i]:SetVisible(false) end
+        end
     end
 
     @ExecSpace("ClientOnly")
@@ -161,21 +198,15 @@ script FieldFx extends Logic
             fx = { map = map, previewShown = false, ghostRuid = "" }
             self._T.fx = fx
             fx.ghost = self:SpawnSprite(map, "BuildGhost", self.PortalRuid, 9)
-            fx.shadeLeft = self:SpawnRect(map, "ShadeLeft", Color(0, 0, 0, 0.4), 8)
-            fx.shadeRight = self:SpawnRect(map, "ShadeRight", Color(0, 0, 0, 0.4), 8)
             fx.skillBox = self:SpawnRect(map, "SkillBox", Color(1, 0.25, 0.2, 0.35), 8)
             if isvalid(fx.ghost) then
                 fx.ghost.SpriteRendererComponent.Color = Color(1, 1, 1, 0.5)
                 fx.ghost:SetVisible(false)
             end
-            if isvalid(fx.shadeLeft) then fx.shadeLeft:SetVisible(false) end
-            if isvalid(fx.shadeRight) then fx.shadeRight:SetVisible(false) end
             if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
             log("[FieldFx] visuals created")
         end
 
-        -- The portals are map entities (AllyPortal / EnemyPortal); the director publishes their x as the spawn points.
-        local groundY = director.GroundY
 
         -- Preload once per battle every clip this battle can show: my deck (units, projectiles, skill effects)
         -- and the stage's enemy units. The server keeps the battle WAITING until this client reports ready,
@@ -187,6 +218,13 @@ script FieldFx extends Logic
                 fx.preloaded = true
                 local ids = {}
                 for _, id in ipairs(data:GetDeckIds()) do ids[id] = true end
+                -- My base (its clips) and its skills (their effects).
+                local baseId = data:GetSelectedBaseId()
+                ids[baseId] = true
+                local myBase = _BattleConfig:GetUnit(baseId)
+                if myBase ~= nil then
+                    for _, skill in ipairs(myBase.baseSkills or {}) do ids[skill.id] = true end
+                end
                 for _, wave in ipairs(_BattleConfig:GetStageWaves(director.StageId)) do ids[wave.unitId] = true end
                 local stage = _BattleConfig:GetStage(director.StageId)
                 if stage ~= nil then
@@ -216,61 +254,56 @@ script FieldFx extends Logic
             end
         end
 
-        -- Targeting preview.
-        local slot = commander.PendingSlot
+        -- What waits for a battlefield click: a hand card or a base skill.
         ---@type BattleSide
         local side = commander:GetSideOf(true)
-        if slot == 0 or side == nil or director.State ~= "PLAYING" then
-            self:HidePreview()
-            return
-        end
-        local unitId = side:GetHandIds()[slot]
-        -- The base skill is aimed like a skill card; its id is on the side, not in the hand.
-        if slot == commander.BaseSkillSlot then unitId = side.BaseSkillId end
         local cfg = nil
-        if unitId ~= nil and unitId ~= "" then cfg = _BattleConfig:GetUnit(unitId) end
+        if side ~= nil and director.State == "PLAYING" then cfg = commander:GetPendingUnit() end
         if cfg == nil then
             self:HidePreview()
             return
         end
         if fx.previewShown == false then
             fx.previewShown = true
-            log("[FieldFx] preview shown slot=" .. tostring(slot) .. " " .. unitId .. " kind=" .. cfg.kind)
+            log("[FieldFx] preview shown slot=" .. tostring(commander.PendingSlot) .. " " .. cfg.id .. " kind=" .. cfg.kind)
         end
         local cursor = _UILogic:ScreenToWorldPosition(_InputService:GetCursorPosition())
-        local screenLeft = (director.AllyBaseX + director.EnemyBaseX) * 0.5 - _BattleConfig.ScreenHalfWidth * 2
-        local screenRight = (director.AllyBaseX + director.EnemyBaseX) * 0.5 + _BattleConfig.ScreenHalfWidth * 2
-        local shadeBottom = groundY - 0.4
 
-        if cfg.kind == "build" then
-            -- Same rule as the server (BattleDirector.PlayUnit): own half, between the spawn point and the middle.
-            local dir = 1
-            if side.Team ~= 1 then dir = -1 end
-            local spawnX = director.AllySpawnX
-            if side.Team ~= 1 then spawnX = director.EnemySpawnX end
-            local middle = (director.AllyBaseX + director.EnemyBaseX) * 0.5
-            local minX = math.min(spawnX, middle)
-            local maxX = math.max(spawnX, middle)
-            local x = math.max(minX, math.min(maxX, cursor.x))
-            if isvalid(fx.ghost) then
-                if fx.ghostRuid ~= cfg.standRuid then
-                    fx.ghostRuid = cfg.standRuid
-                    fx.ghost.SpriteRendererComponent.SpriteRUID = cfg.standRuid
-                end
-                local size = cfg.scale * _BattleConfig.UnitScale
-                fx.ghost.TransformComponent.Scale = Vector3(-dir * size, size, 1)
-                fx.ghost.TransformComponent.WorldPosition = Vector3(x, groundY, 0)
-                fx.ghost:SetVisible(true)
-            end
-            self:PlaceRect(fx.shadeLeft, screenLeft, minX, shadeBottom, self.ShadeHeight)
-            self:PlaceRect(fx.shadeRight, maxX, screenRight, shadeBottom, self.ShadeHeight)
-            if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
-        elseif cfg.kind == "skill" then
-            local radius = cfg.radius * _BattleConfig.RangeScale
-            self:PlaceRect(fx.skillBox, cursor.x - radius, cursor.x + radius, groundY, self.SkillBoxHeight)
+        if cfg.kind == "monster" then
+            -- A monster card waits for one of my portals.
+            self:ShowPortalMarks(fx, map, director:GetPortals(side.Team), delta)
             if isvalid(fx.ghost) then fx.ghost:SetVisible(false) end
-            if isvalid(fx.shadeLeft) then fx.shadeLeft:SetVisible(false) end
-            if isvalid(fx.shadeRight) then fx.shadeRight:SetVisible(false) end
+            if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
+        elseif cfg.kind == "build" then
+            -- Same rule as the server (BattleDirector.PlayUnit): anywhere on the field, on the floor under the cursor.
+            -- No ghost where there is no floor (the server refuses that spot).
+            local x = math.max(director.FieldMinX, math.min(director.FieldMaxX, cursor.x))
+            local floorY = director:FindFloorY(x, cursor.y)
+            if isvalid(fx.ghost) then
+                if floorY == nil then
+                    fx.ghost:SetVisible(false)
+                else
+                    if fx.ghostRuid ~= cfg.standRuid then
+                        fx.ghostRuid = cfg.standRuid
+                        fx.ghost.SpriteRendererComponent.SpriteRUID = cfg.standRuid
+                    end
+                    local dir = 1
+                    if side.Team ~= 1 then dir = -1 end
+                    local size = cfg.scale * _BattleConfig.UnitScale
+                    fx.ghost.TransformComponent.Scale = Vector3(-dir * size, size, 1)
+                    fx.ghost.TransformComponent.WorldPosition = Vector3(x, floorY, 0)
+                    fx.ghost:SetVisible(true)
+                end
+            end
+            if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
+            self:HidePortalMarks(fx)
+        elseif cfg.kind == "skill" then
+            -- The range box sits on the floor under the cursor: the skill reaches the units on that floor.
+            local radius = cfg.radius * _BattleConfig.RangeScale
+            local floorY = director:SnapFloorY(cursor.x, cursor.y)
+            self:PlaceRect(fx.skillBox, cursor.x - radius, cursor.x + radius, floorY, self.SkillBoxHeight)
+            if isvalid(fx.ghost) then fx.ghost:SetVisible(false) end
+            self:HidePortalMarks(fx)
         else
             self:HidePreview()
         end

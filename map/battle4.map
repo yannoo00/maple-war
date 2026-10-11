@@ -6867,7 +6867,7 @@
               },
               "Position": {
                 "x": -13.4,
-                "y": -0.7935,
+                "y": -1.32,
                 "z": 0
               },
               "QuaternionRotation": {
@@ -6895,7 +6895,7 @@
               "PlayRate": 1,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer0",
-              "SpriteRUID": "781d0548d4434877a044f77db08e2ffe",
+              "SpriteRUID": "13850817e4664f64af5d279ed56a5e37",
               "StartFrameIndex": 0,
               "Color": {
                 "r": 1,
@@ -7120,8 +7120,8 @@
               "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
               "Color": {
                 "r": 1,
-                "g": 1,
-                "b": 1,
+                "g": 0.25,
+                "b": 0.25,
                 "a": 1
               },
               "DrawMode": 0,

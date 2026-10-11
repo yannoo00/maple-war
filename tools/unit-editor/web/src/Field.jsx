@@ -1,4 +1,5 @@
 import { isRuid, useResource } from './api.js';
+import PixelIconEditor from './PixelIconEditor.jsx';
 
 function RuidPreview({ value }) {
   const ruid = value.trim();
@@ -103,6 +104,16 @@ function Input({ f, value, onChange, schema, data, selfId }) {
 
 // 스키마의 필드 하나 = 라벨 + 입력 + 도움말
 export default function Field({ field: f, value, onChange, kind, schema, data, selfId }) {
+  // 도트 편집기는 버튼이 많아 <label> 안에 두면 클릭이 엉뚱한 버튼으로 전달된다.
+  if (f.type === 'pixelicon') {
+    return (
+      <div className="f wide">
+        <span className="k">{f.label} <code>{f.key}</code></span>
+        <PixelIconEditor value={value ?? ''} onChange={onChange} />
+        {f.help && <span className="h">{f.help}</span>}
+      </div>
+    );
+  }
   const required = Array.isArray(f.required) ? f.required.includes(kind) : f.required === true;
   return (
     <label className={`f ${f.type === 'memo' ? 'wide' : ''}`}>

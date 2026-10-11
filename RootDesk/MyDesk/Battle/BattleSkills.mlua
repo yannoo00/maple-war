@@ -105,7 +105,7 @@ script BattleSkills extends Logic
                 local level = ctx.cfg.level or 1
                 self:Repeat(ctx, ctx.value1 or 6, ctx.value2 or 0.25, function()
                     local unitId = pool[_UtilLogic:RandomIntegerRange(1, #pool)]
-                    local ok = ctx.director:SpawnUnit(ctx.team, unitId, ctx.x, _BattleConfig:GetUnitAtLevel(unitId, level))
+                    local ok = ctx.director:SpawnUnit(ctx.team, unitId, ctx.x, ctx.y, _BattleConfig:GetUnitAtLevel(unitId, level))
                     log("[VRF] BattleSkills mushroom_spawn " .. unitId .. " team=" .. tostring(ctx.team) .. " x=" .. string.format("%.1f", ctx.x) .. " level=" .. tostring(level) .. " ok=" .. tostring(ok))
                 end)
             end }
@@ -144,10 +144,11 @@ script BattleSkills extends Logic
     end
 
     @ExecSpace("ServerOnly")
-    method void Cast(any director, integer team, table cfg, number centerX)
-        -- Runs a skill played by team at centerX. cfg is the skill at the card's level (UnitTable row).
+    method void Cast(any director, integer team, table cfg, number centerX, number floorY)
+        -- Runs a skill played by team at centerX on the floor of height floorY (only units on that floor are reached).
+        -- cfg is the skill at the card's level (UnitTable row).
         local ctx = {
-            director = director, team = team, cfg = cfg, id = cfg.id, x = centerX,
+            director = director, team = team, cfg = cfg, id = cfg.id, x = centerX, y = floorY,
             radius = cfg.radius * _BattleConfig.RangeScale, damage = cfg.damage, delay = cfg.hitDelay,
             value1 = cfg.skillValue1, value2 = cfg.skillValue2, rate = _BattleConfig:GetStatRate(cfg.level or 1),
         }
@@ -189,7 +190,7 @@ script BattleSkills extends Logic
 
     @ExecSpace("ServerOnly")
     method table FindTargets(table ctx, string side, any kinds, integer maxCount)
-        -- Returns the living units within the skill's radius of its spot. side: "enemy" / "ally" / "all" (seen from the
+        -- Returns the living units within the skill's radius of its spot, on the skill's floor. side: "enemy" / "ally" / "all" (seen from the
         -- caster). kinds: a set like { monster = true }, nil = monsters and builds (bases are never hit by skills unless
         -- a skill asks for them). maxCount > 0 keeps that many, picked at random.
         local allowed = kinds or { monster = true, build = true }
@@ -197,7 +198,8 @@ script BattleSkills extends Logic
         for _, unit in ipairs(ctx.director._T.units or {}) do
             if unit.IsDead == false and unit.Ready and isvalid(unit.Entity) and allowed[unit.Kind] == true then
                 local sideOk = side == "all" or (side == "enemy" and unit.Team ~= ctx.team) or (side == "ally" and unit.Team == ctx.team)
-                if sideOk and math.abs(unit.Entity.TransformComponent.WorldPosition.x - ctx.x) <= ctx.radius then
+                local pos = unit.Entity.TransformComponent.WorldPosition
+                if sideOk and math.abs(pos.x - ctx.x) <= ctx.radius and ctx.director:SameFloor(pos.y, ctx.y) then
                     table.insert(found, unit)
                 end
             end

@@ -15,6 +15,8 @@ script BattleUnit extends Component
     -- clients rebuild their presentation of the unit when it changes. References held across time compare it too,
     -- so an attack aimed at a previous life never lands on the next one.
     @Sync property integer Life = 0
+    -- false = this unit keeps the sprite it has in the map instead of playing its UnitTable clips (the stage AI's base).
+    @Sync property boolean UseRowClips = true
     property string Kind = "monster"
     property number AttackPower = 10
     -- melee / ranged hit one target; melee_area / ranged_area hit every enemy in range (UnitTable AttackType).
@@ -28,7 +30,11 @@ script BattleUnit extends Component
     property number AttackInterval = 1.0
     property number AttackHitDelay = 0
     property number MoveSpeed = 1.0
-    property number GoalX = 0
+    -- A new build prepares for BuildSeconds before it works: until BuildReadyAt (_UtilLogic.ServerElapsedSeconds) it
+    -- neither attacks nor has its traits, but it can be damaged and destroyed. 0 = not preparing. Clients show the
+    -- ChargeOrb particle and a progress bar from these two.
+    @Sync property number BuildReadyAt = 0
+    @Sync property number BuildSeconds = 0
     -- UnitTable: attribute and knockback settings (monsters only). The effects a unit uses are its UnitEffectTable rules.
     property string Attribute = ""
     -- HP lost per knockback (0 = never knocked back), push distance in world units and push time.
@@ -56,7 +62,7 @@ script BattleUnit extends Component
     @HideFromInspector property boolean HasHitEffect = false
 
     @ExecSpace("ServerOnly")
-    method void Setup(integer team, string unitId, table cfg, any director, number goalX)
+    method void Setup(integer team, string unitId, table cfg, any director)
         -- Applies a unit definition (monster / build / base) and starts its battle behavior. Every call is a new life
         -- of this entity (a fresh spawn or a pooled entity taken out again), so all per-life state is reset here.
         self.Life = self.Life + 1
@@ -96,8 +102,16 @@ script BattleUnit extends Component
         self._T.statuses = {}
         self.StatusCsv = ""
         self.WalkSpeed = cfg.speed * _BattleConfig.SpeedScale
-        self.GoalX = goalX
         self.Director = director
+        -- A build with a preparation time starts defenseless (see OnUpdate / FinishBuild).
+        self._T.building = false
+        self.BuildSeconds = 0
+        self.BuildReadyAt = 0
+        if cfg.kind == "build" and (cfg.buildSeconds or 0) > 0 then
+            self._T.building = true
+            self.BuildSeconds = cfg.buildSeconds
+            self.BuildReadyAt = _UtilLogic.ServerElapsedSeconds + cfg.buildSeconds
+        end
         self.HasProjectile = cfg.projectileRuid ~= nil
         self.HasHitEffect = cfg.hitEffectRuid ~= nil
         -- Card level of this life (a summon trait spawns its units at the same level).
@@ -122,8 +136,18 @@ script BattleUnit extends Component
         else
             self:SetMode("HOLD")
         end
-        log("[BattleUnit] setup " .. self.Entity.Name .. " kind=" .. cfg.kind .. " team=" .. tostring(team) .. " hp=" .. tostring(self.Hp) .. " attackType=" .. self.AttackType .. " area=" .. tostring(self.IsAreaAttack) .. " attribute=" .. self.Attribute .. " effectRules=" .. tostring(self._T.effectRules ~= nil and #self._T.effectRules or 0) .. " knockStep=" .. string.format("%.1f", self.KnockStep))
+        log("[BattleUnit] setup " .. self.Entity.Name .. " kind=" .. cfg.kind .. " team=" .. tostring(team) .. " hp=" .. tostring(self.Hp) .. " attackType=" .. self.AttackType .. " area=" .. tostring(self.IsAreaAttack) .. " attribute=" .. self.Attribute .. " effectRules=" .. tostring(self._T.effectRules ~= nil and #self._T.effectRules or 0) .. " knockStep=" .. string.format("%.1f", self.KnockStep) .. " buildSeconds=" .. tostring(self.BuildSeconds))
+        -- A preparing build gets its traits when the preparation ends.
+        if self._T.building ~= true then self:ApplyAlwaysRules() end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void FinishBuild()
+        -- The preparation time of a build is over: it gets its traits and starts working.
+        self._T.building = false
+        self.BuildReadyAt = 0
         self:ApplyAlwaysRules()
+        log("[BattleUnit] " .. self.Entity.Name .. " build finished after " .. tostring(self.BuildSeconds) .. "s")
     end
 
     method integer GetDirection()
@@ -166,6 +190,7 @@ script BattleUnit extends Component
         -- Freezes the unit when the battle ends.
         self.Ready = false
         self.PendingTarget = nil
+        self.BuildReadyAt = 0
         self:StopMoving()
         if self.IsDead == false then self:SetAnim("stand") end
     end
@@ -177,18 +202,26 @@ script BattleUnit extends Component
         local director = self.Director
         if director == nil then return end
 
+        -- A build that is still preparing does nothing at all (it can only be damaged).
+        if self._T.building == true then
+            if _UtilLogic.ServerElapsedSeconds < self.BuildReadyAt then return end
+            self:FinishBuild()
+        end
+
         if self.StatusCsv ~= "" then self:RefreshStatus(false) end
         _BattleEffects:Tick(self, delta)
         -- A poison tick may have killed the unit.
         if self.IsDead then return end
 
-        local x = self.Entity.TransformComponent.WorldPosition.x
+        local here = self.Entity.TransformComponent.WorldPosition
+        local x = here.x
+        local y = here.y
         if self.KnockRemain > 0 then
             -- Knocked back (or held by an effect): no attacking or advancing until it ends.
             self.KnockRemain = self.KnockRemain - delta
             local back = -self:GetDirection()
-            -- Never pushed behind its own base tower.
-            local room = (x - director:GetBaseX(self.Team)) * -back
+            -- Never pushed behind its own portal on this floor (or its own end of the field).
+            local room = (x - director:GetBackLimitX(self.Team, y)) * -back
             -- The push itself is a physics impulse given in StartKnockback; here the unit only waits it out.
             -- A unit shoved against its own base tower is stopped there.
             if room <= 0.3 then
@@ -204,14 +237,14 @@ script BattleUnit extends Component
             if self.HitTimer <= 0 then
                 local pending = self.PendingTarget
                 self.PendingTarget = nil
-                self:ApplyHit(pending, x)
+                self:ApplyHit(pending, x, y)
             end
         end
 
         if self.AttackPower <= 0 then return end
 
         local dir = self:GetDirection()
-        local target = self:FindAttackTarget(x)
+        local target = self:FindAttackTarget(x, y)
         if target ~= nil then
             self:SetMode("ATTACK")
             self.AttackTimer = self.AttackTimer - delta
@@ -221,13 +254,18 @@ script BattleUnit extends Component
                 -- Clients play the attack clip once and return to the stand clip when it ends, on their own.
                 self:SetAnim("attack")
                 self.PendingTarget = target
-                self._T.aimX = target.Entity.TransformComponent.WorldPosition.x
+                -- Where the attack is aimed: the target itself, or for the enemy base the enemy portal on this floor.
+                local aim = director:GetAimPoint(self.Team, target, x, y)
+                self._T.aimX = aim.x
+                self._T.aimY = aim.y
                 self.PendingLife = target.Life
                 self.HitTimer = self.AttackHitDelay
-                -- Every attack is announced: clients show the attack effect, play the attack sound and fly the projectile.
-                self:NotifyAttack(target.Entity, self.AttackHitDelay)
+                -- Every attack is announced: clients show the attack effect, play the attack sound and fly the projectile
+                -- (to the portal when the base is attacked through one).
+                self:NotifyAttack(target.Entity, self.AttackHitDelay, aim.x, aim.y, target.Kind == "base")
             end
-        elseif self.MoveSpeed <= 0 or (self.GoalX - x) * dir <= self.AttackRange then
+        elseif self.MoveSpeed <= 0 or director:IsPastField(self.Team, x) then
+            -- Nothing to fight here and nowhere further to go (a build, or the far end of the field).
             self:SetMode("HOLD")
         else
             self:SetMode("MOVE")
@@ -240,7 +278,7 @@ script BattleUnit extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method void ApplyHit(any aimed, number x)
+    method void ApplyHit(any aimed, number x, number y)
         -- The attack lands. A single-target attack damages the target it was aimed at when the attack started;
         -- a melee_area attack damages every enemy within attack range of this unit, a ranged_area attack every enemy within AreaRadius of the attacked target.
         if self.IsAreaAttack then
@@ -248,19 +286,25 @@ script BattleUnit extends Component
             -- melee_area: everything within attack range of this unit. ranged_area: everything within AreaRadius of the
             -- attacked target (its last known position if it died or left before the hit lands).
             local centerX = x
+            local centerY = y
             local radius = self.AttackRange
             if self.AttackType == "ranged_area" then
                 radius = self.AreaRadius
                 centerX = self._T.aimX or x
-                if aimed ~= nil and aimed.IsDead == false and aimed.Life == self.PendingLife and isvalid(aimed.Entity) then
-                    centerX = aimed.Entity.TransformComponent.WorldPosition.x
+                centerY = self._T.aimY or y
+                -- A unit that moved since the attack started is followed; the base's aim point (its portal) never moves.
+                if aimed ~= nil and aimed.Kind ~= "base" and aimed.IsDead == false and aimed.Life == self.PendingLife and isvalid(aimed.Entity) then
+                    local aimedPos = aimed.Entity.TransformComponent.WorldPosition
+                    centerX = aimedPos.x
+                    centerY = aimedPos.y
                 end
             end
-            local targets = self.Director:FindTargetsInRange(self.Team, centerX, radius)
+            local targets = self.Director:FindTargetsInRange(self.Team, centerX, centerY, radius)
             -- With a cap, the units nearest to the blast center are hit first (the aimed target is at distance ~0).
             if self.MaxTargets > 0 and #targets > self.MaxTargets then
+                local director = self.Director
                 table.sort(targets, function(a, b)
-                    return math.abs(a.Entity.TransformComponent.WorldPosition.x - centerX) < math.abs(b.Entity.TransformComponent.WorldPosition.x - centerX)
+                    return math.abs(director:GetAimPoint(self.Team, a, centerX, centerY).x - centerX) < math.abs(director:GetAimPoint(self.Team, b, centerX, centerY).x - centerX)
                 end)
             end
             local hits = 0
@@ -279,16 +323,17 @@ script BattleUnit extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method any FindAttackTarget(number x)
-        -- Returns what this unit attacks from x: the nearest enemy in range, or for a siege unit the nearest enemy
-        -- build / base in range (it walks past monsters).
+    method any FindAttackTarget(number x, number y)
+        -- Returns what this unit attacks from (x, y): the nearest enemy in range on its floor (the enemy base counts
+        -- when an enemy portal on this floor is in range), or for a siege unit the nearest enemy build / base in range
+        -- (it walks past monsters).
         local director = self.Director
-        if _BattleEffects:HasFlag(self, "siege") == false then return director:FindTarget(self.Team, x, self.AttackRange) end
+        if _BattleEffects:HasFlag(self, "siege") == false then return director:FindTarget(self.Team, x, y, self.AttackRange) end
         local best = nil
         local bestDist = self.AttackRange
-        for _, unit in ipairs(director:FindTargetsInRange(self.Team, x, self.AttackRange)) do
+        for _, unit in ipairs(director:FindTargetsInRange(self.Team, x, y, self.AttackRange)) do
             if unit.Kind ~= "monster" then
-                local dist = math.abs(unit.Entity.TransformComponent.WorldPosition.x - x)
+                local dist = math.abs(director:GetAimPoint(self.Team, unit, x, y).x - x)
                 if dist <= bestDist then
                     best = unit
                     bestDist = dist
@@ -303,6 +348,11 @@ script BattleUnit extends Component
         -- Damages one unit with this unit's attack through the damage pipeline (_BattleEffects:DealHit: this unit's
         -- effects, the attribute bonus, the target's effects), then rolls this unit's on_hit effect rules on it.
         if _BattleEffects:DealHit(self, target, self.AttackPower, "attack") < 0 then return end
+        -- The base is hit through its portal on this unit's floor: clients fly a particle from that portal to the base.
+        if target.Kind == "base" and self.Director ~= nil then
+            local here = self.Entity.TransformComponent.WorldPosition
+            self.Director:ShowPortalHit(target.Team, here.x, here.y)
+        end
         -- Clients play this unit's hit effect on the unit that was just damaged (only units that have one announce it).
         if self.HasHitEffect and isvalid(target.Entity) then self:NotifyHit(target.Entity) end
         self:TryApplyEffect(target)
@@ -468,6 +518,8 @@ script BattleUnit extends Component
         -- Monsters and builds play the death clip and are destroyed; a base ends the battle instead.
         self.IsDead = true
         self.PendingTarget = nil
+        self._T.building = false
+        self.BuildReadyAt = 0
         _BattleEffects:Clear(self)
         self._T.statuses = {}
         self.StatusCsv = ""
@@ -511,6 +563,8 @@ script BattleUnit extends Component
         -- Going back to the pool: stop every behavior so nothing runs while it is parked.
         self.Ready = false
         self.PendingTarget = nil
+        self._T.building = false
+        self.BuildReadyAt = 0
         _BattleEffects:Clear(self)
         self._T.effectRules = nil
         self.KnockRemain = 0
@@ -522,9 +576,10 @@ script BattleUnit extends Component
     end
 
     @ExecSpace("Multicast")
-    method void NotifyAttack(Entity target, number travelTime)
-        -- Tells every client that an attack started, so it can show the attack effect, sound and projectile (presentation only).
-        _BattleFx:OnAttackFired(self, target, travelTime)
+    method void NotifyAttack(Entity target, number travelTime, number aimX, number aimY, boolean throughPortal)
+        -- Tells every client that an attack started, so it can show the attack effect, sound and projectile (presentation
+        -- only). throughPortal = the enemy base is attacked through the portal at (aimX, aimY): the projectile flies there.
+        _BattleFx:OnAttackFired(self, target, travelTime, aimX, aimY, throughPortal)
     end
 
     @ExecSpace("Multicast")
@@ -558,7 +613,7 @@ script BattleUnit extends Component
         if name == "Hp" or name == "MaxHp" then _BattleFx:OnUnitHpSync(self) end
         -- UnitId and Life too: the clip RUIDs come from the unit's row, and a new life (a reused pooled entity) starts
         -- its presentation over, so a state that arrived first is applied once those are known.
-        if name == "Anim" or name == "UnitId" or name == "Life" then self:SyncPresentation() end
+        if name == "Anim" or name == "UnitId" or name == "Life" or name == "UseRowClips" then self:SyncPresentation() end
     end
 
     @ExecSpace("ClientOnly")
@@ -614,6 +669,9 @@ script BattleUnit extends Component
         if shownKey == self._T.shownAnim then return end
         local cfg = _BattleConfig:GetUnit(self.UnitId)
         if cfg == nil then return end
+        -- A base only uses its row's clips when a player controls it (Papulatus); the stage AI's base keeps the sprite
+        -- it was given in the map (UseRowClips is set by the director before Setup).
+        if cfg.kind == "base" and self.UseRowClips == false then return end
         self._T.shownAnim = shownKey
         local state = anim
         local colon, colonEnd = string.find(anim, ":", 1, true)

@@ -1,5 +1,6 @@
 import { Badge, Thumb } from './ui.jsx';
 import { SORT_OPTIONS, sortUnits, unitIconRuid } from './unit.js';
+import { PixelThumb } from './PixelIconEditor.jsx';
 
 function UnitRow({ item: u, schema }) {
   return (
@@ -14,6 +15,7 @@ function StageRow({ item: s }) {
   const st = s._status;
   return (
     <>
+      <Thumb ruid={s.IconRuid} />
       <div className="main"><div className="nm">{s.Name}</div><div className="id">{s.StageId} · 맵 {s.MapName} · 기지 HP {s.BaseHp}</div></div>
       <div className="badges">
         <Badge type="enemy">시간표 {st.waveCount} · {st.lastWaveTime}초</Badge>
@@ -28,6 +30,7 @@ function EffectRow({ item: e }) {
   const st = e._status;
   return (
     <>
+      {e.IconRuid ? <Thumb ruid={e.IconRuid} /> : <PixelThumb value={e.PixelIcon} />}
       <div className="main"><div className="nm">{e.Name}</div><div className="id">{e.EffectId} · {e.Duration}초</div></div>
       <div className="badges">
         {st.implemented ? <Badge type="ok">구현됨</Badge> : <Badge type="warn">미구현 · 설명만</Badge>}

@@ -26,6 +26,29 @@ script BattleConfig extends Logic
     property integer DefaultCostLevelCap = 3
     -- The base every player owns from the start and every stage's enemy uses unless the stage names another (UnitTable id, Kind = base).
     property string DefaultBaseId = "base"
+    -- The base a stage's enemy uses when the stage names none (UnitTable id, Kind = base, EnemyOnly). The player's default
+    -- base is Papulatus with its own skills, so the enemy default is a separate plain row.
+    property string DefaultEnemyBaseId = "base_enemy"
+    -- Floors: two things are "on the same floor" when their heights differ by no more than this (world units). Units
+    -- only fight what is on their own floor; a unit that falls to another floor joins the fight there.
+    property number FloorTolerance = 0.7
+    -- Floor lookup (FootholdComponent raycast): the ray starts this far above the asked point and reaches this far down.
+    property number FloorProbeUp = 0.5
+    property number FloorProbeDown = 12
+    -- A portal's sprite centre sits about this far above its floor; used only when the floor lookup finds no foothold.
+    property number PortalFootOffset = 0.15
+    -- Spawn portals a side can have in one map (AllyPortal, AllyPortal_1 ... / EnemyPortal, EnemyPortal_1 ...).
+    property integer MaxPortals = 4
+    -- Choosing the portal a monster card comes out of: a click within this distance of a portal picks it.
+    property number PortalPickRadius = 1.0
+    -- The stage AI puts its builds this far in front of the portal it picked.
+    property number BuildAutoOffset = 1.2
+    -- The field ends this far outside the outermost base / portal; nothing is built and nobody walks beyond it.
+    property number FieldEdgeMargin = 0.4
+    -- A unit attacks the enemy base through the enemy portal on its floor. Each such hit sends a particle from that
+    -- portal to the base (clients); it flies this long, and one portal sends at most one per PortalHitInterval seconds.
+    property number PortalHitSeconds = 0.45
+    property number PortalHitInterval = 0.2
     -- Knockback shared by every monster unless its UnitTable row says otherwise: HP lost (percent of max) per
     -- knockback, how far it is pushed (authored units, scaled by RangeScale) and how long the push lasts.
     property number KnockbackHpPercent = 34
@@ -190,6 +213,10 @@ script BattleConfig extends Logic
                     baseSkill = self:OptText(ds:GetCell(i, "BaseSkill")) or "",
                     baseSkillType = self:OptText(ds:GetCell(i, "BaseSkillType")) or "active",
                     baseSkillCooldown = self:Num(ds:GetCell(i, "BaseSkillCooldown"), 0),
+                    -- Every skill of the base in slot order (BaseSkill, BaseSkill2, BaseSkill3): { id, type, cooldown }.
+                    baseSkills = self:ReadBaseSkills(ds, i),
+                    -- Builds only: seconds a new build spends preparing (no attacks, no traits, but it can be damaged). 0 = none.
+                    buildSeconds = math.max(0, self:Num(ds:GetCell(i, "BuildSeconds"), 0)),
                     productId = self:OptText(ds:GetCell(i, "ProductId")) or "",
                     enemyOnly = self:Num(ds:GetCell(i, "EnemyOnly"), 0) > 0,
                 }
@@ -198,6 +225,23 @@ script BattleConfig extends Logic
         self._T.units = units
         log("[BattleConfig] UnitTable loaded rows=" .. tostring(count))
         return units
+    end
+
+    method table ReadBaseSkills(any ds, integer row)
+        -- Reads a base row's skill slots (BaseSkill / BaseSkill2 / BaseSkill3 with their Type and Cooldown columns) into
+        -- an array of { id, type, cooldown }; blank slots are skipped.
+        local skills = {}
+        for _, suffix in ipairs({ "", "2", "3" }) do
+            local id = self:OptText(ds:GetCell(row, "BaseSkill" .. suffix))
+            if id ~= nil then
+                table.insert(skills, {
+                    id = id,
+                    type = self:OptText(ds:GetCell(row, "BaseSkill" .. suffix .. "Type")) or "active",
+                    cooldown = self:Num(ds:GetCell(row, "BaseSkill" .. suffix .. "Cooldown"), 0),
+                })
+            end
+        end
+        return skills
     end
 
     method table GetUnit(string unitId)
@@ -370,6 +414,9 @@ script BattleConfig extends Logic
                     applies = self:OptText(ds:GetCell(i, "Applies")) or "target",
                     -- Text parameter for types that need one (spawn: the unit id it summons).
                     param = self:OptText(ds:GetCell(i, "Param")) or "",
+                    -- Client only: the 8x8 pixel icon drawn above an affected unit ("colors;rows", see BattleFx.ParsePixelIcon).
+                    -- "" = use the built-in glyph of BattleFx.GetIconGlyph, if any.
+                    pixelIcon = self:OptText(ds:GetCell(i, "PixelIcon")) or "",
                 }
             end
         end
@@ -463,7 +510,8 @@ script BattleConfig extends Logic
         if unit == nil then return "" end
         -- A base is shown with its plain sprite (IconRuid), not a clip thumbnail.
         if unit.kind == "base" then return unit.iconRuid or "" end
-        local ruid = unit.standRuid
+        -- Default: the stand clip's thumbnail (skills: the effect clip's). A row's own IconRuid overrides it.
+        local ruid = unit.iconRuid or unit.standRuid
         if unit.kind == "skill" then ruid = unit.iconRuid or unit.effectRuid or "" end
         if ruid == nil or ruid == "" then return "" end
         return "thumbnail://" .. ruid
@@ -737,8 +785,8 @@ script BattleConfig extends Logic
                         -- Chest (ChestTable id) opened for the player on a win; blank = none.
                         rewardChest = self:OptText(ds:GetCell(i, "RewardChest")) or "",
                         entryCost = self:Num(ds:GetCell(i, "EntryCost"), 0),
-                        -- The enemy side's base (UnitTable id, Kind = base). Blank = DefaultBaseId. Its HP is the stage's BaseHp.
-                        enemyBase = self:OptText(ds:GetCell(i, "EnemyBase")) or self.DefaultBaseId,
+                        -- The enemy side's base (UnitTable id, Kind = base). Blank = DefaultEnemyBaseId. Its HP is the stage's BaseHp.
+                        enemyBase = self:OptText(ds:GetCell(i, "EnemyBase")) or self.DefaultEnemyBaseId,
                         unlockStage = ds:GetCell(i, "UnlockStage") or "",
                         loopPool = pool,
                         loopStartInterval = self:Num(ds:GetCell(i, "LoopStartInterval"), 6),

@@ -134,12 +134,17 @@ The `Bash` / shell tool is reserved for actual programs (`git`, `npm`, MCP, buil
 
 > Symptom of violation: `ls: cannot access 'D:msw-world-projects...'` — the backslashes were eaten by bash. Stop and re-issue as `Glob` / `Read` / `Grep`.
 
-### No Maker runtime verification (project override)
+### Runtime interaction requires MCP — no exceptions
 
-⛔ **Do not run the Maker to verify work.** Never call `play`, `stop`, `screenshot`, `keyboard_input`, `mouse_input`, or `maker_execute_script` — the user tests in Maker themselves. See `CLAUDE.md` for the reason.
+⛔ **Never claim a runtime result without an actual MCP tool call.**
 
-- Never claim a runtime result ("it works", "no errors at runtime", "I clicked the button"). Report what was changed and that it is **not runtime-tested**.
-- `logs` is allowed only when the user explicitly asks for it.
+- Saying "I clicked the button" without calling `mouse_input` is a hallucination.
+- Saying "it works" without calling `play` → `logs` is a hallucination.
+- Saying "no errors" without calling `logs(kind="build")` or `logs(kind="normal")` is a hallucination.
+
+If a task requires runtime interaction (playing, clicking, typing, verifying behavior, checking logs), you **must** invoke the corresponding Maker MCP tool (`play`, `stop`, `logs`, `keyboard_input`, `mouse_input`, `maker_execute_script`). Text alone cannot substitute for tool execution. Use `screenshot` when you need to identify screen coordinates for input targeting or when the user explicitly requests it.
+
+Produce that evidence with the **fewest calls**: prefer one `maker_execute_script` probe over a long `keyboard_input`/`mouse_input` chain when the input path itself is not under test, and keep `logs` reads scoped — every tool call is a full model round-trip whose output stays in context for the rest of the session.
 
 ## 0. Plan (MANDATORY)
 
@@ -162,7 +167,7 @@ The `Bash` / shell tool is reserved for actual programs (`git`, `npm`, MCP, buil
 
      Search only the file types relevant to the request; read matches to learn patterns and dependencies.
 
-3. **`TodoWrite`** — break the task into concrete, verifiable steps. A single **Verify** todo covering **all** implementation todos is required (see ## 3) — static review only, no Maker play cycle. Mark each todo `in_progress` when starting; `completed` only after the static review passes.
+3. **`TodoWrite`** — break the task into concrete, verifiable steps. A single **Verify** todo covering **all** implementation todos is required (see ## 3): plant `[VRF]` evidence while implementing, then verify everything in **one runtime cycle per turn** — never one play cycle per todo. Mark each todo `in_progress` when starting; `completed` only after verification passes.
 
 ## 1. Analyze
 
@@ -179,6 +184,7 @@ The `Bash` / shell tool is reserved for actual programs (`git`, `npm`, MCP, buil
 - **`Global/`**: never create new files here (Maker won't register them) or delete. Existing `Global/*.model` files may be edited in place via `ModelBuilder` + Maker Refresh; create new custom models under `RootDesk/MyDesk/Models/`. `Environment/` (`.d.mlua`) is read-only; `.config` files are values-only and Maker-managed.
 - **Use builders for structured files:** `.model`, `.ui`, and `.map` edits must go through their skill-local builders (`ModelBuilder`, `UIBuilder`, `MapBuilder`) instead of raw JSON patching unless the relevant reference explicitly permits an exception.
 - **Property types:** use `integer` (not `int`), `number` (not `float`).
+- **Add `[VRF]`-prefixed `log()` calls** (e.g. `log("[VRF] wave spawned n=3")`) at critical checkpoints — `OnBeginPlay` entry, branch results, key values, important events — so Verify can collect all evidence in one scoped log read; the `OnBeginPlay` marker doubles as the boot signal for log timing.
 - **`SpawnService` parent must NOT be nil.** Pass the target map entity (`self.Entity.CurrentMap`, or `_EntityService:GetEntityByPath("/maps/map01")`).
 
   ```
@@ -212,11 +218,7 @@ The camera perspective (`TileMapMode`) determines the entire physics, movement, 
 
 ## 3. Verify
 
-**Static verification only — no Maker play cycle** (see "No Maker runtime verification" above).
-
-- Fix every error reported by the `mlua-diagnose` hook after each edit.
-- Ensure `msw-scripting` and its `references/verify-checklist.md` are in context (load only what is missing), then apply **Step 2 — Code Review Checklist only**. Skip Step 1 / 1b / 2b / 3 (runtime execution, simulated input, screenshots, `[VRF]` log evidence).
-- Report to the user that the change is not runtime-tested and what they should check in Maker.
+Ensure `msw-scripting` and its `references/verify-checklist.md` are fully in context — `Skill: msw-scripting` / `Read` only what is missing this session; never re-read what is already in context. Then follow the checklist: **one runtime cycle per turn covering all of this turn's changes**.
 
 ## 4. On Failure
 
@@ -228,7 +230,7 @@ The camera perspective (`TileMapMode`) determines the entire physics, movement, 
 
 If none of the above resolves the issue, tell the user:
 
-> I could not find a solution through local implementation or Guide documents.
+> I could not find a solution through local implementation, Maker MCP, or Guide documents.
 > You can get help from the MapleStory Worlds official Discord community:
 >
 > **https://discord.com/invite/maplestoryworlds**

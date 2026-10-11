@@ -214,13 +214,16 @@ function validateUnit(unit, data, opts = {}) {
   }
 
   if (kind === 'base') {
-    if (unit.BaseSkill) {
-      const skill = unitById(data.units, unit.BaseSkill);
-      if (!skill) errors.push(`BaseSkill "${unit.BaseSkill}"가 UnitTable에 없습니다`);
-      else if (skill.Kind !== 'skill') errors.push(`BaseSkill "${unit.BaseSkill}"는 스킬이 아닙니다 (${skill.Kind})`);
-      if (!(Number(unit.BaseSkillCooldown) > 0)) errors.push('기지 스킬이 있으면 BaseSkillCooldown은 0보다 커야 합니다');
-    } else if (unit.BaseSkillCooldown) {
-      warnings.push('BaseSkill이 없어 BaseSkillCooldown이 쓰이지 않습니다');
+    // Up to three base skills: BaseSkill / BaseSkill2 / BaseSkill3, each with its own Type and Cooldown column.
+    for (const key of ['BaseSkill', 'BaseSkill2', 'BaseSkill3']) {
+      if (unit[key]) {
+        const skill = unitById(data.units, unit[key]);
+        if (!skill) errors.push(`${key} "${unit[key]}"가 UnitTable에 없습니다`);
+        else if (skill.Kind !== 'skill') errors.push(`${key} "${unit[key]}"는 스킬이 아닙니다 (${skill.Kind})`);
+        if (!(Number(unit[key + 'Cooldown']) > 0)) errors.push(`기지 스킬이 있으면 ${key}Cooldown은 0보다 커야 합니다`);
+      } else if (unit[key + 'Cooldown']) {
+        warnings.push(`${key}이 없어 ${key}Cooldown이 쓰이지 않습니다`);
+      }
     }
     if (unit.EnemyOnly === '1' && unit.Starter === '1') errors.push('적 전용 기지는 스타터로 지급할 수 없습니다');
     if (unit.EnemyOnly === '1' && unit.ProductId) warnings.push('적 전용 기지라 ProductId(판매)가 쓰이지 않습니다');
@@ -521,6 +524,11 @@ function validateEffect(effect, data, opts = {}) {
     if (v === '') continue;
     if (f.type === 'number' && !isNumeric(v)) errors.push(`${f.key}는 숫자여야 합니다 (현재 "${v}")`);
     if (f.type === 'enum' && !f.enum.includes(v)) errors.push(`${f.key}는 ${f.enum.join(' / ')} 중 하나여야 합니다 (현재 "${v}")`);
+    if (f.type === 'ruid' && !/^[0-9a-f]{32}$/.test(v)) warnings.push(`${f.key} "${v}"가 RUID 형식(32자리 16진수)이 아닙니다`);
+    if (f.type === 'pixelicon') {
+      const p = schema.parsePixelIcon(v);
+      if (!p.ok) errors.push(`${f.key}: ${p.error}`);
+    }
   }
   for (const k of Object.keys(effect)) {
     if (!schema.EFFECT_FIELD_BY_KEY[k] && !data.effects.header.includes(k)) errors.push(`"${k}"는 EffectTable에 없는 열입니다`);
@@ -655,6 +663,7 @@ function validateStage(stage, waves, pool, data, opts = {}) {
     if (f.required && v === '') { errors.push(`${f.key}(${f.label})는 필수입니다`); continue; }
     if (v === '') continue;
     if (f.type === 'number' && !isNumeric(v)) errors.push(`${f.key}는 숫자여야 합니다 (현재 "${v}")`);
+    if (f.type === 'ruid' && !/^[0-9a-f]{32}$/.test(v)) warnings.push(`${f.key} "${v}"가 RUID 형식(32자리 16진수)이 아닙니다`);
   }
   for (const k of Object.keys(stage)) {
     if (k === 'LoopPool') continue;

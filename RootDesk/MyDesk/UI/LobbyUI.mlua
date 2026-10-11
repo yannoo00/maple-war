@@ -1134,13 +1134,19 @@ script LobbyUI extends Component
 
     @ExecSpace("ClientOnly")
     method string DescribeBaseSkill(table base)
-        -- Describes a base's skill for the info popup: active (cooldown, used from the battle HUD) or passive (automatic).
-        if base.baseSkill == "" then return "기지 스킬  없음" end
-        local skill = _BattleConfig:GetUnit(base.baseSkill)
-        if skill == nil then return "기지 스킬  없음" end
-        local kind = "능동 · 쿨타임 " .. self:FormatNumber(base.baseSkillCooldown) .. "초"
-        if base.baseSkillType == "passive" then kind = "패시브 · " .. self:FormatNumber(base.baseSkillCooldown) .. "초마다 자동" end
-        return "기지 스킬  " .. skill.name .. " (" .. kind .. ", 피해 " .. self:FormatNumber(skill.damage) .. ", 범위 " .. self:FormatNumber(skill.radius) .. ")"
+        -- Describes a base's skills (up to three) for the info popup, one line each: active (cooldown, used from the
+        -- battle HUD) or passive (automatic).
+        local lines = {}
+        for _, def in ipairs(base.baseSkills or {}) do
+            local skill = _BattleConfig:GetUnit(def.id)
+            if skill ~= nil then
+                local kind = "능동 · 쿨타임 " .. self:FormatNumber(def.cooldown) .. "초"
+                if def.type == "passive" then kind = "패시브 · " .. self:FormatNumber(def.cooldown) .. "초마다 자동" end
+                table.insert(lines, "기지 스킬  " .. skill.name .. " (" .. kind .. ")")
+            end
+        end
+        if #lines == 0 then return "기지 스킬  없음" end
+        return table.concat(lines, "\n")
     end
 
     @ExecSpace("ClientOnly")

@@ -75,3 +75,14 @@
 - 속성·효과·넉백(몬스터만): `UnitTable.Attribute` / `Effect` / `HitRuid` / `Knockback*`, 효과 정의와 속성별 확률은 `EffectTable`(`BattleConfig:GetEffect`). 흐름은 `BattleUnit:DealDamage` → `TakeDamage`(체력 구간마다 `StartKnockback`) → `TryApplyEffect`(맞은 유닛의 속성으로 확률) → `ReceiveEffect`(nullify / curse / warp / blow). 넉백 중에는 `Mode = "KNOCKBACK"`으로 공격·전진을 멈춘다. 몬스터 27종 전부에 속성을, 13종에 효과를 임의 배정(잠정). 걸린 효과는 `BattleUnit.StatusCsv`(`type:끝나는 ServerElapsedSeconds`)로 동기화되고 클라이언트 `BattleFx:UpdateIcons`가 HP 바 위에 픽셀 글리프 아이콘(HP 바 모델 재사용)을 띄우고 시간이 끝나면 지운다.
 - 넉백은 물리 충격(`RigidbodyComponent:SetForce(Vector2(뒤쪽 × 거리 × KnockbackForcePerUnit, KnockbackLift))`)이다. 엔진이 알아서 감속하므로 밀기·멈춤이 자연스럽다. `MovementComponent`로 미는 방식은 가속·관성 때문에 거리가 맞지 않고(`Stop()`을 불러도 미끄러짐) 위치를 고정하면 순간이동처럼 보여서 버렸다. 측정: 힘 1당 약 0.08유닛(힘 3.1 → 0.23, 7.8 → 0.65), 0.3~0.4초 안에 멈춤, 위로 2를 주면 0.1 정도 살짝 뜬다. 즉시 이동(워프)은 `MovementComponent:SetWorldPosition`.
 - 전투 로직을 서버 스크립트로 시험할 때는 유닛을 원하는 자리에 직접 놓는다(`BattleDirector:SpawnUnit(team, id, x, cfg)`). 양 끝에서 걸어와 만나기를 기다리면 10초 넘게 걸린다.
+### 2026-10-11 M3 Phase 6 (다중 포탈·층, 파풀라투스) 구현 — 런타임 미검증
+- 전장 구조가 바뀌었다. 맵 루트의 자식 이름으로 읽는다: `AllyBase`/`EnemyBase` = HP를 가진 base(플레이어 쪽은 파풀라투스), `AllyPortal`·`AllyPortal_N` / `EnemyPortal`·`EnemyPortal_N` = 소환 포탈(진영당 최대 4, HP 없음·대상 아님). 위 표의 "소환 포탈 2개(`SpawnOffsetX`)"·"설치 불가 영역 음영"·`AllySpawnX`·`GoalX`·단일 `BaseSkillId`는 더 이상 없다.
+- 층: `BattleDirector:FloorYBelow`(맵의 `FootholdComponent:Raycast`)로 포탈·클릭 지점 아래 발판 높이를 구하고, `SameFloor`(높이 차 ≤ `BattleConfig.FloorTolerance` 0.7)인 유닛끼리만 교전한다. 이 함수들과 `GetPortals`는 ExecSpace가 없어 서버·클라이언트가 같은 맵에서 각자 계산한다(동기화 속성 없음).
+- base 공격: `FindTarget`이 "같은 층의 적 포탈이 사거리 안"이면 적 base를 돌려준다. 조준점은 `GetAimPoint`(포탈 위치), 피해 때 `ShowPortalHit` → Multicast `NotifyPortalHit` → `BattleFx:OnPortalHit`가 포탈 → base 파티클을 날린다.
+- 카드: `UseCard(team, slot, unitId, x, y, portalIndex)`, `PlayUnit(team, unitId, x, y, level, portalIndex)`, `SpawnUnit(team, unitId, x, floorY, cfg)`, AI는 `PlayUnitAuto`. 건물은 `FindFloorY`(가장 낮은 포탈 층 아래로는 내려가지 않음)로 선 자리를 정한다.
+- 건물 준비: `BattleUnit.BuildReadyAt`·`BuildSeconds`(@Sync), 준비 중에는 `OnUpdate`가 바로 끝나고 `ApplyAlwaysRules`는 `FinishBuild`에서 부른다. 연출은 `BattleFx:UpdateBuild`.
+- 기지 스킬: `BattleSide.BaseSkillsCsv`(`id:type:cooldown:readyAt;…`) + `GetBaseSkills()`. `Commander.PendingSlot`은 1~5 = 손패, 100 + n = 기지 스킬 n.
+- 파티클은 클라이언트 로컬 모델 `battleparticle`(Models/Effects의 BattleParticle) 하나를 쓰고 종류·색은 스폰 직후 스크립트가 넣는다(모델 값으로는 enum·Color를 넣을 수 없었다). ChargeOrb = `BasicParticleType.ChargeOrb`, 포탈 피격 = `FlamethrowerToony`.
+- 플레이어 base만 `UnitTable` 클립으로 그린다(`BattleUnit.UseRowClips`, 팀 1 = true). 적 base는 맵에 놓인 스프라이트 그대로. 대전(M5)에서는 팀 2도 플레이어이므로 이 조건을 "조종하는 쪽이 플레이어인가"로 바꿔야 한다.
+- 맵 빌더로 맵 파일을 쓰면 숫자 표기(`1.0` → `1`)가 바뀌어 diff가 크게 나온다(내용 변화 아님).
+- 2026-10-11부터 AI는 Maker 런타임 검증을 하지 않는다(`CLAUDE.md`). 확인할 항목은 GDD Phase 6의 `⚠️ needs user test`.

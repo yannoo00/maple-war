@@ -18,13 +18,12 @@ script BattleSide extends Component
     @Sync property integer CostLevelCap = 1
     -- Mana it costs now to raise the in-battle level (the level's price minus the base's upgrade discount); 0 = no next level.
     @Sync property number UpgradeCost = 0
-    -- The base this side plays (UnitTable id, Kind = base) and its skill: skill unit id ("" = none), type (active / passive),
-    -- cooldown seconds and the _UtilLogic.ServerElapsedSeconds at which it can be used next.
+    -- The base this side plays (UnitTable id, Kind = base) and its skills, up to MaxBaseSkills, in slot order:
+    -- "id:type:cooldown:readyAt;..." where type is active / passive, cooldown is in seconds and readyAt is the
+    -- _UtilLogic.ServerElapsedSeconds at which that skill can be used next. Read it with GetBaseSkills.
     @Sync property string BaseId = ""
-    @Sync property string BaseSkillId = ""
-    @Sync property string BaseSkillType = ""
-    @Sync property number BaseSkillCooldown = 0
-    @Sync property number BaseSkillReadyAt = 0
+    @Sync property string BaseSkillsCsv = ""
+    property integer MaxBaseSkills = 3
     property boolean FreePlay = false
 
     method table GetDeckIds()
@@ -79,7 +78,7 @@ script BattleSide extends Component
         self.CostMax = costLevels[1].costMax * self._T.maxRate
         self._T.regenRate = costLevels[1].regenRate * self._T.regenMul
         self.UpgradeCost = math.floor(costLevels[1].upgradeCost * (1 - self._T.discount))
-        self:InitBaseSkill(baseCfg)
+        self:InitBaseSkills(baseCfg)
         self._T.levels = unitLevels
         -- Shuffle the deck into the card queue, then deal the front cards into the hand.
         local queue = {}
@@ -101,40 +100,66 @@ script BattleSide extends Component
         log("[BattleSide] reset team=" .. tostring(team) .. " controller=" .. (controllerUserId ~= "" and controllerUserId or "AI") .. " deck=" .. self.DeckCsv .. " hand=" .. self.HandCsv .. " queue=" .. table.concat(queue, ","))
     end
 
-    @ExecSpace("ServerOnly")
-    method void InitBaseSkill(table baseCfg)
-        -- Loads the base's skill. A skill id that is not a skill unit is ignored. The cooldown starts at the beginning
-        -- of the battle, so the skill can first be used one full cooldown in.
-        self.BaseId = baseCfg.id
-        local skill = nil
-        if baseCfg.baseSkill ~= nil and baseCfg.baseSkill ~= "" then skill = _BattleConfig:GetUnit(baseCfg.baseSkill) end
-        if skill == nil or skill.kind ~= "skill" then
-            if baseCfg.baseSkill ~= nil and baseCfg.baseSkill ~= "" then
-                log_warning("[BattleSide] base " .. baseCfg.id .. " skill " .. baseCfg.baseSkill .. " is not a skill unit, ignored")
-            end
-            self.BaseSkillId = ""
-            self.BaseSkillType = ""
-            self.BaseSkillCooldown = 0
-            self.BaseSkillReadyAt = 0
-            return
+    method table GetBaseSkills()
+        -- Returns the base's skills in slot order as an array of { index, id, type, cooldown, readyAt }. Usable on server
+        -- and client; parsed again only when the synced text changed.
+        local csv = self.BaseSkillsCsv
+        if self._T.skillsCsv == csv and self._T.skills ~= nil then return self._T.skills end
+        local skills = {}
+        for id, kind, cooldown, readyAt in string.gmatch(csv, "([^:;]+):([^:;]+):([^:;]+):([^:;]+)") do
+            table.insert(skills, { index = #skills + 1, id = id, type = kind, cooldown = tonumber(cooldown) or 0, readyAt = tonumber(readyAt) or 0 })
         end
-        self.BaseSkillId = skill.id
-        self.BaseSkillType = baseCfg.baseSkillType
-        self.BaseSkillCooldown = baseCfg.baseSkillCooldown
-        self.BaseSkillReadyAt = _UtilLogic.ServerElapsedSeconds + baseCfg.baseSkillCooldown
-        log("[VRF] BattleSide team=" .. tostring(self.Team) .. " base=" .. baseCfg.id .. " skill=" .. skill.id .. " type=" .. baseCfg.baseSkillType .. " cooldown=" .. tostring(baseCfg.baseSkillCooldown))
+        self._T.skillsCsv = csv
+        self._T.skills = skills
+        return skills
     end
 
     @ExecSpace("ServerOnly")
-    method boolean IsBaseSkillReady()
-        -- True when the base has a skill and its cooldown is over.
-        return self.BaseSkillId ~= "" and _UtilLogic.ServerElapsedSeconds >= self.BaseSkillReadyAt
+    method void PublishBaseSkills(table skills)
+        -- Writes the base skills to their synced text.
+        local parts = {}
+        for _, skill in ipairs(skills) do
+            table.insert(parts, skill.id .. ":" .. skill.type .. ":" .. string.format("%.2f", skill.cooldown) .. ":" .. string.format("%.2f", skill.readyAt))
+        end
+        self.BaseSkillsCsv = table.concat(parts, ";")
     end
 
     @ExecSpace("ServerOnly")
-    method void StartBaseSkillCooldown()
-        -- Starts the base skill's cooldown after it was used.
-        self.BaseSkillReadyAt = _UtilLogic.ServerElapsedSeconds + self.BaseSkillCooldown
+    method void InitBaseSkills(table baseCfg)
+        -- Loads the base's skills (its BaseSkill / BaseSkill2 / BaseSkill3 cells). An id that is not a skill unit is
+        -- ignored. Every cooldown starts at the beginning of the battle, so a skill can first be used one full cooldown in.
+        self.BaseId = baseCfg.id
+        local now = _UtilLogic.ServerElapsedSeconds
+        local skills = {}
+        for _, def in ipairs(baseCfg.baseSkills or {}) do
+            local skill = _BattleConfig:GetUnit(def.id)
+            if skill == nil or skill.kind ~= "skill" then
+                log_warning("[BattleSide] base " .. baseCfg.id .. " skill " .. tostring(def.id) .. " is not a skill unit, ignored")
+            elseif #skills < self.MaxBaseSkills then
+                local kind = def.type
+                if kind ~= "passive" then kind = "active" end
+                table.insert(skills, { id = skill.id, type = kind, cooldown = def.cooldown, readyAt = now + def.cooldown })
+            end
+        end
+        self:PublishBaseSkills(skills)
+        log("[BattleSide] team=" .. tostring(self.Team) .. " base=" .. baseCfg.id .. " skills=" .. self.BaseSkillsCsv)
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean IsBaseSkillReady(integer index)
+        -- True when the base has a skill in that slot and its cooldown is over.
+        local skill = self:GetBaseSkills()[index]
+        return skill ~= nil and _UtilLogic.ServerElapsedSeconds >= skill.readyAt
+    end
+
+    @ExecSpace("ServerOnly")
+    method void StartBaseSkillCooldown(integer index)
+        -- Starts the cooldown of the base skill in a slot after it was used.
+        local skills = self:GetBaseSkills()
+        local skill = skills[index]
+        if skill == nil then return end
+        skill.readyAt = _UtilLogic.ServerElapsedSeconds + skill.cooldown
+        self:PublishBaseSkills(skills)
     end
 
     @ExecSpace("ServerOnly")

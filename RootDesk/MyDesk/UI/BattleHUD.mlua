@@ -35,9 +35,16 @@ script BattleHUD extends Component
     property Entity lobbyButton = "177bfba2-0e4e-4206-97f5-2d4e28890fea"
     property Entity leaveButton = "d2dd96f0-9b59-4e54-a4a6-264ae4c6a6dd"
     property Entity costUpButton = "4a9f0d6a-4976-4ed4-bd97-0f528cb31862"
-    -- Base skill button (bottom right): shows the skill and its cooldown; pressing it starts aiming (an active base skill only).
-    property Entity baseSkillButton = "f845c541-f689-4534-b291-ee82be67df62"
-    property any baseSkillHandler = nil
+    -- Base skill slots (bottom right, SkillQuickSlot/slot_01..03): one round button per skill of my base. Each shows the
+    -- skill's icon, a dark radial shade (Cool) that shrinks as the cooldown runs out and the seconds left (Time);
+    -- pressing a ready active skill starts aiming it. A slot the base has no skill for is hidden.
+    property Entity skillPanel = "fb8928c6-4916-4b8f-986f-ce26d7ef9f8b"
+    property Entity skillSlot1 = "69d3d846-f543-440d-85f5-9888559e6384"
+    property Entity skillSlot2 = "6a700d9a-67bb-4954-b340-730eb9fa6f72"
+    property Entity skillSlot3 = "59f00c8d-d907-4cbc-8d3c-238984f1211c"
+    property table skillHandlers = {}
+    -- The slot whose skill is being aimed is drawn this much larger.
+    property number SkillAimScale = 1.12
     property any costUpHandler = nil
     -- Highlight when a new card arrives in a hand slot: it swells by ReadyPulseScale and settles over ReadyPulseSeconds.
     property number ReadyPulseSeconds = 0.3
@@ -94,10 +101,23 @@ script BattleHUD extends Component
             self.costUpHandler = self.costUpButton:ConnectEvent(ButtonClickEvent, self.OnCostUpClicked)
             self.costUpButton.Enable = false
         end
-        if isvalid(self.baseSkillButton) then
-            self.baseSkillHandler = self.baseSkillButton:ConnectEvent(ButtonClickEvent, self.OnBaseSkillClicked)
-            self.baseSkillButton.Enable = false
+        -- Base skill slots: hidden until the battle tells which skills my base has.
+        local skillSlots = {}
+        self.skillHandlers = {}
+        for i, entity in ipairs({ self.skillSlot1, self.skillSlot2, self.skillSlot3 }) do
+            if isvalid(entity) then
+                local skillIndex = i
+                local clickHandler = entity:ConnectEvent(ButtonClickEvent, function() self:OnBaseSkillClicked(skillIndex) end)
+                table.insert(self.skillHandlers, { entity = entity, eventHandler = clickHandler })
+                skillSlots[i] = {
+                    entity = entity, icon = entity:GetChildByName("Icon"), cool = entity:GetChildByName("Cool"), time = entity:GetChildByName("Time"),
+                    skillId = "", label = "", usable = nil, shade = -1, aimed = false,
+                }
+                entity.Enable = false
+            end
         end
+        self._T.skillSlots = skillSlots
+        if isvalid(self.skillPanel) then self.skillPanel.Enable = false end
         if isvalid(self.hintText) then self.hintText.Enable = false end
         if isvalid(self.resultPanel) then self.resultPanel.Enable = false end
         log("[BattleHUD] initialized slots=" .. tostring(#slots) .. " cards=" .. tostring(cards))
@@ -185,7 +205,7 @@ script BattleHUD extends Component
         if isvalid(self.leaveButton) then self.leaveButton:SetEnable(visible) end
         if isvalid(self.costUpButton) then self.costUpButton:SetEnable(visible) end
         if isvalid(self.costUpGlow) then self.costUpGlow.Enable = false end
-        if isvalid(self.baseSkillButton) then self.baseSkillButton:SetEnable(visible) end
+        if isvalid(self.skillPanel) then self.skillPanel:SetEnable(visible) end
         if isvalid(self.hintText) then self.hintText.Enable = false end
         if isvalid(self.resultPanel) then self.resultPanel.Enable = false end
     end
@@ -297,14 +317,14 @@ script BattleHUD extends Component
     end
 
     @ExecSpace("ClientOnly")
-    method void OnBaseSkillClicked()
-        -- Starts aiming the base skill through the Commander (the cooldown is checked there and again on the server).
+    method void OnBaseSkillClicked(integer index)
+        -- Starts aiming the base skill of a slot through the Commander (the cooldown is checked there and again on the server).
         ---@type Commander
         local commander = self:GetCommander()
         if commander == nil then return end
         _BattleSound:Play("click")
-        log("[VRF] BattleHUD base skill clicked")
-        commander:SelectBaseSkill()
+        log("[BattleHUD] base skill clicked slot=" .. tostring(index))
+        commander:SelectBaseSkill(index)
     end
 
     @ExecSpace("ClientOnly")
@@ -342,42 +362,69 @@ script BattleHUD extends Component
     end
 
     @ExecSpace("ClientOnly")
-    method void UpdateBaseSkillButton(any side, string state)
-        -- Shows the base skill on its button: nothing when the base has no skill, "패시브" for an automatic one, otherwise
-        -- the skill name with the seconds left, and the button is usable only when the cooldown is over.
+    method void UpdateBaseSkills(any side, string state, integer pending, integer pendingBase)
+        -- Shows my base's skills on the skill slots. Slot n shows skill n: its icon, the cooldown shade and the seconds
+        -- left ("자동" for a passive skill, which the base casts by itself). An active skill's button is usable only when
+        -- its cooldown is over and the battle is running; the slot being aimed (pending) is drawn larger.
+        local skillSlots = self._T.skillSlots
+        if skillSlots == nil then return end
         ---@type BattleSide
         local s = side
-        local button = self.baseSkillButton
-        if not isvalid(button) then return end
-        local view = self._T.view
-        local hasSkill = s.BaseSkillId ~= ""
-        if button.Enable ~= hasSkill then button.Enable = hasSkill end
-        if hasSkill == false then return end
-        local skill = _BattleConfig:GetUnit(s.BaseSkillId)
-        local name = skill ~= nil and skill.name or s.BaseSkillId
-        local label = ""
-        local usable = false
-        if s.BaseSkillType == "active" then
-            local left = s.BaseSkillReadyAt - _UtilLogic.ServerElapsedSeconds
-            if left > 0 then
-                label = "기지 스킬\n" .. name .. "\n" .. tostring(math.ceil(left)) .. "초"
-            else
-                label = "기지 스킬\n" .. name .. "\n사용 가능"
-                usable = state == "PLAYING"
+        local skills = s:GetBaseSkills()
+        local now = _UtilLogic.ServerElapsedSeconds
+        for i, slot in pairs(skillSlots) do
+            local skill = skills[i]
+            local shown = skill ~= nil
+            if slot.entity.Enable ~= shown then slot.entity.Enable = shown end
+            if skill ~= nil then
+                if skill.id ~= slot.skillId then
+                    slot.skillId = skill.id
+                    slot.usable = nil
+                    slot.label = nil
+                    local iconRuid = _BattleConfig:GetIconRuid(skill.id)
+                    if isvalid(slot.icon) then
+                        if iconRuid ~= "" then slot.icon.SpriteGUIRendererComponent.ImageRUID = DataRef(iconRuid) end
+                        slot.icon.Enable = iconRuid ~= ""
+                    end
+                    log("[BattleHUD] base skill slot " .. tostring(i) .. " = " .. skill.id .. " type=" .. skill.type .. " cooldown=" .. tostring(skill.cooldown))
+                end
+                local left = math.max(0, skill.readyAt - now)
+                local label = ""
+                local usable = false
+                if skill.type == "passive" then
+                    label = "자동"
+                elseif left > 0 then
+                    label = tostring(math.ceil(left))
+                else
+                    usable = state == "PLAYING"
+                end
+                if label ~= slot.label then
+                    slot.label = label
+                    if isvalid(slot.time) then slot.time.TextGUIRendererComponent.Text = label end
+                end
+                -- The shade covers the slot while the skill cools down and drains away with the time left.
+                local shade = 0
+                if skill.cooldown > 0 then shade = math.max(0, math.min(1, left / skill.cooldown)) end
+                if isvalid(slot.cool) then
+                    local shading = shade > 0
+                    if slot.cool.Enable ~= shading then slot.cool.Enable = shading end
+                    if shading and math.abs(shade - slot.shade) > 0.005 then
+                        slot.shade = shade
+                        slot.cool.SpriteGUIRendererComponent.FillAmount = shade
+                    end
+                end
+                if usable ~= slot.usable then
+                    slot.usable = usable
+                    slot.entity.ButtonComponent.Enable = usable
+                end
+                local aimed = pending == pendingBase + i
+                if aimed ~= slot.aimed then
+                    slot.aimed = aimed
+                    local size = 1
+                    if aimed then size = self.SkillAimScale end
+                    slot.entity.UITransformComponent.UIScale = Vector3(size, size, 1)
+                end
             end
-        else
-            label = "패시브\n" .. name
-        end
-        if label ~= view.baseSkillLabel then
-            view.baseSkillLabel = label
-            button.TextGUIRendererComponent.Text = label
-        end
-        if usable ~= view.baseSkillUsable then
-            view.baseSkillUsable = usable
-            button.ButtonComponent.Enable = usable
-            local dim = button:GetChildByName("Dim")
-            if isvalid(dim) then dim.Enable = usable == false end
-            log("[VRF] BattleHUD base skill usable=" .. tostring(usable))
         end
     end
 
@@ -485,12 +532,21 @@ script BattleHUD extends Component
         end
 
         self:UpdateUpgradePulse(delta)
-        self:UpdateBaseSkillButton(mySide, state)
-
         local pending = commander.PendingSlot
+        self:UpdateBaseSkills(mySide, state, pending, commander.BaseSkillSlot)
+
         if pending ~= view.pending then
             view.pending = pending
-            if isvalid(self.hintText) then self.hintText.Enable = pending ~= 0 end
+            if isvalid(self.hintText) then
+                self.hintText.Enable = pending ~= 0
+                -- A monster card waits for a portal, everything else for a position.
+                local waiting = commander:GetPendingUnit()
+                if waiting ~= nil then
+                    local hint = "전장을 클릭해 위치를 지정하세요 (Esc 취소)"
+                    if waiting.kind == "monster" then hint = "소환할 포탈을 클릭하세요 (Esc 취소)" end
+                    self.hintText.TextGUIRendererComponent.Text = hint
+                end
+            end
             log("[BattleHUD] targeting hint " .. tostring(pending ~= 0) .. " slot=" .. tostring(pending))
         end
 
@@ -586,10 +642,10 @@ script BattleHUD extends Component
             self.costUpButton:DisconnectEvent(ButtonClickEvent, self.costUpHandler)
         end
         self.costUpHandler = nil
-        if self.baseSkillHandler ~= nil and isvalid(self.baseSkillButton) then
-            self.baseSkillButton:DisconnectEvent(ButtonClickEvent, self.baseSkillHandler)
+        for _, rec in ipairs(self.skillHandlers) do
+            if isvalid(rec.entity) then rec.entity:DisconnectEvent(ButtonClickEvent, rec.eventHandler) end
         end
-        self.baseSkillHandler = nil
+        self.skillHandlers = {}
     end
 
 end
