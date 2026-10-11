@@ -291,9 +291,10 @@ script LobbyUI extends Component
             if isvalid(self.premiumText) then self:SetCurrencyIcon(self.premiumText.Entity, _BattleConfig.PremiumCurrencyId) end
         end
         if isvalid(self.ticketText) and entry ~= nil then
-            local text = entry.name .. " -"
+            -- The icon says which currency it is, so the readout is the number only.
+            local text = "-"
             if data.Loaded then
-                text = entry.name .. " " .. tostring(data:GetCurrencyAmount(entry.id)) .. " / " .. tostring(entry.max)
+                text = tostring(data:GetCurrencyAmount(entry.id)) .. " / " .. tostring(entry.max)
                 local nextAt = data:GetCurrencyNextAt(entry.id)
                 if nextAt > 0 then
                     local remain = math.max(0, math.ceil(nextAt - _UtilLogic.ServerElapsedSeconds))
@@ -307,8 +308,8 @@ script LobbyUI extends Component
         end
         local premium = _BattleConfig:GetCurrency(_BattleConfig.PremiumCurrencyId)
         if isvalid(self.premiumText) and premium ~= nil then
-            local text = premium.name .. " -"
-            if data.Loaded then text = premium.name .. " " .. tostring(data:GetCurrencyAmount(premium.id)) end
+            local text = "-"
+            if data.Loaded then text = tostring(data:GetCurrencyAmount(premium.id)) end
             if text ~= self._T.premiumLabel then
                 self._T.premiumLabel = text
                 self.premiumText.Text = text
@@ -346,9 +347,9 @@ script LobbyUI extends Component
         if data == nil then return end
         if isvalid(self.mesoText) then
             if data.Loaded then
-                self.mesoText.Text = "메소 " .. tostring(data.Meso)
+                self.mesoText.Text = tostring(data.Meso)
             else
-                self.mesoText.Text = "메소 -"
+                self.mesoText.Text = "-"
             end
         end
         if data.Loaded == false then return end

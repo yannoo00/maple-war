@@ -45,9 +45,14 @@ script Commander extends Component
         local center = (director.AllyBaseX + director.EnemyBaseX) * 0.5
         local camMin = math.min(center, director.AllyBaseX + reach)
         local camMax = math.max(center, director.EnemyBaseX - reach)
+        local useStart = director.CameraUseStart
+        self:SetCenterMode(useStart)
         if self._T.camReady ~= true then
             self._T.camReady = true
             self.CamX = camMin
+            if useStart then
+                self.CamX = math.max(camMin, math.min(camMax, director.CameraStart.x))
+            end
             log("[Commander] camera range " .. string.format("%.2f", camMin) .. " ~ " .. string.format("%.2f", camMax))
         end
         local move = 0
@@ -58,8 +63,35 @@ script Commander extends Component
             self.CamX = math.max(camMin, math.min(camMax, nextX))
         end
         if isvalid(camera) then
-            local px = self.Entity.TransformComponent.WorldPosition.x
-            camera.CameraOffset = Vector2(self.CamX - px, director.CameraOffsetY)
+            local here = self.Entity.TransformComponent.WorldPosition
+            local offsetY = director.CameraOffsetY
+            if useStart then
+                offsetY = director.CameraStart.y - here.y
+            end
+            camera.CameraOffset = Vector2(self.CamX - here.x, offsetY)
+        end
+    end
+
+    @ExecSpace("ClientOnly")
+    method void SetCenterMode(boolean on)
+        -- On: the point the camera is told to look at lands exactly on the centre of the screen (no map confinement,
+        -- no screen offset, no dead zone), so a world position typed in Maker is what the player sees. Off: the camera
+        -- settings the player model came with are put back.
+        if self._T.centerMode == on then return end
+        local camera = self.Entity.CameraComponent
+        if not isvalid(camera) then return end
+        self._T.centerMode = on
+        if on then
+            if self._T.camOrig == nil then
+                self._T.camOrig = { confine = camera.ConfineCameraArea, screen = camera.ScreenOffset, dead = camera.DeadZone }
+            end
+            camera.ConfineCameraArea = false
+            camera.ScreenOffset = Vector2(0.5, 0.5)
+            camera.DeadZone = Vector2(0, 0)
+        elseif self._T.camOrig ~= nil then
+            camera.ConfineCameraArea = self._T.camOrig.confine
+            camera.ScreenOffset = self._T.camOrig.screen
+            camera.DeadZone = self._T.camOrig.dead
         end
     end
 
@@ -78,12 +110,30 @@ script Commander extends Component
         end
         local camera = self.Entity.CameraComponent
         if not isvalid(camera) then return end
+        -- Set on every lobby frame it differs, so the zoom of the battle map the player came from does not stay.
+        -- Zoom and centre of this map come from its LobbyView component (map entity); without one the view is 100%.
+        ---@type LobbyView
+        local view = map:GetComponent("script.LobbyView")
+        local zoom = 100
+        if view ~= nil then zoom = math.max(30, math.min(500, view.CameraZoom)) end
+        if math.abs(camera.ZoomRatio - zoom) > 0.01 then
+            camera.ZoomRatio = zoom
+            log("[Commander] lobby camera zoom " .. tostring(zoom) .. "%")
+        end
+        -- The next battle map starts its view from its own start position again.
+        self._T.camReady = false
         local offset = Vector2(0, 0)
+        local here = self.Entity.TransformComponent.WorldPosition
         local marker = map:GetChildByName(self.LobbyCameraName)
         if isvalid(marker) then
-            local here = self.Entity.TransformComponent.WorldPosition
             local to = marker.TransformComponent.WorldPosition
             offset = Vector2(to.x - here.x, to.y - here.y)
+            self:SetCenterMode(true)
+        elseif view ~= nil and view.CameraUseStart then
+            offset = Vector2(view.CameraStart.x - here.x, view.CameraStart.y - here.y)
+            self:SetCenterMode(true)
+        else
+            self:SetCenterMode(false)
         end
         camera.CameraOffset = offset
     end

@@ -1,0 +1,14 @@
+@Component
+script LobbyView extends Component
+
+    -- Camera of a map without a battle (the lobby), set per map in Maker (select the map entity > LobbyView in the
+    -- inspector). Battle maps carry the same three values on BattleDirector. Commander reads them on the client.
+    -- CameraZoom = screen magnification in percent (100 = normal, 75 = wider view; 30 ~ 500).
+    -- CameraUseStart = on: CameraStart (world position, 1 = 100 px) is the centre of the screen. A map entity named
+    -- Commander.LobbyCameraName, when there is one, is used instead.
+    -- The Maker camera tool (Editor/CameraTool) fills CameraStart from the scene view.
+    @Sync property number CameraZoom = 75
+    @Sync property boolean CameraUseStart = false
+    @Sync property Vector2 CameraStart = Vector2(0, 0)
+
+end

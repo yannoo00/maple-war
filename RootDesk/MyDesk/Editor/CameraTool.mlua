@@ -1,0 +1,61 @@
+@Component
+script CameraTool extends Component
+
+    -- Maker editing tool, not part of the game: it lives on the world's common entity and answers the two buttons of
+    -- the editor-type UI group CameraToolUI (scene view > [Editor UI]). It writes the camera values of the map that is
+    -- open in Maker: BattleDirector on a battle map, LobbyView on the lobby (both carry CameraZoom / CameraUseStart /
+    -- CameraStart). The scene view's position can be read (EditorService:GetCameraPosition); its zoom cannot, so the
+    -- zoom goes the other way: the second button shows the scene view at the map's CameraZoom.
+
+    @EventSender("Entity", "c90afe64-23ab-4c58-b3cf-e64726f88b9a")
+    handler HandleSaveViewClick(ButtonClickEditorEvent event)
+        -- Saves where the scene view is looking now as this map's start view.
+        self:WithMapCamera(function(target, mapName)
+            _EditorService:GetCameraPosition(function(pos)
+                local x = math.floor(pos.x * 100 + 0.5) / 100
+                local y = math.floor(pos.y * 100 + 0.5) / 100
+                target.CameraStart = Vector2(x, y)
+                target.CameraUseStart = true
+                _EditorService:SaveMap()
+                local text = mapName .. " 시작 화면 저장: (" .. tostring(x) .. ", " .. tostring(y) .. ") 배율 " .. tostring(target.CameraZoom) .. "%"
+                log("[CameraTool] " .. text)
+                _EditorService:Notification(text)
+            end)
+        end)
+    end
+
+    @EventSender("Entity", "a9f8c120-9dbc-4b83-998d-0ed61c0d46c5")
+    handler HandleApplyZoomClick(ButtonClickEditorEvent event)
+        -- Shows the scene view at this map's CameraZoom, so what is framed in Maker is what the game shows.
+        self:WithMapCamera(function(target, mapName)
+            local zoom = math.floor(math.max(30, math.min(500, target.CameraZoom)) + 0.5)
+            _EditorService:SetCameraZoom(zoom)
+            local text = mapName .. " 배율 " .. tostring(zoom) .. "% 로 보기"
+            log("[CameraTool] " .. text)
+            _EditorService:Notification(text)
+        end)
+    end
+
+    method void WithMapCamera(any onFound)
+        -- Finds the camera settings component of the map open in Maker and hands it to onFound(component, mapName).
+        _EditorService:GetCurrentMap(function(mapId)
+            local id = tostring(mapId)
+            local map = _EntityService:GetEntityByPath("/maps/" .. id)
+            if not isvalid(map) then map = _EntityService:GetEntity(id) end
+            if not isvalid(map) then
+                log_warning("[CameraTool] map not found: " .. id)
+                _EditorService:Notification("카메라 도구: 현재 맵을 찾지 못했습니다 (" .. id .. ")")
+                return
+            end
+            local target = map:GetComponent("script.BattleDirector")
+            if target == nil then target = map:GetComponent("script.LobbyView") end
+            if target == nil then
+                log_warning("[CameraTool] no BattleDirector / LobbyView on " .. map.Name)
+                _EditorService:Notification("카메라 도구: " .. map.Name .. " 맵에 BattleDirector / LobbyView 가 없습니다")
+                return
+            end
+            onFound(target, map.Name)
+        end)
+    end
+
+end

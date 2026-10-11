@@ -16,7 +16,7 @@
       {
         "id": "e39d69f7-9663-481e-80fa-fe3480eabf1e",
         "path": "/common",
-        "componentNames": "",
+        "componentNames": "script.CameraTool",
         "jsonString": {
           "name": "common",
           "path": "/common",
@@ -28,7 +28,12 @@
           "pathConstraints": "/",
           "revision": 1,
           "modelId": null,
-          "@components": [],
+          "@components": [
+            {
+              "@type": "script.CameraTool",
+              "Enable": true
+            }
+          ],
           "@version": 1
         }
       }

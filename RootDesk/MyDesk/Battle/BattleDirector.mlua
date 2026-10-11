@@ -30,6 +30,11 @@ script BattleDirector extends Component
     -- CameraOffsetY = how far the view is moved up (+) or down (-) in world units (1 = 100 px).
     @Sync property number CameraZoom = 100
     @Sync property number CameraOffsetY = 0
+    -- CameraUseStart = on: the view starts with CameraStart (world position, 1 = 100 px) at the centre of the screen.
+    -- x is only where the view starts (it still scrolls, and is kept inside the scroll range); y stays fixed for the
+    -- whole battle and replaces CameraOffsetY. Off: the view starts on the ally side as before.
+    @Sync property boolean CameraUseStart = false
+    @Sync property Vector2 CameraStart = Vector2(0, 0)
     property string AllyPortalPrefix = "AllyPortal"
     property string EnemyPortalPrefix = "EnemyPortal"
     -- Fallback floor height (StageTable GroundY) for a map whose floor cannot be looked up.
