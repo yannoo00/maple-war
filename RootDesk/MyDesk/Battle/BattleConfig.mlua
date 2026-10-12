@@ -64,10 +64,13 @@ script BattleConfig extends Logic
     property number AttributeBonus = 0.2
     -- Shortest time an effect icon stays above a unit's head (client), so a short push is still readable.
     property number StatusIconMinSeconds = 1.0
-    property integer DeckSize = 10
-    -- Cards in hand during a battle. The deck is shuffled into a queue; the hand holds the front cards and a played
-    -- card goes to the back of the queue while the next queued card takes its hand slot. There are no cooldowns.
-    property integer HandSize = 5
+    -- A deck is at most DeckSize cards (monsters and builds only; skills are not cards, they belong to the base).
+    -- The whole deck is in play from the start of a battle, one HUD slot per card: there is no hand, no queue and no
+    -- drawing. Each card has its own summon cooldown (UnitTable Cooldown) that starts when the card is played.
+    property integer DeckSize = 8
+    -- Skills a player equips as the skills of their base (the HUD's skill slots). The player's base uses these instead
+    -- of its row's BaseSkill columns; a skill's cooldown is its own UnitTable Cooldown.
+    property integer BaseSkillSlots = 3
     -- Seconds after a unit dies before the server takes its entity away. Clients hide it themselves at the end of its
     -- die clip, so this only has to be longer than the longest die clip.
     property number DieReleaseSeconds = 2.0
@@ -108,6 +111,7 @@ script BattleConfig extends Logic
 
     method table GetUnits()
         -- Returns every unit definition keyed by unit id (monster / build / skill / base), loaded once from UnitTable.
+        -- Deck cards are the monster / build rows (IsCardKind); skill rows are owned too but used as a base's skills.
         -- Optional presentation fields (client only): barY / barWidth, projectileRuid / projectileScale, effectRuid / effectScale.
         local units = self._T.units
         if units ~= nil then return units end
@@ -144,6 +148,9 @@ script BattleConfig extends Logic
                     desc = self:OptText(ds:GetCell(i, "Desc")) or "",
                     rarity = self:OptText(ds:GetCell(i, "Rarity")) or "normal",
                     cost = self:Num(ds:GetCell(i, "Cost"), 0),
+                    -- Cards (monster / build): seconds after playing the card before it can be played again. 0 = none.
+                    -- Skills: the cooldown when a player equips the skill as a base skill.
+                    cooldown = math.max(0, self:Num(ds:GetCell(i, "Cooldown"), 0)),
                     starter = self:Num(ds:GetCell(i, "Starter"), 0) > 0,
                     order = i,
                     maxHp = self:Num(ds:GetCell(i, "MaxHp"), 1),
@@ -249,6 +256,31 @@ script BattleConfig extends Logic
         return self:GetUnits()[unitId]
     end
 
+    method boolean IsCardKind(string kind)
+        -- Returns true for the unit kinds that are deck cards. A skill is not a deck card: see IsOwnableKind.
+        return kind == "monster" or kind == "build"
+    end
+
+    method boolean IsOwnableKind(string kind)
+        -- Returns true for the unit kinds a player collects (starter set, summon stones, card level-up): the deck
+        -- cards and the skills. An owned skill is not put in the deck; up to BaseSkillSlots of them are equipped as
+        -- the skills of the player's base (PlayerData.SkillsCsv).
+        return kind == "monster" or kind == "build" or kind == "skill"
+    end
+
+    method table GetBaseSkillDefs(table skillIds)
+        -- Turns equipped skill ids into a base's skill list ({ id, type, cooldown } per slot, like a base row's
+        -- BaseSkill columns): every equipped skill is active and its cooldown is the skill row's own Cooldown.
+        local defs = {}
+        for _, id in ipairs(skillIds) do
+            local skill = self:GetUnit(id)
+            if skill ~= nil and skill.kind == "skill" and #defs < self.BaseSkillSlots then
+                table.insert(defs, { id = id, type = "active", cooldown = math.max(1, skill.cooldown) })
+            end
+        end
+        return defs
+    end
+
     method boolean IsAreaAttackType(string attackType)
         -- Returns true for the attack types that damage every enemy in range instead of one target.
         return attackType == "melee_area" or attackType == "ranged_area"
@@ -277,13 +309,13 @@ script BattleConfig extends Logic
     end
 
     method table GetUnitsByRarity(string rarity)
-        -- Returns the ids of every card unit (monster / build / skill) of a rarity, in table order.
+        -- Returns the ids of every collectable unit (monster / build / skill) of a rarity, in table order.
         local byRarity = self._T.unitsByRarity
         if byRarity == nil then
             byRarity = {}
             local list = {}
             for _, unit in pairs(self:GetUnits()) do
-                if unit.kind == "monster" or unit.kind == "build" or unit.kind == "skill" then table.insert(list, unit) end
+                if self:IsOwnableKind(unit.kind) then table.insert(list, unit) end
             end
             table.sort(list, function(a, b) return a.order < b.order end)
             for _, unit in ipairs(list) do
@@ -606,11 +638,11 @@ script BattleConfig extends Logic
     end
 
     method table GetStarterUnitIds()
-        -- Returns the ids of the card units (monster / build / skill) every new player receives (Starter = 1 in UnitTable),
-        -- in table order. Bases are not deck cards; see GetStarterBaseIds.
+        -- Returns the ids of the units (monster / build / skill) every new player receives (Starter = 1 in UnitTable),
+        -- in table order. Bases are separate; see GetStarterBaseIds.
         local list = {}
         for _, unit in pairs(self:GetUnits()) do
-            if unit.starter and unit.kind ~= "base" then table.insert(list, unit) end
+            if unit.starter and self:IsOwnableKind(unit.kind) then table.insert(list, unit) end
         end
         table.sort(list, function(a, b) return a.order < b.order end)
         local ids = {}

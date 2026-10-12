@@ -3,7 +3,7 @@ script FieldFx extends Logic
 
     -- Client-only battlefield visuals that are not tied to one unit: what is shown while a card waits for a click
     -- (a monster card: glowing marks on my portals; a build card: its ghost standing on the floor under the cursor;
-    -- a skill card or base skill: its range box on that floor), and the skill effects.
+    -- a base skill: its range box on that floor), and the skill effects.
     -- The spawn portals are map entities (AllyPortal... / EnemyPortal...), placed and edited in each battle map.
     property string SpriteModelId = "battleprojectile"
     property string RectModelId = "battlehpbar"
@@ -218,13 +218,10 @@ script FieldFx extends Logic
                 fx.preloaded = true
                 local ids = {}
                 for _, id in ipairs(data:GetDeckIds()) do ids[id] = true end
-                -- My base (its clips) and its skills (their effects).
+                -- My base (its clips) and the skills I equipped on it (their effects).
                 local baseId = data:GetSelectedBaseId()
                 ids[baseId] = true
-                local myBase = _BattleConfig:GetUnit(baseId)
-                if myBase ~= nil then
-                    for _, skill in ipairs(myBase.baseSkills or {}) do ids[skill.id] = true end
-                end
+                for _, skillId in ipairs(data:GetEquippedSkillIds()) do ids[skillId] = true end
                 for _, wave in ipairs(_BattleConfig:GetStageWaves(director.StageId)) do ids[wave.unitId] = true end
                 local stage = _BattleConfig:GetStage(director.StageId)
                 if stage ~= nil then
@@ -254,7 +251,7 @@ script FieldFx extends Logic
             end
         end
 
-        -- What waits for a battlefield click: a hand card or a base skill.
+        -- What waits for a battlefield click: a deck card (monster / build) or a base skill.
         ---@type BattleSide
         local side = commander:GetSideOf(true)
         local cfg = nil

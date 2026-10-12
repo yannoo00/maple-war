@@ -184,13 +184,14 @@ script LobbyUI extends Component
 
     @ExecSpace("ClientOnly")
     method table GetOwnableUnits()
-        -- Returns every card unit definition (monster / build / skill) in table order; all of them come from chests.
+        -- Returns every collectable unit definition (monster / build / skill) in table order; all of them come from
+        -- chests. Monsters and builds are deck cards; a skill is equipped on the base instead (up to BaseSkillSlots).
         -- Bases (except enemy-only ones) are listed too: they look like cards but fill the deck's separate base slot.
         local list = self._T.ownable
         if list ~= nil then return list end
         list = {}
         for _, unit in pairs(_BattleConfig:GetUnits()) do
-            local playable = unit.kind == "monster" or unit.kind == "build" or unit.kind == "skill" or (unit.kind == "base" and unit.enemyOnly == false)
+            local playable = _BattleConfig:IsOwnableKind(unit.kind) or (unit.kind == "base" and unit.enemyOnly == false)
             if playable then table.insert(list, unit) end
         end
         table.sort(list, function(a, b) return a.order < b.order end)
@@ -269,7 +270,7 @@ script LobbyUI extends Component
         ---@type PlayerData
         local data = player:GetComponent("script.PlayerData")
         if data == nil then return end
-        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.DeckPresetsCsv .. "|" .. tostring(data.DeckPreset) .. "|" .. data.StagesCsv .. "|" .. data.WalletCsv .. "|" .. data.CardsCsv .. "|" .. data.StonesCsv
+        local signature = tostring(data.Loaded) .. "|" .. tostring(data.Meso) .. "|" .. data.UnitsCsv .. "|" .. data.DeckCsv .. "|" .. data.DeckPresetsCsv .. "|" .. tostring(data.DeckPreset) .. "|" .. data.SkillsCsv .. "|" .. data.StagesCsv .. "|" .. data.WalletCsv .. "|" .. data.CardsCsv .. "|" .. data.StonesCsv
         if signature ~= view.signature then
             view.signature = signature
             log("[LobbyUI] data changed loaded=" .. tostring(data.Loaded) .. " meso=" .. tostring(data.Meso) .. " units=" .. data.UnitsCsv .. " deck=" .. data.DeckCsv .. " stages=" .. data.StagesCsv .. " wallet=" .. data.WalletCsv)
@@ -604,10 +605,12 @@ script LobbyUI extends Component
         -- Remember what is owned now, so a chest result arriving later can mark newly unlocked units.
         self._T.ownedBefore = levels
         if isvalid(self.deckTitle) then
-            self.deckTitle.Text = "내 덱 " .. tostring(data.DeckPreset) .. " (" .. tostring(#deck) .. " / " .. tostring(deckSize) .. ")"
+            self.deckTitle.Text = "내 덱 " .. tostring(data.DeckPreset) .. " (" .. tostring(#deck) .. " / " .. tostring(deckSize) .. ") · 스킬 " .. tostring(#data:GetEquippedSkillIds()) .. " / " .. tostring(_BattleConfig.BaseSkillSlots)
         end
         self:PaintDeckPresets(data)
+        -- inDeck marks what is in use: the deck's cards and the skills equipped on the base.
         local inDeck = {}
+        for _, skillId in ipairs(data:GetEquippedSkillIds()) do inDeck[skillId] = true end
         -- The first row is the deck's base slot (not counted in the deck size); the card rows follow it.
         local rows = self:SyncPool("slot", self.deckSlot, deckSize + 1, "", function(item) self:SelectCard("slot", item.key) end)
         local baseItem = rows[1]
@@ -695,8 +698,11 @@ script LobbyUI extends Component
             -- A base is "in the deck" when it is the one in the base slot.
             local used = inDeck[unit.id] == true
             if isBase then used = data:GetSelectedBaseId() == unit.id end
-            self:SetChildEnable(item.entity, "CostBadge", isBase == false)
-            if isBase == false then self:SetChildText(item.entity, "CostBadge", tostring(math.floor(unit.cost))) end
+            -- Only deck cards have a summon cost; a skill (cast by the base) and a base have none.
+            local isCard = _BattleConfig:IsCardKind(unit.kind)
+            local isSkill = unit.kind == "skill"
+            self:SetChildEnable(item.entity, "CostBadge", isCard)
+            if isCard then self:SetChildText(item.entity, "CostBadge", tostring(math.floor(unit.cost))) end
             self:SetChildEnable(item.entity, "Dim", state.owned == false)
             self:SetChildEnable(item.entity, "InDeck", used)
             local progress = item.entity:GetChildByName("Progress")
@@ -767,6 +773,10 @@ script LobbyUI extends Component
                             -- A base cannot be taken out of its slot, only replaced by another one.
                             action.TextGUIRendererComponent.Text = used and "사용 중" or "사용"
                             actionEnabled = state.owned and used == false
+                        elseif isSkill then
+                            -- A skill is equipped on the base (the HUD's skill slots) or taken off; a full base takes no more.
+                            action.TextGUIRendererComponent.Text = used and "해제" or "장착"
+                            actionEnabled = state.owned and (used or #data:GetEquippedSkillIds() < _BattleConfig.BaseSkillSlots)
                         elseif used then
                             action.TextGUIRendererComponent.Text = "제거"
                         else
@@ -878,6 +888,10 @@ script LobbyUI extends Component
             self:SelectBaseCard(unitId)
             return
         end
+        if unitCfg ~= nil and unitCfg.kind == "skill" then
+            self:ToggleSkill(unitId)
+            return
+        end
         for _, id in ipairs(data:GetDeckIds()) do
             if id == unitId then
                 self:RemoveFromDeck(unitId)
@@ -885,6 +899,38 @@ script LobbyUI extends Component
             end
         end
         self:AddToDeck(unitId)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void ToggleSkill(string skillId)
+        -- Collection menu 장착 / 해제 on a skill: equips an owned skill on the base's first free skill slot, or takes
+        -- an equipped one off, and sends the new list.
+        ---@type PlayerData
+        local data = self:GetData()
+        if data == nil or skillId == "" then return end
+        if data:GetUnitLevels()[skillId] == nil then
+            log("[LobbyUI] skill " .. skillId .. " is not owned, not equipped")
+            return
+        end
+        local skills = data:GetEquippedSkillIds()
+        local slot = 0
+        for i, id in ipairs(skills) do
+            if id == skillId then slot = i end
+        end
+        if slot > 0 then
+            table.remove(skills, slot)
+        elseif #skills >= _BattleConfig.BaseSkillSlots then
+            log("[LobbyUI] skill slots are full, " .. skillId .. " not equipped")
+            return
+        else
+            table.insert(skills, skillId)
+        end
+        local csv = table.concat(skills, ",")
+        _BattleSound:Play("click")
+        log("[LobbyUI] skills change sent (" .. (slot > 0 and "remove " or "add ") .. skillId .. ") csv=" .. csv)
+        self._T.selection = nil
+        data:RequestSetSkills(csv)
+        self:Render()
     end
 
     @ExecSpace("ClientOnly")
@@ -1042,8 +1088,9 @@ script LobbyUI extends Component
         if isvalid(box) then
             self:SetChildIcon(box, unitId)
             _BattleConfig:PaintRarityFrame(box, unitId)
-            self:SetChildEnable(box, "CostBadge", isBase == false)
-            if isBase == false then self:SetChildText(box, "CostBadge", tostring(math.floor(base.cost))) end
+            local hasCost = _BattleConfig:IsCardKind(base.kind)
+            self:SetChildEnable(box, "CostBadge", hasCost)
+            if hasCost then self:SetChildText(box, "CostBadge", tostring(math.floor(base.cost))) end
         end
         self:SetChildText(window, "Name", base.name)
         local sub = self:KindLabel(base.kind) .. " · " .. _BattleConfig:GetRarityLabel(base.rarity)
@@ -1067,15 +1114,17 @@ script LobbyUI extends Component
             table.insert(lines, capLine)
             local discount = unit.manaDiscount or 0
             if discount > 0 then table.insert(lines, "마나 적응 강화 비용  -" .. self:FormatNumber(discount * 100) .. "%") end
+        elseif base.kind == "skill" then
+            -- A skill is cast by the base: free, with its own cooldown, at the level the player owns it at.
+            table.insert(lines, "기지 스킬 (스킬 칸에 장착)")
+            table.insert(lines, "쿨타임  " .. self:FormatNumber(base.cooldown) .. "초")
+            if unit.damage > 0 then table.insert(lines, "위력  " .. self:FormatNumber(unit.damage)) end
+            table.insert(lines, "범위  " .. self:FormatNumber(base.radius))
         else
             table.insert(lines, "소환 마나  " .. self:FormatNumber(base.cost))
         end
-        if isBase then
-            -- (the base's lines are above)
-        elseif base.kind == "skill" then
-            table.insert(lines, "피해  " .. self:FormatNumber(unit.damage))
-            table.insert(lines, "범위  " .. self:FormatNumber(base.radius))
-        else
+        if _BattleConfig:IsCardKind(base.kind) then
+            if base.cooldown > 0 then table.insert(lines, "소환 쿨타임  " .. self:FormatNumber(base.cooldown) .. "초") end
             if base.spawnCount > 1 then table.insert(lines, "한 번에 소환  " .. tostring(base.spawnCount) .. "마리") end
             table.insert(lines, "HP  " .. self:FormatNumber(unit.maxHp) .. "     공격력  " .. self:FormatNumber(unit.attack))
             table.insert(lines, "공격 간격  " .. self:FormatNumber(base.attackInterval) .. "초     사거리  " .. self:FormatNumber(base.range))
@@ -1090,7 +1139,8 @@ script LobbyUI extends Component
         self:SetChildEnable(window, "Desc", desc ~= "")
         if desc ~= "" then self:SetChildText(window, "Desc", desc) end
         if isBase then
-            self:SetChildText(window, "Effect", self:DescribeBaseSkill(base))
+            -- A player's base casts the skills the player equipped, not its row's own skill columns.
+            self:SetChildText(window, "Effect", self:DescribeBaseSkill({ baseSkills = _BattleConfig:GetBaseSkillDefs(data:GetEquippedSkillIds()) }))
         else
             self:SetChildText(window, "Effect", self:DescribeEffect(base))
         end

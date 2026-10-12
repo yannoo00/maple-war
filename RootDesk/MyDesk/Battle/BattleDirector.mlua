@@ -408,6 +408,9 @@ script BattleDirector extends Component
             log_error("[BattleDirector] player data missing for " .. userId)
             return
         end
+        -- The player's base casts the skills the player equipped (not its row's BaseSkill columns), each at the level
+        -- the player owns it at.
+        baseCfgs[1].baseSkills = _BattleConfig:GetBaseSkillDefs(data:GetEquippedSkillIds())
         self._T.sides[1]:Reset(1, data:GetDeckIds(), data:GetUnitLevels(), userId, false, baseCfgs[1].manaLevelCap, baseCfgs[1])
         self._T.sides[2]:Reset(2, {}, {}, "", true, baseCfgs[2].manaLevelCap, baseCfgs[2])
 
@@ -503,14 +506,14 @@ script BattleDirector extends Component
 
     @ExecSpace("ServerOnly")
     method boolean CastBaseSkill(any side, integer index, number targetX, number targetY)
-        -- Runs a base skill exactly like a skill card played for free: the skill's own code, plus the effect on every
+        -- Runs a base skill (skills are only ever cast by a base): the skill's own code, plus the effect on every
         -- client. Then that skill's cooldown starts. Returns true when it was cast.
         ---@type BattleSide
         local s = side
         local skill = s:GetBaseSkills()[index]
         if skill == nil then return false end
         local floorY = self:SnapFloorY(targetX, targetY)
-        if self:PlayUnit(s.Team, skill.id, targetX, floorY, 1, 0) == false then return false end
+        if self:PlayUnit(s.Team, skill.id, targetX, floorY, s:GetUnitLevel(skill.id), 0) == false then return false end
         s:StartBaseSkillCooldown(index)
         self:NotifySkillCast(skill.id, targetX, floorY)
         log("[BattleDirector] base skill team=" .. tostring(s.Team) .. " slot=" .. tostring(index) .. " " .. skill.id .. " x=" .. string.format("%.1f", targetX) .. " floorY=" .. string.format("%.2f", floorY))
@@ -519,7 +522,7 @@ script BattleDirector extends Component
 
     @ExecSpace("Multicast")
     method void NotifySkillCast(string unitId, number targetX, number floorY)
-        -- Clients: show a skill's effect at the target (base skills have no hand card to trigger it).
+        -- Clients: show a skill's effect at the target.
         local cfg = _BattleConfig:GetUnit(unitId)
         if cfg == nil then return end
         _FieldFx:PlaySkillEffect(cfg, targetX, floorY)
@@ -528,31 +531,31 @@ script BattleDirector extends Component
     -- ===== Cards =====
 
     @ExecSpace("ServerOnly")
-    method boolean UseCard(integer team, integer handIndex, string unitId, number targetX, number targetY, integer portalIndex)
-        -- Player path: plays the card in a hand slot. unitId is the card the client saw there; a mismatch (the hand
-        -- changed in between) is rejected so a quick double tap never plays the card that replaced it.
-        -- A monster comes out of the side's portal portalIndex; a build / skill goes to (targetX, targetY).
-        -- Validates the cost, plays the card, then cycles it to the back of the queue. Returns true when played.
+    method boolean UseCard(integer team, integer slot, string unitId, number targetX, number targetY, integer portalIndex)
+        -- Player path: plays the card in a deck slot. unitId is the card the client saw there; a mismatch is rejected.
+        -- Only monster / build cards exist: a monster comes out of the side's portal portalIndex, a build goes to
+        -- (targetX, targetY). Validates the card's cooldown and cost, plays it, then charges the cost and starts the
+        -- card's cooldown. Returns true when played.
         if self.State ~= "PLAYING" then return false end
         ---@type BattleSide
         local side = self._T.sides[team]
         if side == nil then return false end
-        local handId = side:GetHandIds()[handIndex]
-        if handId == nil or handId == "" or handId ~= unitId then
-            log("[BattleDirector] team " .. tostring(team) .. " hand slot " .. tostring(handIndex) .. " holds " .. tostring(handId) .. ", not " .. unitId .. " - rejected")
+        local deckId = side:GetDeckIds()[slot]
+        if deckId == nil or deckId ~= unitId then
+            log("[BattleDirector] team " .. tostring(team) .. " deck slot " .. tostring(slot) .. " holds " .. tostring(deckId) .. ", not " .. unitId .. " - rejected")
             return false
         end
         local cfg = _BattleConfig:GetUnit(unitId)
-        if cfg == nil then return false end
-        local reason = side:CheckCard(cfg)
+        if cfg == nil or _BattleConfig:IsCardKind(cfg.kind) == false then return false end
+        local reason = side:CheckCard(slot, cfg)
         if reason ~= "" then
             log("[BattleDirector] team " .. tostring(team) .. " card " .. unitId .. " rejected: " .. reason)
             return false
         end
         if self:PlayUnit(team, unitId, targetX, targetY, side:GetUnitLevel(unitId), portalIndex) == false then return false end
         side:PayCard(cfg)
-        side:CycleCard(handIndex)
-        log("[BattleDirector] team " .. tostring(team) .. " card used slot=" .. tostring(handIndex) .. " " .. unitId .. " portal=" .. tostring(portalIndex) .. " cost=" .. string.format("%.0f", side.Cost))
+        side:StartCardCooldown(slot, cfg)
+        log("[BattleDirector] team " .. tostring(team) .. " card used slot=" .. tostring(slot) .. " " .. unitId .. " portal=" .. tostring(portalIndex) .. " cost=" .. string.format("%.0f", side.Cost))
         return true
     end
 
@@ -571,8 +574,8 @@ script BattleDirector extends Component
 
     @ExecSpace("ServerOnly")
     method boolean PlayUnit(integer team, string unitId, number targetX, number targetY, integer level, integer portalIndex)
-        -- Executes a card for a team at the given unit level, without cost checks
-        -- (UseCard validates first; the stage AI and base skills call this directly).
+        -- Puts a unit into play for a team at the given unit level, without cost or cooldown checks: a monster / build
+        -- card (UseCard validates first; the stage AI calls this directly) or a base's skill (CastBaseSkill).
         if self.State ~= "PLAYING" then return false end
         local cfg = _BattleConfig:GetUnitAtLevel(unitId, level)
         if cfg == nil then

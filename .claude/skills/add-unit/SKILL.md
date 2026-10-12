@@ -33,10 +33,10 @@ node tools/unit-editor/cli.cjs remove <unitId> [--force]     # 삭제 (--force: 
 
 ## 절차
 
-1. **종류 결정**: 몬스터(전진·교전) / 설치물(제자리, `Speed=0`) / 스킬(범위 피해 한 번). 군단(한 장에 여러 마리)은 별도 종류가 아니라 몬스터 행에 `SpawnCount`를 2 이상으로 둔 것이다(간격은 게임에서 0.25초 고정, 마리당 능력치는 그 행의 값). 사용자가 말한 역할에서 정한다.
+1. **종류 결정**: 몬스터(전진·교전) / 설치물(제자리, `Speed=0`) / 스킬(범위 피해 한 번). **카드는 몬스터·설치물뿐이다**(덱 최대 8장, 카드마다 소환 쿨타임 `Cooldown` 초 — 비슷한 마나의 유닛 값을 참고, 대략 마나 ÷ 15). 스킬은 덱 카드가 아니다: 카드처럼 보유·레벨업하고(`Starter`, 소환의 돌) 플레이어가 3개를 기지에 장착해 쓴다. 스킬 행은 `Cost`를 비우고 `Cooldown`에 장착했을 때의 쿨타임(초)을 넣는다. 적 기지의 스킬은 기지 행의 `BaseSkill` 칸으로 정한다. 군단(한 장에 여러 마리)은 별도 종류가 아니라 몬스터 행에 `SpawnCount`를 2 이상으로 둔 것이다(간격은 게임에서 0.25초 고정, 마리당 능력치는 그 행의 값). 사용자가 말한 역할에서 정한다.
 2. **틀 받기**: `template <kind>`로 JSON 틀, 모르는 칸은 `schema <kind>`의 `help`를 본다. 비슷한 기존 유닛을 `show`로 열어 수치 감을 잡는다(근접 노멀 마나 40~60 / HP 35~75 / 공격 9~15, 원거리 Range 3~3.5, 탱커 HP 220~340).
 3. **RUID 찾기**: 클립 4종(`StandRuid` `MoveRuid` `AttackRuid` `DieRuid`)은 필수. `msw-search` 스킬로 몬스터 리소스 팩을 찾아 `stand` / `move` / `attack1` / `die1`을 넣고, 있으면 `hit1`→`HitRuid`, `attack1/info/ball`→`ProjectileRuid`, `attack1/info/effect`→`AttackEffectRuid`, `attack1/info/hit`→`HitEffectRuid`(맞은 대상에게 재생, 없으면 빈칸), `audio/Attack1·Damage·Die`→`*SoundRuid`. 사용자가 팩 목록 JSON(`action`→`ruid`)을 주면 그대로 옮긴다. **RUID를 지어내지 말 것.**
-4. **적/아군은 입력 칸이 아니다.** 카드 유닛은 `Starter=1`이면 처음부터 갖고, 아니어도 상자에서 나온다(직접 구매·쿨타임 없음). 적 = `waves` / `loopPool`에 들어간다. 사용자가 "적으로"라고 하면 스테이지와 등장 시각을 정해 `waves`에 넣는다(기존 시간표는 `show`의 `_status.waves` 참고, 보통 4~6초 간격).
+4. **적/아군은 입력 칸이 아니다.** 카드 유닛(몬스터·설치물)과 스킬은 `Starter=1`이면 처음부터 갖고, 아니어도 상자에서 나온다(직접 구매 없음). 적 = `waves` / `loopPool`에 들어간다. 사용자가 "적으로"라고 하면 스테이지와 등장 시각을 정해 `waves`에 넣는다(기존 시간표는 `show`의 `_status.waves` 참고, 보통 4~6초 간격).
 5. **화면 보고 맞추는 값**(`AttackPlayRate` `AttackHitDelay` `BarY` `ProjectileScale`, 이펙트 위치 `AttackEffectOffsetX/Y` `AttackEffectScale` `EffectOffsetX/Y`, 스킬 효과음 `SkillSoundRuid` `SkillSoundDelay`)은 비슷한 유닛 값을 복사해 넣고, 사용자에게 플레이 후 확인을 부탁한다.
 6. JSON을 스크래치패드에 쓰고 `validate` → 오류 없으면 `add`(또는 `update`).
 7. Maker MCP `maker_refresh_workspace`로 반영(플레이 중이면 먼저 `maker_stop`). 플레이로 확인할 때는 소환 로그 `[BattleUnit] setup <id> ...`를 본다.

@@ -18,6 +18,9 @@ script PlayerData extends Component
     property integer DeckPresetCount = 4
     -- The base in the deck's base slot (UnitTable id, Kind = base). Owned bases are listed in UnitsCsv with their upgrade level.
     @TargetUserSync property string SelectedBase = ""
+    -- Skills equipped on the base, in HUD skill slot order ("id,id,id", up to BattleConfig.BaseSkillSlots). Skills are
+    -- owned like cards (UnitsCsv, with a level) but never go in the deck: the equipped ones are the base's skills.
+    @TargetUserSync property string SkillsCsv = ""
     @TargetUserSync property string StagesCsv = ""
     -- Collected unit cards as "id:count,...". Cards are won in battle and spent to level a unit up.
     @TargetUserSync property string CardsCsv = ""
@@ -74,6 +77,13 @@ script PlayerData extends Component
         for i = #list + 1, self.DeckPresetCount do list[i] = "" end
         while #list > self.DeckPresetCount do table.remove(list) end
         return list
+    end
+
+    method table GetEquippedSkillIds()
+        -- Returns the skills equipped on the base as an array of skill ids in slot order.
+        local ids = {}
+        for id in string.gmatch(self.SkillsCsv, "[^,]+") do table.insert(ids, id) end
+        return ids
     end
 
     method string GetSelectedBaseId()
@@ -138,6 +148,10 @@ script PlayerData extends Component
             local granted = self:LoadWallet(data.wallet)
             self:GrantMissingStarters()
             if self:NormalizeBase() then granted = true end
+            if self:NormalizeDecks() then granted = true end
+            -- A save from before skills were equipped has no skill list: it starts with the default ones.
+            self.SkillsCsv = data.skills or ""
+            if self:NormalizeSkills(data.skills == nil) then granted = true end
             if granted then
                 self:MarkDirty()
                 self:Save(false)
@@ -161,12 +175,14 @@ script PlayerData extends Component
 
     @ExecSpace("ServerOnly")
     method void GiveStarterSet()
-        -- Grants every starter unit at level 1 and fills the deck with the first DeckSize of them.
+        -- Grants every starter unit at level 1, fills the deck with the first DeckSize starter cards and equips the
+        -- default skills.
         local units = {}
         local deck = {}
         for _, id in ipairs(_BattleConfig:GetStarterUnitIds()) do
             table.insert(units, id .. ":1")
-            if #deck < _BattleConfig.DeckSize then table.insert(deck, id) end
+            local unit = _BattleConfig:GetUnit(id)
+            if _BattleConfig:IsCardKind(unit.kind) and #deck < _BattleConfig.DeckSize then table.insert(deck, id) end
         end
         -- Starter bases are owned too (they are not deck cards); the first one goes into the base slot.
         local starterBases = _BattleConfig:GetStarterBaseIds()
@@ -180,6 +196,8 @@ script PlayerData extends Component
         self:StorePreset()
         self.StagesCsv = ""
         self.CardsCsv = ""
+        self.SkillsCsv = ""
+        self:NormalizeSkills(true)
     end
 
     @ExecSpace("ServerOnly")
@@ -225,6 +243,106 @@ script PlayerData extends Component
         return true
     end
 
+    @ExecSpace("ServerOnly")
+    method string CleanDeckCsv(string csv, table levels)
+        -- Returns a deck with everything that cannot be in a deck taken out: ids that are not owned, not a card
+        -- (skills stopped being cards; a save from before that may still list them), repeated, or past DeckSize.
+        local kept = {}
+        local seen = {}
+        for id in string.gmatch(csv, "[^,]+") do
+            local unit = _BattleConfig:GetUnit(id)
+            if unit ~= nil and _BattleConfig:IsCardKind(unit.kind) and levels[id] ~= nil and seen[id] == nil and #kept < _BattleConfig.DeckSize then
+                seen[id] = true
+                table.insert(kept, id)
+            end
+        end
+        return table.concat(kept, ",")
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean NormalizeDecks()
+        -- Brings a loaded save in line with the deck rules (cards only, at most DeckSize): cleans the deck in use and
+        -- every preset. A deck in use left empty is refilled with the first owned cards. Returns true when anything
+        -- changed, so the caller saves.
+        local levels = self:GetUnitLevels()
+        local before = self.DeckCsv .. "#" .. self.DeckPresetsCsv
+        local list = self:GetDeckPresets()
+        for i, csv in ipairs(list) do list[i] = self:CleanDeckCsv(csv, levels) end
+        local deck = self:CleanDeckCsv(self.DeckCsv, levels)
+        if deck == "" then
+            local owned = {}
+            for id in string.gmatch(self.UnitsCsv, "([^,:]+):%d+") do table.insert(owned, id) end
+            deck = self:CleanDeckCsv(table.concat(owned, ","), levels)
+        end
+        list[self.DeckPreset] = deck
+        self.DeckCsv = deck
+        self.DeckPresetsCsv = table.concat(list, "|")
+        local changed = before ~= self.DeckCsv .. "#" .. self.DeckPresetsCsv
+        if changed then log("[PlayerData] decks normalized deck=" .. self.DeckCsv .. " presets=" .. self.DeckPresetsCsv) end
+        return changed
+    end
+
+    @ExecSpace("ServerOnly")
+    method string CleanSkillsCsv(string csv, table levels)
+        -- Returns an equipped-skill list with everything that cannot be equipped taken out: ids that are not owned,
+        -- not a skill, repeated, or past BaseSkillSlots.
+        local kept = {}
+        local seen = {}
+        for id in string.gmatch(csv, "[^,]+") do
+            local unit = _BattleConfig:GetUnit(id)
+            if unit ~= nil and unit.kind == "skill" and levels[id] ~= nil and seen[id] == nil and #kept < _BattleConfig.BaseSkillSlots then
+                seen[id] = true
+                table.insert(kept, id)
+            end
+        end
+        return table.concat(kept, ",")
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean NormalizeSkills(boolean fillDefault)
+        -- Cleans the equipped skills. With fillDefault (a new player, or a save from before skills were equipped) the
+        -- free slots are filled: first with the default base's own skills that the player owns, then with the other
+        -- owned skills in the order they were obtained. Returns true when the list changed, so the caller saves.
+        local levels = self:GetUnitLevels()
+        local before = self.SkillsCsv
+        local csv = self:CleanSkillsCsv(self.SkillsCsv, levels)
+        if fillDefault then
+            local candidates = { csv }
+            local base = _BattleConfig:GetUnit(_BattleConfig.DefaultBaseId)
+            if base ~= nil then
+                for _, def in ipairs(base.baseSkills or {}) do table.insert(candidates, def.id) end
+            end
+            for id in string.gmatch(self.UnitsCsv, "([^,:]+):%d+") do table.insert(candidates, id) end
+            csv = self:CleanSkillsCsv(table.concat(candidates, ","), levels)
+        end
+        self.SkillsCsv = csv
+        if csv ~= before then log("[PlayerData] equipped skills set to " .. csv) end
+        return csv ~= before
+    end
+
+    @ExecSpace("ServerOnly")
+    method string SetSkills(table skillIds)
+        -- Replaces the skills equipped on the base. They must be owned skills, unique, and at most BaseSkillSlots (an
+        -- empty list is allowed: the base then has no skills). Returns "" on success or the reason it was refused.
+        if self.Loaded == false then return "not loaded" end
+        if #skillIds > _BattleConfig.BaseSkillSlots then return "too many skills" end
+        local levels = self:GetUnitLevels()
+        local seen = {}
+        for _, id in ipairs(skillIds) do
+            if levels[id] == nil then return "not owned: " .. id end
+            local unit = _BattleConfig:GetUnit(id)
+            if unit == nil or unit.kind ~= "skill" then return "not a skill: " .. id end
+            if seen[id] then return "duplicate: " .. id end
+            seen[id] = true
+        end
+        local csv = table.concat(skillIds, ",")
+        if csv == self.SkillsCsv then return "" end
+        self.SkillsCsv = csv
+        self:MarkDirty()
+        self:Save(false)
+        return ""
+    end
+
     -- ===== Save =====
 
     @ExecSpace("ServerOnly")
@@ -256,7 +374,7 @@ script PlayerData extends Component
     method string BuildPayload()
         -- Serializes everything that is stored for this player.
         return _HttpService:JSONEncode({
-            meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, decks = self.DeckPresetsCsv, deckPreset = self.DeckPreset, base = self.SelectedBase, stages = self.StagesCsv, cards = self.CardsCsv,
+            meso = self.Meso, units = self.UnitsCsv, deck = self.DeckCsv, decks = self.DeckPresetsCsv, deckPreset = self.DeckPreset, base = self.SelectedBase, skills = self.SkillsCsv, stages = self.StagesCsv, cards = self.CardsCsv,
             stones = self.StonesCsv,
             wallet = self:ExportWallet(), purchases = table.concat(self._T.purchases or {}, ","),
         })
@@ -754,7 +872,7 @@ script PlayerData extends Component
 
     @ExecSpace("ServerOnly")
     method string SetDeck(table deckIds)
-        -- Replaces the deck. Units must be owned, unique, and at most DeckSize. Saved after a short debounce.
+        -- Replaces the deck. Units must be owned cards (monster / build), unique, and at most DeckSize. Saved after a short debounce.
         if self.Loaded == false then return "not loaded" end
         if #deckIds < 1 then return "empty deck" end
         if #deckIds > _BattleConfig.DeckSize then return "too many units" end
@@ -763,7 +881,7 @@ script PlayerData extends Component
         for _, id in ipairs(deckIds) do
             if levels[id] == nil then return "not owned: " .. id end
             local unit = _BattleConfig:GetUnit(id)
-            if unit == nil or unit.kind == "base" then return "not a deck card: " .. id end
+            if unit == nil or _BattleConfig:IsCardKind(unit.kind) == false then return "not a deck card: " .. id end
             if seen[id] then return "duplicate: " .. id end
             seen[id] = true
         end
@@ -798,17 +916,9 @@ script PlayerData extends Component
         self:StorePreset()
         local list = self:GetDeckPresets()
         if list[index] == "" then list[index] = self.DeckCsv end
-        -- Drop cards that are no longer owned (a reset account, a removed unit).
-        local levels = self:GetUnitLevels()
-        local kept = {}
-        for id in string.gmatch(list[index], "[^,]+") do
-            local unit = _BattleConfig:GetUnit(id)
-            if levels[id] ~= nil and unit ~= nil and unit.kind ~= "base" then table.insert(kept, id) end
-        end
-        if #kept == 0 then
-            for id in string.gmatch(self.DeckCsv, "[^,]+") do table.insert(kept, id) end
-        end
-        list[index] = table.concat(kept, ",")
+        -- Drop what can no longer be in a deck (a reset account, a removed unit, a kind that is not a card).
+        list[index] = self:CleanDeckCsv(list[index], self:GetUnitLevels())
+        if list[index] == "" then list[index] = self.DeckCsv end
         self.DeckPresetsCsv = table.concat(list, "|")
         self.DeckPreset = index
         self.DeckCsv = list[index]
@@ -829,6 +939,16 @@ script PlayerData extends Component
         if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
         local reason = self:LevelUpUnit(unitId)
         log("[PlayerData] level up " .. unitId .. " -> " .. (reason == "" and "ok" or reason) .. " meso=" .. tostring(self.Meso) .. " units=" .. self.UnitsCsv)
+    end
+
+    @ExecSpace("Server")
+    method void RequestSetSkills(string skillsCsv)
+        -- Client request: replace the skills equipped on the base (comma-separated skill ids, "" = none).
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        local ids = {}
+        for id in string.gmatch(skillsCsv, "[^,]+") do table.insert(ids, id) end
+        local reason = self:SetSkills(ids)
+        log("[PlayerData] set skills -> " .. (reason == "" and "ok" or reason) .. " skills=" .. self.SkillsCsv)
     end
 
     @ExecSpace("Server")

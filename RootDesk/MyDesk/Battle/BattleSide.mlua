@@ -2,15 +2,15 @@
 script BattleSide extends Component
 
     -- One side of a battle. Lives on that side's base entity next to its BattleUnit.
-    -- Holds everything a controller (a player or a stage AI) plays with: deck, hand, card queue and cost.
-    -- Card cycle: at Reset the deck is shuffled into a queue and the front HandSize cards form the hand. Playing a
-    -- hand card pushes it to the back of the queue and the queue's front card takes the same hand slot.
+    -- Holds everything a controller (a player or a stage AI) plays with: deck, card cooldowns and cost.
+    -- The whole deck (up to BattleConfig.DeckSize monster / build cards) is in play from the start, one slot per card:
+    -- no hand, no queue. Playing a card starts that card's own cooldown (UnitTable Cooldown).
     @Sync property integer Team = 0
     @Sync property string ControllerUserId = ""
     @Sync property string DeckCsv = ""
-    -- Hand cards in slot order ("" = empty slot when the deck is smaller than the hand) and the next queued card.
-    @Sync property string HandCsv = ""
-    @Sync property string NextCardId = ""
+    -- Per deck slot, the _UtilLogic.ServerElapsedSeconds at which its card can be played again ("0.00,12.50,...";
+    -- 0 = ready). Read it with GetCardReadyTimes.
+    @Sync property string CardReadyCsv = ""
     @Sync property number Cost = 0
     @Sync property number CostMax = 0
     -- In-battle cost level: starts at 1 every battle, raised by paying cost, up to the player's unlocked cap.
@@ -33,30 +33,35 @@ script BattleSide extends Component
         return ids
     end
 
-    method table GetHandIds()
-        -- Returns the hand as an array of HandSize unit ids in slot order ("" for an empty slot). Server and client.
-        local ids = {}
-        local start = 1
-        local csv = self.HandCsv
-        if csv == "" then return ids end
-        while true do
-            local comma, commaEnd = string.find(csv, ",", start, true)
-            if comma == nil then
-                table.insert(ids, string.sub(csv, start))
-                break
-            end
-            table.insert(ids, string.sub(csv, start, comma - 1))
-            start = comma + 1
-        end
-        return ids
+    method table GetCardReadyTimes()
+        -- Returns, per deck slot, the server time at which its card can be played again (0 = ready). Usable on server
+        -- and client; parsed again only when the synced text changed.
+        local csv = self.CardReadyCsv
+        if self._T.readyCsv == csv and self._T.readyTimes ~= nil then return self._T.readyTimes end
+        local times = {}
+        for value in string.gmatch(csv, "[^,]+") do table.insert(times, tonumber(value) or 0) end
+        self._T.readyCsv = csv
+        self._T.readyTimes = times
+        return times
+    end
+
+    method number GetCardCooldownLeft(integer slot)
+        -- Returns the seconds left before the card in a deck slot can be played again (0 = ready). Server and client.
+        local readyAt = self:GetCardReadyTimes()[slot] or 0
+        return math.max(0, readyAt - _UtilLogic.ServerElapsedSeconds)
     end
 
     @ExecSpace("ServerOnly")
-    method void PublishHand(table hand)
-        -- Writes the hand and the next queued card to their synced properties.
-        self.HandCsv = table.concat(hand, ",")
-        local queue = self._T.queue or {}
-        self.NextCardId = queue[1] or ""
+    method void StartCardCooldown(integer slot, table cfg)
+        -- The card in this deck slot was played: its cooldown (the unit's Cooldown seconds) starts now.
+        if self.FreePlay or cfg.cooldown <= 0 then return end
+        local times = self:GetCardReadyTimes()
+        if times[slot] == nil then return end
+        times[slot] = _UtilLogic.ServerElapsedSeconds + cfg.cooldown
+        local parts = {}
+        for _, readyAt in ipairs(times) do table.insert(parts, string.format("%.2f", readyAt)) end
+        self.CardReadyCsv = table.concat(parts, ",")
+        log("[BattleSide] team " .. tostring(self.Team) .. " slot " .. tostring(slot) .. " " .. cfg.id .. " cooldown " .. tostring(cfg.cooldown) .. "s")
     end
 
     @ExecSpace("ServerOnly")
@@ -67,8 +72,19 @@ script BattleSide extends Component
         self.Team = team
         self.ControllerUserId = controllerUserId
         self.FreePlay = freePlay
-        self.DeckCsv = table.concat(deckIds, ",")
-        self.Cost = baseCfg.manaStart or _BattleConfig.CostStart
+        -- Only cards go into play: an id that is not a monster / build (a skill left in an old save) is dropped, and
+        -- the deck never exceeds DeckSize.
+        local deck = {}
+        for _, id in ipairs(deckIds) do
+            local unit = _BattleConfig:GetUnit(id)
+            if unit ~= nil and _BattleConfig:IsCardKind(unit.kind) and #deck < _BattleConfig.DeckSize then table.insert(deck, id) end
+        end
+        self.DeckCsv = table.concat(deck, ",")
+        -- Every card starts ready.
+        local ready = {}
+        for i = 1, #deck do ready[i] = "0.00" end
+        self.CardReadyCsv = table.concat(ready, ",")
+        self.Cost =baseCfg.manaStart or _BattleConfig.CostStart
         local costLevels = _BattleConfig:GetCostLevels()
         self.CostLevel = 1
         self.CostLevelCap = math.max(1, math.min(#costLevels, costLevelCap))
@@ -80,24 +96,7 @@ script BattleSide extends Component
         self.UpgradeCost = math.floor(costLevels[1].upgradeCost * (1 - self._T.discount))
         self:InitBaseSkills(baseCfg)
         self._T.levels = unitLevels
-        -- Shuffle the deck into the card queue, then deal the front cards into the hand.
-        local queue = {}
-        for _, id in ipairs(deckIds) do table.insert(queue, id) end
-        for i = #queue, 2, -1 do
-            local j = _UtilLogic:RandomIntegerRange(1, i)
-            queue[i], queue[j] = queue[j], queue[i]
-        end
-        local hand = {}
-        for i = 1, _BattleConfig.HandSize do
-            if #queue > 0 then
-                hand[i] = table.remove(queue, 1)
-            else
-                hand[i] = ""
-            end
-        end
-        self._T.queue = queue
-        self:PublishHand(hand)
-        log("[BattleSide] reset team=" .. tostring(team) .. " controller=" .. (controllerUserId ~= "" and controllerUserId or "AI") .. " deck=" .. self.DeckCsv .. " hand=" .. self.HandCsv .. " queue=" .. table.concat(queue, ","))
+        log("[BattleSide] reset team=" .. tostring(team) .. " controller=" .. (controllerUserId ~= "" and controllerUserId or "AI") .. " deck=" .. self.DeckCsv .. " cards=" .. tostring(#deck))
     end
 
     method table GetBaseSkills()
@@ -197,9 +196,12 @@ script BattleSide extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method string CheckCard(table cfg)
-        -- Returns "" when the card may be played now (its cost is affordable), otherwise the reason it is rejected.
+    method string CheckCard(integer slot, table cfg)
+        -- Returns "" when the card in a deck slot may be played now (its cooldown is over and its cost is affordable),
+        -- otherwise the reason it is rejected.
         if self.FreePlay then return "" end
+        local left = self:GetCardCooldownLeft(slot)
+        if left > 0 then return "cooldown " .. string.format("%.1f", left) .. "s" end
         if self.Cost < cfg.cost then return "cost " .. string.format("%.0f", self.Cost) .. "/" .. tostring(cfg.cost) end
         return ""
     end
@@ -209,21 +211,6 @@ script BattleSide extends Component
         -- Charges the card's cost.
         if self.FreePlay then return end
         self.Cost = self.Cost - cfg.cost
-    end
-
-    @ExecSpace("ServerOnly")
-    method void CycleCard(integer handIndex)
-        -- The card in this hand slot was played: it goes to the back of the queue and the queue's front card takes
-        -- the slot. With no other card waiting (deck no bigger than the hand) the same card comes straight back.
-        local hand = self:GetHandIds()
-        local played = hand[handIndex]
-        if played == nil or played == "" then return end
-        local queue = self._T.queue or {}
-        table.insert(queue, played)
-        hand[handIndex] = table.remove(queue, 1)
-        self._T.queue = queue
-        self:PublishHand(hand)
-        log("[BattleSide] team " .. tostring(self.Team) .. " cycled slot " .. tostring(handIndex) .. ": " .. played .. " -> " .. hand[handIndex] .. " hand=" .. self.HandCsv .. " next=" .. self.NextCardId)
     end
 
 end

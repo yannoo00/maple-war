@@ -12,6 +12,7 @@ const RARITIES = ['normal', 'rare', 'epic', 'unique', 'legendary'];
 const RARITY_LABELS = { normal: '노멀', rare: '레어', epic: '에픽', unique: '유니크', legendary: '레전더리' };
 const CHANCE_KEYS = { normal: 'ChanceNormal', rare: 'ChanceRare', epic: 'ChanceEpic', unique: 'ChanceUnique', legendary: 'ChanceLegendary' };
 const ID_PATTERN = /^[a-z][a-z0-9_]*$/;
+// What a summon stone can give: deck cards (monster / build) and skills (equipped as base skills).
 const CARD_KINDS = ['monster', 'build', 'skill'];
 
 // type: text | int | number | enum | ruid | memo (same vocabulary as schema.cjs, so the editor's Field renders them)

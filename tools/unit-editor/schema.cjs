@@ -6,7 +6,11 @@
 
 const KINDS = ['monster', 'build', 'skill', 'base'];
 // Kinds that are cards played from the hand (a base is chosen into the deck's separate base slot instead).
-const CARD_KINDS = ['monster', 'build', 'skill'];
+// A skill is never a deck card: a player owns skills like cards (starter / summon stones, card level-up) and equips up
+// to three of them as their base's skills; an enemy base's skills come from its BaseSkill columns.
+const CARD_KINDS = ['monster', 'build'];
+// Kinds a stage timetable / loop pool may name.
+const WAVE_KINDS = ['monster', 'build', 'skill'];
 
 const KIND_LABELS = { monster: '몬스터', build: '설치물', skill: '스킬', base: '기지' };
 
@@ -51,6 +55,8 @@ const FIELDS = [
     help: '카드 테두리 색만 결정' },
 
   { key: 'Cost', group: 'card', type: 'number', label: '소환 마나', required: CARD_KINDS, kinds: CARD_KINDS },
+  { key: 'Cooldown', group: 'card', type: 'number', label: '쿨타임(초)', kinds: ['monster', 'build', 'skill'],
+    help: '몬스터·설치물: 이 카드를 쓴 뒤 다시 쓸 수 있을 때까지의 시간(전투 시작 때는 바로 쓸 수 있다, 빈칸·0 = 없음). 스킬: 플레이어가 기지 스킬 칸에 장착했을 때의 쿨타임(전투 시작부터 첫 사용까지도 이 시간)' },
   { key: 'IconRuid', group: 'card', type: 'ruid', label: '썸네일 / 카드 아이콘', kinds: KINDS,
     help: '카드·덱·이 툴의 목록에 보이는 그림. 빈칸 = 기본값: 몬스터·설치물은 stand 클립의 썸네일, 스킬은 범위 이펙트의 썸네일. 기지는 스프라이트 RUID(필수에 가까움: 카드 목록·덱의 기지 칸에 나옴)' },
   { key: 'SpawnCount', group: 'card', type: 'int', label: '한 번에 소환하는 수', kinds: ['monster'],
@@ -277,6 +283,7 @@ function fieldsForKind(kind) {
 module.exports = {
   KINDS,
   CARD_KINDS,
+  WAVE_KINDS,
   KIND_LABELS,
   ENUMS,
   ENUM_LABELS,

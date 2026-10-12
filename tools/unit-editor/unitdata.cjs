@@ -123,7 +123,7 @@ function unitStatus(unit, data) {
   // Skills: whether BattleSkills.mlua has an entry for this id, and what its SkillValue1/2 mean there.
   const skill = unit.Kind === 'skill' ? (implementedSkills()[unit.UnitId] || null) : undefined;
   return {
-    ally: playable,   // 카드 유닛은 스타터로 받거나 상자에서 나온다
+    ally: playable,   // 몬스터·설치물(덱 카드)과 스킬(기지 스킬 칸에 장착)은 스타터로 받거나 소환의 돌에서 나온다
     starter,
     enemy: enemyStages.length > 0,
     enemyStages,
@@ -697,7 +697,7 @@ function validateStage(stage, waves, pool, data, opts = {}) {
     else {
       const u = unitOf(w.unitId);
       if (!u) errors.push(`시간표 ${n}행: 유닛 "${w.unitId}"가 UnitTable에 없습니다`);
-      else if (!schema.CARD_KINDS.includes(u.Kind)) errors.push(`시간표 ${n}행: "${w.unitId}"(${u.Kind})는 소환할 수 없습니다`);
+      else if (!schema.WAVE_KINDS.includes(u.Kind)) errors.push(`시간표 ${n}행: "${w.unitId}"(${u.Kind})는 소환할 수 없습니다`);
       else if (u.Kind === 'skill') warnings.push(`시간표 ${n}행: 스킬 "${w.unitId}"은 x=0 지점에 떨어집니다. 전장 위치에 따라 빗나갈 수 있습니다`);
     }
     if (!isNumeric(w.time) || Number(w.time) < 0) errors.push(`시간표 ${n}행: 등장 시각 "${w.time}"이 올바르지 않습니다`);

@@ -1,7 +1,7 @@
 @Logic
 script BattleSkills extends Logic
 
-    -- Server-side executor of skill cards. Every skill is one entry of the registry built in GetDefs, keyed by its
+    -- Server-side executor of skills (cast only as a base's skill; skills are not deck cards). Every skill is one entry of the registry built in GetDefs, keyed by its
     -- UnitTable id: a small function built from the shared helpers below (find targets, damage, heal, apply an effect,
     -- repeat). Adding a skill = adding one entry here; its numbers stay in UnitTable:
     --   SkillDamage   = the main amount (damage, or heal), already scaled by the card level
