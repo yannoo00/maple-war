@@ -109,6 +109,24 @@ script BattleConfig extends Logic
         return text
     end
 
+    method integer RowCount(any ds)
+        -- Returns the row count of a dataset table, 0 when the table is missing.
+        if ds == nil then return 0 end
+        return ds:GetRowCount()
+    end
+
+    method table GetUnitIdsWhere(any predicate)
+        -- Returns the ids of every unit for which predicate(unit) is true, in table order.
+        local list = {}
+        for _, unit in pairs(self:GetUnits()) do
+            if predicate(unit) then table.insert(list, unit) end
+        end
+        table.sort(list, function(a, b) return a.order < b.order end)
+        local ids = {}
+        for _, unit in ipairs(list) do table.insert(ids, unit.id) end
+        return ids
+    end
+
     method table GetUnits()
         -- Returns every unit definition keyed by unit id (monster / build / skill / base), loaded once from UnitTable.
         -- Deck cards are the monster / build rows (IsCardKind); skill rows are owned too but used as a base's skills.
@@ -117,8 +135,7 @@ script BattleConfig extends Logic
         if units ~= nil then return units end
         units = {}
         local ds = _DataService:GetTable("UnitTable")
-        local count = 0
-        if ds ~= nil then count = ds:GetRowCount() end
+        local count = self:RowCount(ds)
         for i = 1, count do
             local id = ds:GetCell(i, "UnitId")
             if id ~= nil and id ~= "" then
@@ -179,7 +196,7 @@ script BattleConfig extends Logic
                     -- the damaged unit's feet: X toward the attacker's facing, Y up). Blank offsets = nil (Y then defaults to
                     -- the projectile aim height); blank scale = 1.
                     hitEffectOffsetX = self:Num(ds:GetCell(i, "HitEffectOffsetX"), 0),
-                    hitEffectOffsetY = self:OptText(ds:GetCell(i, "HitEffectOffsetY")) ~= nil and self:Num(ds:GetCell(i, "HitEffectOffsetY"), 0) or nil,
+                    hitEffectOffsetY = self:OptNum(ds:GetCell(i, "HitEffectOffsetY")),
                     hitEffectScale = self:Num(ds:GetCell(i, "HitEffectScale"), 1),
                     -- Where and how large the attack effect plays (client only), in world units as seen on screen:
                     -- X forward (the way the unit faces), Y up from its feet, scale on top of the unit's size. Blank = 0 / 1.
@@ -211,16 +228,13 @@ script BattleConfig extends Logic
                     spawnCount = math.max(1, math.floor(self:Num(ds:GetCell(i, "SpawnCount"), 1))),
                     iconRuid = self:OptText(ds:GetCell(i, "IconRuid")),
                     -- Bases (Kind = base) only: starting mana (blank = CostStart), multipliers on the mana level table's
-                    -- max / income (blank = 1), the base skill (a skill unit id) with its type (active / passive) and
-                    -- cooldown seconds, the World Shop product that sells the base, and enemy-only bases (hidden from the card list).
+                    -- max / income (blank = 1), the base's skills in slot order (BaseSkill, BaseSkill2, BaseSkill3 with
+                    -- their Type / Cooldown columns: { id, type, cooldown }), the World Shop product that sells the base,
+                    -- and enemy-only bases (hidden from the card list).
                     manaStart = self:OptNum(ds:GetCell(i, "ManaStart")),
                     manaLevelStart = math.floor(self:Num(ds:GetCell(i, "ManaLevelStart"), self.DefaultCostLevelCap)),
                     manaMaxRate = self:Num(ds:GetCell(i, "ManaMaxRate"), 1),
                     manaRegenRate = self:Num(ds:GetCell(i, "ManaRegenRate"), 1),
-                    baseSkill = self:OptText(ds:GetCell(i, "BaseSkill")) or "",
-                    baseSkillType = self:OptText(ds:GetCell(i, "BaseSkillType")) or "active",
-                    baseSkillCooldown = self:Num(ds:GetCell(i, "BaseSkillCooldown"), 0),
-                    -- Every skill of the base in slot order (BaseSkill, BaseSkill2, BaseSkill3): { id, type, cooldown }.
                     baseSkills = self:ReadBaseSkills(ds, i),
                     -- Builds only: seconds a new build spends preparing (no attacks, no traits, but it can be damaged). 0 = none.
                     buildSeconds = math.max(0, self:Num(ds:GetCell(i, "BuildSeconds"), 0)),
@@ -334,8 +348,7 @@ script BattleConfig extends Logic
         if chests ~= nil then return chests end
         chests = {}
         local ds = _DataService:GetTable("ChestTable")
-        local count = 0
-        if ds ~= nil then count = ds:GetRowCount() end
+        local count = self:RowCount(ds)
         for i = 1, count do
             local id = ds:GetCell(i, "ChestId")
             if id ~= nil and id ~= "" then
@@ -432,8 +445,7 @@ script BattleConfig extends Logic
         if effects ~= nil then return effects end
         effects = {}
         local ds = _DataService:GetTable("EffectTable")
-        local count = 0
-        if ds ~= nil then count = ds:GetRowCount() end
+        local count = self:RowCount(ds)
         for i = 1, count do
             local id = ds:GetCell(i, "EffectId")
             if id ~= nil and id ~= "" then
@@ -473,8 +485,7 @@ script BattleConfig extends Logic
         if byUnit == nil then
             byUnit = {}
             local ds = _DataService:GetTable("UnitEffectTable")
-            local count = 0
-            if ds ~= nil then count = ds:GetRowCount() end
+            local count = self:RowCount(ds)
             for i = 1, count do
                 local id = ds:GetCell(i, "UnitId")
                 local effectId = ds:GetCell(i, "EffectId")
@@ -517,14 +528,6 @@ script BattleConfig extends Logic
         end
         if beats[attackerAttribute] == targetAttribute then return 1 + self.AttributeBonus end
         return 1
-    end
-
-    method number GetStatRate(integer level)
-        -- Returns the stat multiplier of a unit level (UnitLevelTable StatRate), 1 for an unknown level.
-        local levels = self:GetLevels()
-        local entry = levels[math.max(1, math.min(#levels, level))]
-        if entry == nil then return 1 end
-        return entry.statRate
     end
 
     method string GetAttackTypeLabel(string attackType)
@@ -577,8 +580,7 @@ script BattleConfig extends Logic
         if levels ~= nil then return levels end
         levels = {}
         local ds = _DataService:GetTable("UnitLevelTable")
-        local count = 0
-        if ds ~= nil then count = ds:GetRowCount() end
+        local count = self:RowCount(ds)
         for i = 1, count do
             local level = math.floor(self:Num(ds:GetCell(i, "Level"), i))
             levels[level] = {
@@ -599,8 +601,7 @@ script BattleConfig extends Logic
         if levels ~= nil then return levels end
         levels = {}
         local ds = _DataService:GetTable("CostLevelTable")
-        local count = 0
-        if ds ~= nil then count = ds:GetRowCount() end
+        local count = self:RowCount(ds)
         for i = 1, count do
             local level = math.floor(self:Num(ds:GetCell(i, "Level"), i))
             levels[level] = {
@@ -640,26 +641,12 @@ script BattleConfig extends Logic
     method table GetStarterUnitIds()
         -- Returns the ids of the units (monster / build / skill) every new player receives (Starter = 1 in UnitTable),
         -- in table order. Bases are separate; see GetStarterBaseIds.
-        local list = {}
-        for _, unit in pairs(self:GetUnits()) do
-            if unit.starter and self:IsOwnableKind(unit.kind) then table.insert(list, unit) end
-        end
-        table.sort(list, function(a, b) return a.order < b.order end)
-        local ids = {}
-        for _, unit in ipairs(list) do table.insert(ids, unit.id) end
-        return ids
+        return self:GetUnitIdsWhere(function(unit) return unit.starter and self:IsOwnableKind(unit.kind) end)
     end
 
     method table GetStarterBaseIds()
         -- Returns the ids of the bases every player owns from the start (Kind = base, Starter = 1), in table order.
-        local list = {}
-        for _, unit in pairs(self:GetUnits()) do
-            if unit.starter and unit.kind == "base" then table.insert(list, unit) end
-        end
-        table.sort(list, function(a, b) return a.order < b.order end)
-        local ids = {}
-        for _, unit in ipairs(list) do table.insert(ids, unit.id) end
-        return ids
+        return self:GetUnitIdsWhere(function(unit) return unit.starter and unit.kind == "base" end)
     end
 
     method table GetBaseLevels()
@@ -669,8 +656,7 @@ script BattleConfig extends Logic
         if levels ~= nil then return levels end
         levels = {}
         local ds = _DataService:GetTable("BaseLevelTable")
-        local count = 0
-        if ds ~= nil then count = ds:GetRowCount() end
+        local count = self:RowCount(ds)
         for i = 1, count do
             local level = math.floor(self:Num(ds:GetCell(i, "Level"), i))
             levels[level] = {
@@ -723,8 +709,7 @@ script BattleConfig extends Logic
         if currencies ~= nil then return currencies end
         currencies = {}
         local ds = _DataService:GetTable("CurrencyTable")
-        local count = 0
-        if ds ~= nil then count = ds:GetRowCount() end
+        local count = self:RowCount(ds)
         for i = 1, count do
             local id = ds:GetCell(i, "CurrencyId")
             if id ~= nil and id ~= "" then
@@ -756,8 +741,7 @@ script BattleConfig extends Logic
         if products ~= nil then return products end
         products = {}
         local ds = _DataService:GetTable("ShopProductTable")
-        local count = 0
-        if ds ~= nil then count = ds:GetRowCount() end
+        local count = self:RowCount(ds)
         for i = 1, count do
             local currencyId = ds:GetCell(i, "CurrencyId")
             if currencyId ~= nil and currencyId ~= "" then
@@ -799,8 +783,7 @@ script BattleConfig extends Logic
             stages = {}
             local stageIds = {}
             local ds = _DataService:GetTable("StageTable")
-            local count = 0
-            if ds ~= nil then count = ds:GetRowCount() end
+            local count = self:RowCount(ds)
             for i = 1, count do
                 local id = ds:GetCell(i, "StageId")
                 if id ~= nil and id ~= "" then
@@ -845,8 +828,7 @@ script BattleConfig extends Logic
         if all == nil then
             all = {}
             local ds = _DataService:GetTable("StageWaveTable")
-            local count = 0
-            if ds ~= nil then count = ds:GetRowCount() end
+            local count = self:RowCount(ds)
             for i = 1, count do
                 local id = ds:GetCell(i, "StageId")
                 if id ~= nil and id ~= "" then

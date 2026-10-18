@@ -17,14 +17,9 @@ script StageAI extends Component
         -- Starts playing the timetable of the given stage from time zero.
         local stage = _BattleConfig:GetStage(stageId)
         self._T.waves = _BattleConfig:GetStageWaves(stageId)
-        self._T.pool = {}
-        self.LoopInterval = 6
-        self.LoopMinInterval = 3
-        if stage ~= nil then
-            self._T.pool = stage.loopPool
-            self.LoopInterval = stage.loopStartInterval
-            self.LoopMinInterval = stage.loopMinInterval
-        end
+        self._T.pool = stage ~= nil and stage.loopPool or {}
+        self.LoopInterval = stage ~= nil and stage.loopStartInterval or 6
+        self.LoopMinInterval = stage ~= nil and stage.loopMinInterval or 3
         self.Elapsed = 0
         self.WaveIndex = 1
         self.LoopTimer = 0

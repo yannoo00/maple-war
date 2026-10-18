@@ -17,9 +17,8 @@ script BattleDirector extends Component
     @Sync property string State = "WAITING"
     @Sync property integer WinnerTeam = 0
     @Sync property integer RewardMeso = 0
-    -- Reward chest of the finished battle and the cards it gave ("unitId:count,..."), for the result screen.
+    -- Reward summon stone (ChestTable id) of the finished battle, for the result screen.
     @Sync property string RewardChest = ""
-    @Sync property string RewardCardsCsv = ""
     @Sync property number AllyBaseX = 0
     @Sync property number EnemyBaseX = 0
     -- Left and right end of the field (outermost base / portal plus BattleConfig.FieldEdgeMargin).
@@ -107,12 +106,6 @@ script BattleDirector extends Component
         self._T.sides[team] = entity:GetComponent("script.BattleSide")
         self._T.bases[team] = entity:GetComponent("script.BattleUnit")
         if self._T.sides[team] == nil then log_error("[BattleDirector] base has no BattleSide: " .. entityName) end
-    end
-
-    @ExecSpace("ServerOnly")
-    method any GetSide(integer team)
-        -- Returns the BattleSide of a team.
-        return self._T.sides[team]
     end
 
     @ExecSpace("ServerOnly")
@@ -350,7 +343,6 @@ script BattleDirector extends Component
         self.WinnerTeam = 0
         self.RewardMeso = 0
         self.RewardChest = ""
-        self.RewardCardsCsv = ""
         self.StageId = stageId
         self.PlayerUserId = userId
 
@@ -455,17 +447,15 @@ script BattleDirector extends Component
     -- ===== Base skills (up to three per base) =====
 
     @ExecSpace("ServerOnly")
-    method void TickBaseSkills(any side)
+    method void TickBaseSkills(BattleSide side)
         -- Fires a side's base skills by themselves when they are automatic: a passive skill, or any skill of the stage
         -- AI's side. A player's active skill waits for UseBaseSkill. Nothing is cast while no enemy is on the field.
-        ---@type BattleSide
-        local s = side
-        for index, skill in ipairs(s:GetBaseSkills()) do
-            if s:IsBaseSkillReady(index) and (skill.type == "passive" or s.FreePlay) then
-                local target = self:FindNearestEnemy(s.Team)
+        for index, skill in ipairs(side:GetBaseSkills()) do
+            if side:IsBaseSkillReady(index) and (skill.type == "passive" or side.FreePlay) then
+                local target = self:FindNearestEnemy(side.Team)
                 if target == nil then return end
                 local pos = target.Entity.TransformComponent.WorldPosition
-                self:CastBaseSkill(s, index, pos.x, pos.y)
+                self:CastBaseSkill(side, index, pos.x, pos.y)
             end
         end
     end
@@ -505,18 +495,16 @@ script BattleDirector extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method boolean CastBaseSkill(any side, integer index, number targetX, number targetY)
+    method boolean CastBaseSkill(BattleSide side, integer index, number targetX, number targetY)
         -- Runs a base skill (skills are only ever cast by a base): the skill's own code, plus the effect on every
         -- client. Then that skill's cooldown starts. Returns true when it was cast.
-        ---@type BattleSide
-        local s = side
-        local skill = s:GetBaseSkills()[index]
+        local skill = side:GetBaseSkills()[index]
         if skill == nil then return false end
         local floorY = self:SnapFloorY(targetX, targetY)
-        if self:PlayUnit(s.Team, skill.id, targetX, floorY, s:GetUnitLevel(skill.id), 0) == false then return false end
-        s:StartBaseSkillCooldown(index)
+        if self:PlayUnit(side.Team, skill.id, targetX, floorY, side:GetUnitLevel(skill.id), 0) == false then return false end
+        side:StartBaseSkillCooldown(index)
         self:NotifySkillCast(skill.id, targetX, floorY)
-        log("[BattleDirector] base skill team=" .. tostring(s.Team) .. " slot=" .. tostring(index) .. " " .. skill.id .. " x=" .. string.format("%.1f", targetX) .. " floorY=" .. string.format("%.2f", floorY))
+        log("[BattleDirector] base skill team=" .. tostring(side.Team) .. " slot=" .. tostring(index) .. " " .. skill.id .. " x=" .. string.format("%.1f", targetX) .. " floorY=" .. string.format("%.2f", floorY))
         return true
     end
 
@@ -697,8 +685,7 @@ script BattleDirector extends Component
         local base = self._T.bases[3 - team]
         if base ~= nil and base.IsDead == false and base.Ready then
             local portal = self:FindPortalOnFloor(3 - team, x, y, range)
-            if portal ~= nil and math.abs(portal.x - x) < bestDist then best = base end
-            if portal ~= nil and best == nil then best = base end
+            if portal ~= nil and (best == nil or math.abs(portal.x - x) < bestDist) then best = base end
         end
         return best
     end
@@ -779,7 +766,7 @@ script BattleDirector extends Component
         end
         self.RewardMeso = reward
         self.RewardChest = chestId
-        self.RewardCardsCsv = data:GrantBattleResult(self.StageId, reward, chestId, won)
+        data:GrantBattleResult(self.StageId, reward, chestId, won)
     end
 
     @ExecSpace("ServerOnly")

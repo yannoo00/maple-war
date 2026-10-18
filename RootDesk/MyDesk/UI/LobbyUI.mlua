@@ -418,32 +418,30 @@ script LobbyUI extends Component
     end
 
     @ExecSpace("ClientOnly")
-    method string SetChildIcon(Entity parent, string unitId)
-        -- Shows the unit / skill image in the item's "Icon" child, or hides it when there is none; returns the RUID used.
+    method void SetIconRuid(Entity parent, string ruid)
+        -- Shows an image in the item's "Icon" child, or hides the child when the RUID is blank.
         local child = parent:GetChildByName("Icon")
-        if not isvalid(child) then return "" end
-        local ruid = ""
-        if unitId ~= "" then ruid = _BattleConfig:GetIconRuid(unitId) end
+        if not isvalid(child) then return end
         if ruid ~= "" then child.SpriteGUIRendererComponent.ImageRUID = DataRef(ruid) end
         local shown = ruid ~= ""
         if child.Enable ~= shown then child.Enable = shown end
-        return ruid
     end
 
     @ExecSpace("ClientOnly")
-    method string SetCurrencyIcon(Entity parent, string currencyId)
-        -- Shows a currency's icon (CurrencyTable Icon) in the item's "Icon" child, or hides it when there is none;
-        -- returns the RUID used.
-        local child = parent:GetChildByName("Icon")
-        if not isvalid(child) then return "" end
+    method void SetChildIcon(Entity parent, string unitId)
+        -- Shows the unit / skill image in the item's "Icon" child, or hides it when there is none.
         local ruid = ""
+        if unitId ~= "" then ruid = _BattleConfig:GetIconRuid(unitId) end
+        self:SetIconRuid(parent, ruid)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void SetCurrencyIcon(Entity parent, string currencyId)
+        -- Shows a currency's icon (CurrencyTable Icon) in the item's "Icon" child, or hides it when there is none.
         local cfg = _BattleConfig:GetCurrency(currencyId)
-        if cfg ~= nil then ruid = cfg.icon end
-        if ruid ~= "" then child.SpriteGUIRendererComponent.ImageRUID = DataRef(ruid) end
-        local shown = ruid ~= ""
-        if child.Enable ~= shown then child.Enable = shown end
+        local ruid = cfg ~= nil and cfg.icon or ""
+        self:SetIconRuid(parent, ruid)
         log("[LobbyUI] currency icon " .. currencyId .. " on " .. parent.Name .. " ruid=" .. ruid)
-        return ruid
     end
 
     @ExecSpace("ClientOnly")
@@ -459,6 +457,22 @@ script LobbyUI extends Component
         if not isvalid(button) then return end
         button.ButtonComponent.Enable = enabled
         self:SetChildEnable(button, "Dim", enabled == false)
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PaintProgress(Entity progress, string label, number ratio, boolean ready)
+        -- Fills a tile's progress bar: the label above it, the fill width by ratio, green when the unit can level up now.
+        if not isvalid(progress) then return end
+        self:SetChildText(progress, "Label", label)
+        local fill = progress:GetChildByName("Fill")
+        self:SetBarFill(progress, fill, ratio)
+        if isvalid(fill) then
+            if ready then
+                fill.SpriteGUIRendererComponent.Color = Color(0.36, 0.84, 0.4, 1)
+            else
+                fill.SpriteGUIRendererComponent.Color = Color(0.27, 0.6, 1, 1)
+            end
+        end
     end
 
     -- ===== Stage select =====
@@ -614,67 +628,59 @@ script LobbyUI extends Component
         -- The first row is the deck's base slot (not counted in the deck size); the card rows follow it.
         local rows = self:SyncPool("slot", self.deckSlot, deckSize + 1, "", function(item) self:SelectCard("slot", item.key) end)
         local baseItem = rows[1]
-        self:BindCardMenu(baseItem, "slot")
         local baseId = data:GetSelectedBaseId()
         local baseCfg = _BattleConfig:GetUnit(baseId)
         if baseCfg ~= nil then
-            baseItem.key = baseId
-            self:SetChildText(baseItem.entity, "Name", "기지 · " .. baseCfg.name)
-            self:SetChildText(baseItem.entity, "Level", "Lv " .. tostring(levels[baseId] or 1))
-            self:SetChildIcon(baseItem.entity, baseId)
-            _BattleConfig:PaintRarityFrame(baseItem.entity, baseId)
+            self:PaintDeckRow(baseItem, baseId, "기지 · " .. baseCfg.name, "Lv " .. tostring(levels[baseId] or 1), "")
         else
-            baseItem.key = ""
-            self:SetChildText(baseItem.entity, "Name", "기지 없음")
-            self:SetChildText(baseItem.entity, "Level", "")
-            self:SetChildIcon(baseItem.entity, "")
-            _BattleConfig:PaintRarityFrame(baseItem.entity, "")
+            self:PaintDeckRow(baseItem, "", "기지 없음", "", "")
         end
-        self:SetChildEnable(baseItem.entity, "Cost", false)
-        baseItem.entity.ButtonComponent.Enable = baseCfg ~= nil
-        local baseMenu = baseItem.entity:GetChildByName("Menu")
-        local baseOpen = baseCfg ~= nil and self:IsSelected("slot", baseItem.key)
-        if isvalid(baseMenu) then
-            if baseOpen then
-                self:PaintInfoButton(baseMenu:GetChildByName("InfoBtn"), self:GetUpgradeState(data, baseItem.key).ready)
-                -- The base slot cannot be emptied; a base is replaced by choosing another one in the collection.
-                local removeButton = baseMenu:GetChildByName("RemoveBtn")
-                if isvalid(removeButton) and removeButton.Enable then removeButton.Enable = false end
-            end
-            if baseMenu.Enable ~= baseOpen then baseMenu.Enable = baseOpen end
-        end
+        -- The base slot cannot be emptied; a base is replaced by choosing another one in the collection.
+        self:PaintSlotMenu(baseItem, data, false)
         for i = 1, deckSize do
             local item = rows[i + 1]
-            self:BindCardMenu(item, "slot")
             local unitId = deck[i]
             local cfg = nil
             if unitId ~= nil then cfg = _BattleConfig:GetUnit(unitId) end
             if cfg ~= nil then
                 inDeck[unitId] = true
-                item.key = unitId
-                self:SetChildText(item.entity, "Name", cfg.name)
-                self:SetChildText(item.entity, "Level", "Lv " .. tostring(levels[unitId] or 1))
-                self:SetChildText(item.entity, "Cost", tostring(math.floor(cfg.cost)))
-                self:SetChildIcon(item.entity, unitId)
-                _BattleConfig:PaintRarityFrame(item.entity, unitId)
+                self:PaintDeckRow(item, unitId, cfg.name, "Lv " .. tostring(levels[unitId] or 1), tostring(math.floor(cfg.cost)))
             else
-                item.key = ""
-                self:SetChildText(item.entity, "Name", "빈 슬롯")
-                self:SetChildText(item.entity, "Level", "")
-                self:SetChildIcon(item.entity, "")
-                _BattleConfig:PaintRarityFrame(item.entity, "")
+                self:PaintDeckRow(item, "", "빈 슬롯", "", "")
             end
-            self:SetChildEnable(item.entity, "Cost", cfg ~= nil)
-            item.entity.ButtonComponent.Enable = cfg ~= nil
-            local menu = item.entity:GetChildByName("Menu")
-            local open = cfg ~= nil and self:IsSelected("slot", item.key)
-            if isvalid(menu) then
-                if open then self:PaintInfoButton(menu:GetChildByName("InfoBtn"), self:GetUpgradeState(data, item.key).ready) end
-                if menu.Enable ~= open then menu.Enable = open end
-            end
+            self:PaintSlotMenu(item, data, true)
         end
         self:RenderCollection(data, inDeck)
         log("[LobbyUI] deck rendered deck=" .. data.DeckCsv .. " count=" .. tostring(#deck) .. "/" .. tostring(deckSize))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PaintDeckRow(table item, string unitId, string name, string level, string cost)
+        -- Draws one deck row: name, level, summon cost (hidden when blank), icon and rarity frame. The row's button and
+        -- menu work only for a real unit (unitId ~= "").
+        self:BindCardMenu(item, "slot")
+        item.key = unitId
+        self:SetChildText(item.entity, "Name", name)
+        self:SetChildText(item.entity, "Level", level)
+        self:SetChildEnable(item.entity, "Cost", cost ~= "")
+        if cost ~= "" then self:SetChildText(item.entity, "Cost", cost) end
+        self:SetChildIcon(item.entity, unitId)
+        _BattleConfig:PaintRarityFrame(item.entity, unitId)
+        item.entity.ButtonComponent.Enable = unitId ~= ""
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PaintSlotMenu(table item, PlayerData data, boolean canRemove)
+        -- Shows a deck row's card menu while its unit is selected: the info button reads 강화 when the unit can level up
+        -- now, and the remove button is offered only where the slot may be emptied.
+        local menu = item.entity:GetChildByName("Menu")
+        if not isvalid(menu) then return end
+        local open = item.key ~= "" and self:IsSelected("slot", item.key)
+        if open then
+            self:PaintInfoButton(menu:GetChildByName("InfoBtn"), self:GetUpgradeState(data, item.key).ready)
+            self:SetChildEnable(menu, "RemoveBtn", canRemove)
+        end
+        if menu.Enable ~= open then menu.Enable = open end
     end
 
     @ExecSpace("ClientOnly")
@@ -706,38 +712,23 @@ script LobbyUI extends Component
             self:SetChildEnable(item.entity, "Dim", state.owned == false)
             self:SetChildEnable(item.entity, "InDeck", used)
             local progress = item.entity:GetChildByName("Progress")
-            local fill = nil
-            if isvalid(progress) then
-                fill = progress:GetChildByName("Fill")
-                -- The count sits on a label above the fill bar; the bar panel's own text stays empty.
-                progress.TextGUIRendererComponent.Text = ""
-            end
+            -- The count sits on a label above the fill bar; the bar panel's own text stays empty.
+            if isvalid(progress) then progress.TextGUIRendererComponent.Text = "" end
             if isBase then
                 -- Bases: "기지" level band, upgrade progress as level / top level, and what the player can do next.
                 if state.owned == false then
                     self:SetChildText(item.entity, "Level", "미보유")
-                    if isvalid(progress) then self:SetChildText(progress, "Label", unit.productId ~= "" and "구매 가능" or "준비 중") end
-                    self:SetBarFill(progress, fill, 0)
+                    self:PaintProgress(progress, unit.productId ~= "" and "구매 가능" or "준비 중", 0, false)
                     table.insert(summary, unit.id .. "=none")
                 else
                     self:SetChildText(item.entity, "Level", "기지 Lv " .. tostring(state.level))
-                    if isvalid(progress) then
-                        self:SetChildText(progress, "Label", state.maxed and "최대 강화" or ("강화 " .. tostring(state.cost) .. " 메소"))
-                    end
-                    if isvalid(fill) then
-                        self:SetBarFill(progress, fill, math.min(1, state.level / _BattleConfig:GetMaxBaseLevel()))
-                        if state.ready then
-                            fill.SpriteGUIRendererComponent.Color = Color(0.36, 0.84, 0.4, 1)
-                        else
-                            fill.SpriteGUIRendererComponent.Color = Color(0.27, 0.6, 1, 1)
-                        end
-                    end
+                    local label = state.maxed and "최대 강화" or ("강화 " .. tostring(state.cost) .. " 메소")
+                    self:PaintProgress(progress, label, math.min(1, state.level / _BattleConfig:GetMaxBaseLevel()), state.ready)
                     table.insert(summary, unit.id .. "=B" .. tostring(state.level) .. (used and "*" or "") .. (state.ready and "+" or ""))
                 end
             elseif state.owned == false then
                 self:SetChildText(item.entity, "Level", "미보유")
-                if isvalid(progress) then self:SetChildText(progress, "Label", "소환으로 획득") end
-                self:SetBarFill(progress, fill, 0)
+                self:PaintProgress(progress, "소환으로 획득", 0, false)
                 table.insert(summary, unit.id .. "=none")
             else
                 self:SetChildText(item.entity, "Level", "레벨 " .. tostring(state.level))
@@ -747,15 +738,7 @@ script LobbyUI extends Component
                     text = tostring(state.have) .. "/" .. tostring(state.need)
                     if state.need > 0 then ratio = math.min(1, state.have / state.need) end
                 end
-                if isvalid(progress) then self:SetChildText(progress, "Label", text) end
-                if isvalid(fill) then
-                    self:SetBarFill(progress, fill, ratio)
-                    if state.ready then
-                        fill.SpriteGUIRendererComponent.Color = Color(0.36, 0.84, 0.4, 1)
-                    else
-                        fill.SpriteGUIRendererComponent.Color = Color(0.27, 0.6, 1, 1)
-                    end
-                end
+                self:PaintProgress(progress, text, ratio, state.ready)
                 local marks = ""
                 if state.ready then marks = marks .. "+" end
                 if inDeck[unit.id] == true then marks = marks .. "*" end

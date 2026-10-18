@@ -78,6 +78,49 @@ script BattleFx extends Logic
     end
 
     @ExecSpace("ClientOnly")
+    method integer NextSeq()
+        -- Returns a new serial for naming the client-local entities this script spawns.
+        local seq = (self._T.seq or 0) + 1
+        self._T.seq = seq
+        return seq
+    end
+
+    @ExecSpace("ClientOnly")
+    method Entity SpawnBar(Entity map, string name, Vector3 pos, number barWidth, integer order)
+        -- Spawns a client-local bar (BarCells cells plus a one-pixel border, 4 pixels tall) scaled to barWidth x
+        -- BarHeight world units, black until PaintBarPixels fills it. nil when the spawn fails.
+        local bar = _SpawnService:SpawnByModelId(self.HpBarModelId, name, pos, map)
+        if not isvalid(bar) or not isvalid(bar.PixelRendererComponent) then return nil end
+        local width = self.BarCells + 2
+        local pixel = bar.PixelRendererComponent
+        pixel:ResetWithColor(width, 4, Color(0, 0, 0, 0.9))
+        pixel.SortingLayer = "MapLayer0"
+        pixel.OrderInLayer = order
+        bar.TransformComponent.Scale = Vector3(barWidth / (width * self.PixelUnit), self.BarHeight / (4 * self.PixelUnit), 1)
+        return bar
+    end
+
+    @ExecSpace("ClientOnly")
+    method void PaintBarPixels(PixelRendererComponent pixel, integer filled, Color fill)
+        -- Repaints a bar made by SpawnBar: black border, the first `filled` cells in fill, the rest dark.
+        local border = Color(0, 0, 0, 0.9)
+        local empty = Color(0.2, 0.2, 0.22, 0.9)
+        local width = self.BarCells + 2
+        local height = 4
+        local pixels = {}
+        for y = 1, height do
+            for x = 1, width do
+                local color = border
+                if x > 1 and x < width and y > 1 and y < height then
+                    if x - 1 <= filled then color = fill else color = empty end
+                end
+                pixels[(y - 1) * width + x] = color
+            end
+        end
+        pixel:SetPixels(pixels)
+    end
+
+    @ExecSpace("ClientOnly")
     method void EnsureBar(table rec)
         -- Creates the client-local HP bar entity for a unit as soon as its team, unit id and HP are known.
         ---@type BattleUnit
@@ -96,29 +139,18 @@ script BattleFx extends Logic
             return
         end
 
-        local seq = (self._T.seq or 0) + 1
-        self._T.seq = seq
         local offsetY = (cfg.barY or self.DefaultBarY) * _BattleConfig.UnitScale
         local pos = rec.entity.TransformComponent.WorldPosition
-        local bar = _SpawnService:SpawnByModelId(self.HpBarModelId, "HpBar_" .. tostring(seq), Vector3(pos.x, pos.y + offsetY, 0), map)
-        local pixel = nil
-        if isvalid(bar) then pixel = bar.PixelRendererComponent end
-        if not isvalid(pixel) then
+        local barWidth = (cfg.barWidth or self.DefaultBarWidth) * _BattleConfig.UnitScale
+        local bar = self:SpawnBar(map, "HpBar_" .. tostring(self:NextSeq()), Vector3(pos.x, pos.y + offsetY, 0), barWidth, 10)
+        if bar == nil then
             rec.barFailed = true
             log_error("[BattleFx] hp bar spawn failed for " .. rec.name .. " model=" .. self.HpBarModelId)
             return
         end
 
-        local width = self.BarCells + 2
-        local height = 4
-        pixel:ResetWithColor(width, height, Color(0, 0, 0, 0.9))
-        pixel.SortingLayer = "MapLayer0"
-        pixel.OrderInLayer = 10
-        local barWidth = (cfg.barWidth or self.DefaultBarWidth) * _BattleConfig.UnitScale
-        bar.TransformComponent.Scale = Vector3(barWidth / (width * self.PixelUnit), self.BarHeight / (height * self.PixelUnit), 1)
-
         rec.bar = bar
-        rec.pixel = pixel
+        rec.pixel = bar.PixelRendererComponent
         rec.offsetY = offsetY
         rec.px = pos.x
         rec.py = pos.y
@@ -133,9 +165,7 @@ script BattleFx extends Logic
     @ExecSpace("ClientOnly")
     method void CreateHpText(table rec, Entity map, Vector3 pos)
         -- Spawns the client-local "current/max" HP number that sits just above the unit's bar.
-        local seq = (self._T.seq or 0) + 1
-        self._T.seq = seq
-        local label = _SpawnService:SpawnByModelId(self.HpBarModelId, "HpText_" .. tostring(seq), self:HpTextPosition(rec, pos), map)
+        local label = _SpawnService:SpawnByModelId(self.HpBarModelId, "HpText_" .. tostring(self:NextSeq()), self:HpTextPosition(rec, pos), map)
         if not isvalid(label) then
             log_error("[BattleFx] hp text spawn failed for " .. rec.name)
             return
@@ -194,32 +224,12 @@ script BattleFx extends Logic
         local unit = rec.unit
         local ratio = 0
         if unit.MaxHp > 0 then ratio = math.max(0, math.min(1, unit.Hp / unit.MaxHp)) end
-        local cells = self.BarCells
-        local filled = math.ceil(ratio * cells)
+        local filled = math.ceil(ratio * self.BarCells)
         if filled == rec.filled then return end
         rec.filled = filled
-
-        local border = Color(0, 0, 0, 0.9)
-        local empty = Color(0.2, 0.2, 0.22, 0.9)
         local fill = Color(0.95, 0.27, 0.22, 1)
         if unit.Team == 1 then fill = Color(0.3, 0.9, 0.35, 1) end
-        local width = cells + 2
-        local height = 4
-        local pixels = {}
-        for y = 1, height do
-            for x = 1, width do
-                local color = border
-                if x > 1 and x < width and y > 1 and y < height then
-                    if x - 1 <= filled then
-                        color = fill
-                    else
-                        color = empty
-                    end
-                end
-                pixels[(y - 1) * width + x] = color
-            end
-        end
-        pixel:SetPixels(pixels)
+        self:PaintBarPixels(pixel, filled, fill)
     end
 
     @ExecSpace("ClientOnly")
@@ -369,10 +379,8 @@ script BattleFx extends Logic
         local glyph = self:GetIconGlyph(kind)
         local map = rec.entity.CurrentMap
         if glyph == nil or not isvalid(map) then return end
-        local seq = (self._T.seq or 0) + 1
-        self._T.seq = seq
         local pos = rec.entity.TransformComponent.WorldPosition
-        local icon = _SpawnService:SpawnByModelId(self.HpBarModelId, "Icon_" .. tostring(seq), Vector3(pos.x, pos.y + 1, 0), map)
+        local icon = _SpawnService:SpawnByModelId(self.HpBarModelId, "Icon_" .. tostring(self:NextSeq()), Vector3(pos.x, pos.y + 1, 0), map)
         local pixel = nil
         if isvalid(icon) then pixel = icon.PixelRendererComponent end
         if not isvalid(pixel) then
@@ -515,7 +523,7 @@ script BattleFx extends Logic
         if cfg == nil then return end
         local source = attacker.Entity
         if not isvalid(source) then return end
-        local fx = attacker._T.fx
+        local rec = attacker._T.fx
         if cfg.attackEffectRuid ~= nil then
             -- Attached to the attacker, so the effect follows its size and facing. The offset columns are world units on
             -- screen (X forward, Y up from the feet), so they are divided by the unit's own size; the unit's flipped
@@ -526,8 +534,8 @@ script BattleFx extends Logic
             if fxScale == nil or fxScale <= 0 then fxScale = 1 end
             local offset = Vector3(-cfg.attackEffectOffsetX / size, cfg.attackEffectOffsetY / size, 0)
             local serial = _EffectService:PlayEffectAttached(cfg.attackEffectRuid, source, offset, 0, Vector3(fxScale, fxScale, 1), false)
-            if fx ~= nil and fx.attackFxLogged ~= true then
-                fx.attackFxLogged = true
+            if rec ~= nil and rec.attackFxLogged ~= true then
+                rec.attackFxLogged = true
                 log("[BattleFx] attack effect " .. source.Name .. " ruid=" .. cfg.attackEffectRuid .. " serial=" .. tostring(serial))
             end
         end
@@ -536,8 +544,6 @@ script BattleFx extends Logic
         local map = source.CurrentMap
         if not isvalid(map) then return end
 
-        local seq = (self._T.seq or 0) + 1
-        self._T.seq = seq
         local from = source.TransformComponent.WorldPosition
         local to = target.TransformComponent.WorldPosition
         local follow = target
@@ -549,7 +555,7 @@ script BattleFx extends Logic
         local startY = source.TransformComponent.WorldPosition.y + (cfg.projectileY or self.ProjectileAimY) * _BattleConfig.UnitScale
         -- Aim height above the target's feet (or above the floor the portal stands on).
         local aimOffset = self.ProjectileAimY * _BattleConfig.UnitScale
-        local shot = _SpawnService:SpawnByModelId(self.ProjectileModelId, "Shot_" .. tostring(seq), Vector3(from.x, startY, 0), map)
+        local shot = _SpawnService:SpawnByModelId(self.ProjectileModelId, "Shot_" .. tostring(self:NextSeq()), Vector3(from.x, startY, 0), map)
         if not isvalid(shot) then
             log_error("[BattleFx] projectile spawn failed model=" .. self.ProjectileModelId)
             return
@@ -561,7 +567,6 @@ script BattleFx extends Logic
         shot.SpriteRendererComponent.SpriteRUID = cfg.projectileRuid
         shot.TransformComponent.Scale = Vector3(-dir * size, size, 1)
 
-        local rec = attacker._T.fx
         local logged = rec ~= nil and rec.shotLogged == false
         if logged then
             rec.shotLogged = true
@@ -618,21 +623,11 @@ script BattleFx extends Logic
         if build == nil then
             local map = rec.entity.CurrentMap
             if not isvalid(map) then return end
-            local seq = (self._T.seq or 0) + 1
-            self._T.seq = seq
+            local seq = self:NextSeq()
             build = { filled = -1 }
             rec.build = build
             build.orb = self:SpawnParticle(map, "BuildOrb_" .. tostring(seq), Vector3(pos.x, pos.y, 0), BasicParticleType.ChargeOrb, self.BuildOrbColor, self.BuildOrbScale)
-            local bar = _SpawnService:SpawnByModelId(self.HpBarModelId, "BuildBar_" .. tostring(seq), Vector3(pos.x, pos.y, 0), map)
-            if isvalid(bar) and isvalid(bar.PixelRendererComponent) then
-                local width = self.BarCells + 2
-                local height = 4
-                bar.PixelRendererComponent:ResetWithColor(width, height, Color(0, 0, 0, 0.9))
-                bar.PixelRendererComponent.SortingLayer = "MapLayer0"
-                bar.PixelRendererComponent.OrderInLayer = 11
-                bar.TransformComponent.Scale = Vector3(self.DefaultBarWidth * _BattleConfig.UnitScale / (width * self.PixelUnit), self.BarHeight / (height * self.PixelUnit), 1)
-                build.bar = bar
-            end
+            build.bar = self:SpawnBar(map, "BuildBar_" .. tostring(seq), Vector3(pos.x, pos.y, 0), self.DefaultBarWidth * _BattleConfig.UnitScale, 11)
             log("[BattleFx] build started " .. rec.name .. " seconds=" .. tostring(unit.BuildSeconds))
         end
         local barY = rec.offsetY or self.DefaultBarY * _BattleConfig.UnitScale
@@ -640,25 +635,10 @@ script BattleFx extends Logic
         if isvalid(build.bar) then
             build.bar.TransformComponent.WorldPosition = Vector3(pos.x, pos.y + barY, 0)
             local ratio = math.max(0, math.min(1, 1 - (unit.BuildReadyAt - now) / unit.BuildSeconds))
-            local cells = self.BarCells
-            local filled = math.floor(ratio * cells)
+            local filled = math.floor(ratio * self.BarCells)
             if filled ~= build.filled then
                 build.filled = filled
-                local border = Color(0, 0, 0, 0.9)
-                local empty = Color(0.2, 0.2, 0.22, 0.9)
-                local width = cells + 2
-                local height = 4
-                local pixels = {}
-                for py = 1, height do
-                    for px = 1, width do
-                        local color = border
-                        if px > 1 and px < width and py > 1 and py < height then
-                            if px - 1 <= filled then color = self.BuildBarColor else color = empty end
-                        end
-                        pixels[(py - 1) * width + px] = color
-                    end
-                end
-                build.bar.PixelRendererComponent:SetPixels(pixels)
+                self:PaintBarPixels(build.bar.PixelRendererComponent, filled, self.BuildBarColor)
             end
         end
     end
@@ -691,9 +671,7 @@ script BattleFx extends Logic
             self._T.orbs = orbs
         end
         if #orbs >= self.PortalHitMax then return end
-        local seq = (self._T.seq or 0) + 1
-        self._T.seq = seq
-        local entity = self:SpawnParticle(map, "PortalHit_" .. tostring(seq), Vector3(portal.x, portal.y, 0), BasicParticleType.FlamethrowerToony, self.PortalHitColor, self.PortalHitScale)
+        local entity = self:SpawnParticle(map, "PortalHit_" .. tostring(self:NextSeq()), Vector3(portal.x, portal.y, 0), BasicParticleType.FlamethrowerToony, self.PortalHitColor, self.PortalHitScale)
         if not isvalid(entity) then return end
         local to = base.TransformComponent.WorldPosition
         table.insert(orbs, {

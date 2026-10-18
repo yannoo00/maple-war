@@ -146,7 +146,7 @@ script PlayerData extends Component
             self:LoadPurchases(data.purchases)
             -- An account saved before a currency existed receives that currency's start amount once.
             local granted = self:LoadWallet(data.wallet)
-            self:GrantMissingStarters()
+            if self:GrantMissingStarters() then granted = true end
             if self:NormalizeBase() then granted = true end
             if self:NormalizeDecks() then granted = true end
             -- A save from before skills were equipped has no skill list: it starts with the default ones.
@@ -201,29 +201,55 @@ script PlayerData extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method void GrantMissingStarters()
-        -- Existing players receive starter units added to the table after their account was created.
+    method void AddOwnedUnit(string unitId)
+        -- Appends a unit to the owned list at level 1 (no save; the caller saves).
+        if self.UnitsCsv == "" then
+            self.UnitsCsv = unitId .. ":1"
+        else
+            self.UnitsCsv = self.UnitsCsv .. "," .. unitId .. ":1"
+        end
+    end
+
+    @ExecSpace("ServerOnly")
+    method void SetUnitLevel(string unitId, integer level)
+        -- Rewrites an owned unit's level in UnitsCsv, keeping the list in its existing order.
+        local parts = {}
+        for id, current in string.gmatch(self.UnitsCsv, "([^,:]+):(%d+)") do
+            if id == unitId then current = tostring(level) end
+            table.insert(parts, id .. ":" .. current)
+        end
+        self.UnitsCsv = table.concat(parts, ",")
+    end
+
+    @ExecSpace("ServerOnly")
+    method string CountsToCsv(table counts)
+        -- Serializes id -> count as "id:count,..." sorted by id; entries at 0 or below are dropped.
+        local ids = {}
+        for id, count in pairs(counts) do
+            if count > 0 then table.insert(ids, id) end
+        end
+        table.sort(ids)
+        local parts = {}
+        for _, id in ipairs(ids) do table.insert(parts, id .. ":" .. tostring(counts[id])) end
+        return table.concat(parts, ",")
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean GrantMissingStarters()
+        -- Existing players receive starter units added to the table after their account was created. Returns true
+        -- when any were added, so the caller saves.
         local levels = self:GetUnitLevels()
         local added = 0
-        local starters = {}
-        for _, id in ipairs(_BattleConfig:GetStarterUnitIds()) do table.insert(starters, id) end
-        for _, id in ipairs(_BattleConfig:GetStarterBaseIds()) do table.insert(starters, id) end
-        for _, id in ipairs(starters) do
-            if levels[id] == nil then
-                if self.UnitsCsv == "" then
-                    self.UnitsCsv = id .. ":1"
-                else
-                    self.UnitsCsv = self.UnitsCsv .. "," .. id .. ":1"
+        for _, list in ipairs({ _BattleConfig:GetStarterUnitIds(), _BattleConfig:GetStarterBaseIds() }) do
+            for _, id in ipairs(list) do
+                if levels[id] == nil then
+                    self:AddOwnedUnit(id)
+                    added = added + 1
                 end
-                added = added + 1
             end
         end
-        if added > 0 then
-            self.Loaded = true
-            self:MarkDirty()
-            self:Save(false)
-            log("[PlayerData] granted " .. tostring(added) .. " new starter units")
-        end
+        if added > 0 then log("[PlayerData] granted " .. tostring(added) .. " new starter units") end
+        return added > 0
     end
 
     @ExecSpace("ServerOnly")
@@ -233,13 +259,8 @@ script PlayerData extends Component
         local levels = self:GetUnitLevels()
         local unit = _BattleConfig:GetUnit(self.SelectedBase)
         if self.SelectedBase ~= "" and levels[self.SelectedBase] ~= nil and unit ~= nil and unit.kind == "base" then return false end
-        local pick = _BattleConfig.DefaultBaseId
-        for _, id in ipairs(_BattleConfig:GetStarterBaseIds()) do
-            pick = id
-            break
-        end
-        self.SelectedBase = pick
-        log("[VRF] PlayerData base slot set to " .. pick)
+        self.SelectedBase = _BattleConfig:GetStarterBaseIds()[1] or _BattleConfig.DefaultBaseId
+        log("[VRF] PlayerData base slot set to " .. self.SelectedBase)
         return true
     end
 
@@ -578,21 +599,34 @@ script PlayerData extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method boolean GrantPurchase(string purchaseId, string currencyId, integer amount)
-        -- Delivers a World Shop purchase. Returns true when the purchase is (or already was) delivered,
-        -- false when it cannot be delivered now and must be retried.
-        if self.Loaded == false or self._T.purchases == nil then return false end
+    method boolean WasPurchaseDelivered(string purchaseId)
+        -- True when this purchase id is in the recently delivered list.
         for _, id in ipairs(self._T.purchases) do
-            if id == purchaseId then
-                log("[PlayerData] purchase " .. purchaseId .. " was already delivered")
-                return true
-            end
+            if id == purchaseId then return true end
         end
-        if self:AddCurrency(currencyId, amount) == false then return false end
+        return false
+    end
+
+    @ExecSpace("ServerOnly")
+    method void RecordPurchase(string purchaseId)
+        -- Remembers a delivered purchase id (the oldest beyond PurchaseHistorySize is forgotten) and saves.
         table.insert(self._T.purchases, purchaseId)
         while #self._T.purchases > self.PurchaseHistorySize do table.remove(self._T.purchases, 1) end
         self:MarkDirty()
         self:Save(false)
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean GrantPurchase(string purchaseId, string currencyId, integer amount)
+        -- Delivers a World Shop purchase. Returns true when the purchase is (or already was) delivered,
+        -- false when it cannot be delivered now and must be retried.
+        if self.Loaded == false or self._T.purchases == nil then return false end
+        if self:WasPurchaseDelivered(purchaseId) then
+            log("[PlayerData] purchase " .. purchaseId .. " was already delivered")
+            return true
+        end
+        if self:AddCurrency(currencyId, amount) == false then return false end
+        self:RecordPurchase(purchaseId)
         log("[PlayerData] purchase " .. purchaseId .. " delivered " .. currencyId .. " +" .. tostring(amount))
         return true
     end
@@ -602,18 +636,13 @@ script PlayerData extends Component
         -- Delivers a World Shop purchase of a base (it becomes owned at upgrade level 1). Same contract as GrantPurchase:
         -- true when delivered (or already was), false when it must be retried.
         if self.Loaded == false or self._T.purchases == nil then return false end
-        for _, id in ipairs(self._T.purchases) do
-            if id == purchaseId then
-                log("[PlayerData] purchase " .. purchaseId .. " was already delivered")
-                return true
-            end
+        if self:WasPurchaseDelivered(purchaseId) then
+            log("[PlayerData] purchase " .. purchaseId .. " was already delivered")
+            return true
         end
         local reason = self:GrantBase(baseId)
         if reason ~= "" and reason ~= "already owned" then return false end
-        table.insert(self._T.purchases, purchaseId)
-        while #self._T.purchases > self.PurchaseHistorySize do table.remove(self._T.purchases, 1) end
-        self:MarkDirty()
-        self:Save(false)
+        self:RecordPurchase(purchaseId)
         log("[PlayerData] purchase " .. purchaseId .. " delivered base " .. baseId)
         return true
     end
@@ -655,23 +684,14 @@ script PlayerData extends Component
             if #pool > 0 then
                 local unitId = pool[_UtilLogic:RandomIntegerRange(1, #pool)]
                 if self:GetUnitLevels()[unitId] == nil then
-                    if self.UnitsCsv == "" then
-                        self.UnitsCsv = unitId .. ":1"
-                    else
-                        self.UnitsCsv = self.UnitsCsv .. "," .. unitId .. ":1"
-                    end
+                    self:AddOwnedUnit(unitId)
                     table.insert(unlocked, unitId)
                 end
                 self:AddCards(unitId, 1)
                 got[unitId] = (got[unitId] or 0) + 1
             end
         end
-        local ids = {}
-        for id, _ in pairs(got) do table.insert(ids, id) end
-        table.sort(ids)
-        local parts = {}
-        for _, id in ipairs(ids) do table.insert(parts, id .. ":" .. tostring(got[id])) end
-        local result = table.concat(parts, ",")
+        local result = self:CountsToCsv(got)
         self:MarkDirty()
         log("[PlayerData] chest " .. chestId .. " opened: " .. result .. " unlocked=" .. table.concat(unlocked, ","))
         return result
@@ -681,12 +701,8 @@ script PlayerData extends Component
     method void AddStones(string stoneId, integer amount)
         -- Adds (or with a negative amount, removes) held summon stones. No save; the caller saves.
         local counts = self:GetStoneCounts()
-        counts[stoneId] = math.max(0, (counts[stoneId] or 0) + amount)
-        local parts = {}
-        for _, id in ipairs(_BattleConfig:GetChestIds()) do
-            if (counts[id] or 0) > 0 then table.insert(parts, id .. ":" .. tostring(counts[id])) end
-        end
-        self.StonesCsv = table.concat(parts, ",")
+        counts[stoneId] = (counts[stoneId] or 0) + amount
+        self.StonesCsv = self:CountsToCsv(counts)
         self:MarkDirty()
     end
 
@@ -753,12 +769,11 @@ script PlayerData extends Component
     end
 
     @ExecSpace("ServerOnly")
-    method string GrantBattleResult(string stageId, integer meso, string chestId, boolean cleared)
+    method void GrantBattleResult(string stageId, integer meso, string chestId, boolean cleared)
         -- Battle end: adds the meso reward, puts the stage's reward summon stone into storage (it is used later in
-        -- the lobby's summon screen), records a clear, and saves right away. Returns "" (no cards are rolled here).
-        if self.Loaded == false then return "" end
+        -- the lobby's summon screen), records a clear, and saves right away.
+        if self.Loaded == false then return end
         if meso > 0 then self.Meso = self.Meso + meso end
-        local cards = ""
         if chestId ~= "" and _BattleConfig:GetChest(chestId) ~= nil then self:AddStones(chestId, 1) end
         if cleared and self:IsStageCleared(stageId) == false then
             if self.StagesCsv == "" then
@@ -771,20 +786,14 @@ script PlayerData extends Component
         -- Async here: this runs inside the battle's update chain. Leaving the room flushes anything still pending.
         self:Save(false)
         log("[PlayerData] battle result stage=" .. stageId .. " meso+" .. tostring(meso) .. " stone=" .. chestId .. " stones=" .. self.StonesCsv .. " cleared=" .. tostring(cleared) .. " total=" .. tostring(self.Meso))
-        return cards
     end
 
     @ExecSpace("ServerOnly")
     method void AddCards(string unitId, integer amount)
-        -- Adds collected cards of a unit (no save; the caller saves).
+        -- Adds (or with a negative amount, spends) collected cards of a unit (no save; the caller saves).
         local counts = self:GetCardCounts()
         counts[unitId] = (counts[unitId] or 0) + amount
-        local ids = {}
-        for id, _ in pairs(counts) do table.insert(ids, id) end
-        table.sort(ids)
-        local parts = {}
-        for _, id in ipairs(ids) do table.insert(parts, id .. ":" .. tostring(counts[id])) end
-        self.CardsCsv = table.concat(parts, ",")
+        self.CardsCsv = self:CountsToCsv(counts)
     end
 
     @ExecSpace("ServerOnly")
@@ -806,11 +815,7 @@ script PlayerData extends Component
         if self.Meso < cost then return "not enough meso" end
         self.Meso = self.Meso - cost
         if need > 0 then self:AddCards(unitId, -need) end
-        levels[unitId] = level + 1
-        -- Rebuild the csv in its existing order.
-        local parts = {}
-        for id in string.gmatch(self.UnitsCsv, "([^,:]+):%d+") do table.insert(parts, id .. ":" .. tostring(levels[id])) end
-        self.UnitsCsv = table.concat(parts, ",")
+        self:SetUnitLevel(unitId, level + 1)
         self:MarkDirty()
         self:Save(false)
         return ""
@@ -822,11 +827,7 @@ script PlayerData extends Component
         local unit = _BattleConfig:GetUnit(baseId)
         if unit == nil or unit.kind ~= "base" then return "not a base" end
         if self:GetUnitLevels()[baseId] ~= nil then return "already owned" end
-        if self.UnitsCsv == "" then
-            self.UnitsCsv = baseId .. ":1"
-        else
-            self.UnitsCsv = self.UnitsCsv .. "," .. baseId .. ":1"
-        end
+        self:AddOwnedUnit(baseId)
         self:MarkDirty()
         return ""
     end
@@ -861,10 +862,7 @@ script PlayerData extends Component
         if cost <= 0 then return "max level" end
         if self.Meso < cost then return "not enough meso" end
         self.Meso = self.Meso - cost
-        levels[baseId] = level + 1
-        local parts = {}
-        for id in string.gmatch(self.UnitsCsv, "([^,:]+):%d+") do table.insert(parts, id .. ":" .. tostring(levels[id])) end
-        self.UnitsCsv = table.concat(parts, ",")
+        self:SetUnitLevel(baseId, level + 1)
         self:MarkDirty()
         self:Save(false)
         return ""
@@ -890,12 +888,18 @@ script PlayerData extends Component
         self.DeckCsv = csv
         self:StorePreset()
         self:MarkDirty()
+        self:ScheduleDeckSave()
+        return ""
+    end
+
+    @ExecSpace("ServerOnly")
+    method void ScheduleDeckSave()
+        -- Saves DeckSaveDelay seconds from now; another deck change within that time restarts the wait.
         if self.DeckTimerId ~= 0 then _TimerService:ClearTimer(self.DeckTimerId) end
         self.DeckTimerId = _TimerService:SetTimerOnce(function()
             self.DeckTimerId = 0
             self:Save(false)
         end, self.DeckSaveDelay)
-        return ""
     end
 
     @ExecSpace("ServerOnly")
@@ -923,11 +927,7 @@ script PlayerData extends Component
         self.DeckPreset = index
         self.DeckCsv = list[index]
         self:MarkDirty()
-        if self.DeckTimerId ~= 0 then _TimerService:ClearTimer(self.DeckTimerId) end
-        self.DeckTimerId = _TimerService:SetTimerOnce(function()
-            self.DeckTimerId = 0
-            self:Save(false)
-        end, self.DeckSaveDelay)
+        self:ScheduleDeckSave()
         return ""
     end
 
@@ -1010,13 +1010,7 @@ script PlayerData extends Component
             local owned = self:GetUnitLevels()
             for _, rarity in ipairs(_BattleConfig:GetRarities()) do
                 for _, unitId in ipairs(_BattleConfig:GetUnitsByRarity(rarity)) do
-                    if owned[unitId] == nil then
-                        if self.UnitsCsv == "" then
-                            self.UnitsCsv = unitId .. ":1"
-                        else
-                            self.UnitsCsv = self.UnitsCsv .. "," .. unitId .. ":1"
-                        end
-                    end
+                    if owned[unitId] == nil then self:AddOwnedUnit(unitId) end
                     self:AddCards(unitId, self.DevCardAmount)
                 end
             end
@@ -1039,4 +1033,3 @@ script PlayerData extends Component
     end
 
 end
--- build cache bump

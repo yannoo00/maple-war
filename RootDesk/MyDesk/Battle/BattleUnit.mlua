@@ -43,9 +43,6 @@ script BattleUnit extends Component
     property number KnockSeconds = 0
     @HideFromInspector property integer KnockCount = 0
     @HideFromInspector property number KnockRemain = 0
-    @HideFromInspector property number KnockSpeed = 0
-    @HideFromInspector property number KnockStartX = 0
-    @HideFromInspector property number KnockTarget = 0
     @HideFromInspector property number WalkSpeed = 0
     -- The effects on this unit live in _T.effects and are run by _BattleEffects (registry, ticking, damage pipeline).
 
@@ -451,9 +448,6 @@ script BattleUnit extends Component
         self.PendingTarget = nil
         self.Mode = "KNOCKBACK"
         self.KnockRemain = seconds
-        self.KnockStartX = self.Entity.TransformComponent.WorldPosition.x
-        self.KnockTarget = distance
-        self.KnockSpeed = 0
         self:StopMoving()
         -- The push is a physics impulse: a force backwards (sized from the distance) with a small lift, which the
         -- engine then damps on its own, so the unit hops back and slows down like a real shove.
@@ -475,7 +469,6 @@ script BattleUnit extends Component
     method void EndKnockback()
         -- Ends a knockback: walking speed is restored and the normal behavior picks the next mode.
         self.KnockRemain = 0
-        self.KnockSpeed = 0
         self.Mode = ""
         local movement = self.Entity.MovementComponent
         if isvalid(movement) then

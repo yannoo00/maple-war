@@ -116,14 +116,9 @@ script BattleSkills extends Logic
 
     method table FindMonstersByName(string text)
         -- Returns the ids of every monster whose UnitTable name contains text (like SQL '%text%'), in table order.
-        local list = {}
-        for _, unit in pairs(_BattleConfig:GetUnits()) do
-            if unit.kind == "monster" and unit.name ~= nil and string.find(unit.name, text, 1, true) ~= nil then table.insert(list, unit) end
-        end
-        table.sort(list, function(a, b) return a.order < b.order end)
-        local ids = {}
-        for _, unit in ipairs(list) do table.insert(ids, unit.id) end
-        return ids
+        return _BattleConfig:GetUnitIdsWhere(function(unit)
+            return unit.kind == "monster" and unit.name ~= nil and string.find(unit.name, text, 1, true) ~= nil
+        end)
     end
 
     method number GetEffectDuration(table cfg)
@@ -150,7 +145,7 @@ script BattleSkills extends Logic
         local ctx = {
             director = director, team = team, cfg = cfg, id = cfg.id, x = centerX, y = floorY,
             radius = cfg.radius * _BattleConfig.RangeScale, damage = cfg.damage, delay = cfg.hitDelay,
-            value1 = cfg.skillValue1, value2 = cfg.skillValue2, rate = _BattleConfig:GetStatRate(cfg.level or 1),
+            value1 = cfg.skillValue1, value2 = cfg.skillValue2,
         }
         local def = self:GetDefs()[cfg.id]
         log("[VRF] BattleSkills cast " .. tostring(cfg.id) .. " team=" .. tostring(team) .. " x=" .. string.format("%.1f", centerX) .. " level=" .. tostring(cfg.level or 1) .. " implemented=" .. tostring(def ~= nil))

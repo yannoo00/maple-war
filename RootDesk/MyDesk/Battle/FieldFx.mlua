@@ -92,7 +92,6 @@ script FieldFx extends Logic
         if ruid == nil or ruid == "" then return end
         local player = _UserService.LocalPlayer
         if not isvalid(player) then return end
-        local groundY = floorY
         if self._T.effectGeo == nil then self._T.effectGeo = {} end
         local geo = self._T.effectGeo[ruid]
         if geo == nil then
@@ -119,7 +118,7 @@ script FieldFx extends Logic
         local areaWidth = cfg.radius * _BattleConfig.RangeScale * 2
         local size = areaWidth / geo.width * (cfg.effectScale or 1)
         local x = centerX + (cfg.effectOffsetX or 0) - geo.offsetX * size
-        local y = groundY + (cfg.effectOffsetY or 0) + geo.height * size * 0.5 - geo.offsetY * size
+        local y = floorY + (cfg.effectOffsetY or 0) + geo.height * size * 0.5 - geo.offsetY * size
         -- A lasting skill (heal, poison cloud ...) keeps its effect looping for the whole duration, then removes it.
         local lasting = _BattleSkills:GetEffectDuration(cfg)
         local serial = _EffectService:PlayEffect(ruid, player, Vector3(x, y, 0), 0, Vector3(size, size, 1), lasting > 0)
@@ -266,43 +265,35 @@ script FieldFx extends Logic
         end
         local cursor = _UILogic:ScreenToWorldPosition(_InputService:GetCursorPosition())
 
+        -- Each card kind shows one element; the others are hidden first.
+        if isvalid(fx.ghost) then fx.ghost:SetVisible(false) end
+        if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
+        self:HidePortalMarks(fx)
         if cfg.kind == "monster" then
             -- A monster card waits for one of my portals.
             self:ShowPortalMarks(fx, map, director:GetPortals(side.Team), delta)
-            if isvalid(fx.ghost) then fx.ghost:SetVisible(false) end
-            if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
         elseif cfg.kind == "build" then
             -- Same rule as the server (BattleDirector.PlayUnit): anywhere on the field, on the floor under the cursor.
             -- No ghost where there is no floor (the server refuses that spot).
             local x = math.max(director.FieldMinX, math.min(director.FieldMaxX, cursor.x))
             local floorY = director:FindFloorY(x, cursor.y)
-            if isvalid(fx.ghost) then
-                if floorY == nil then
-                    fx.ghost:SetVisible(false)
-                else
-                    if fx.ghostRuid ~= cfg.standRuid then
-                        fx.ghostRuid = cfg.standRuid
-                        fx.ghost.SpriteRendererComponent.SpriteRUID = cfg.standRuid
-                    end
-                    local dir = 1
-                    if side.Team ~= 1 then dir = -1 end
-                    local size = cfg.scale * _BattleConfig.UnitScale
-                    fx.ghost.TransformComponent.Scale = Vector3(-dir * size, size, 1)
-                    fx.ghost.TransformComponent.WorldPosition = Vector3(x, floorY, 0)
-                    fx.ghost:SetVisible(true)
+            if isvalid(fx.ghost) and floorY ~= nil then
+                if fx.ghostRuid ~= cfg.standRuid then
+                    fx.ghostRuid = cfg.standRuid
+                    fx.ghost.SpriteRendererComponent.SpriteRUID = cfg.standRuid
                 end
+                local dir = 1
+                if side.Team ~= 1 then dir = -1 end
+                local size = cfg.scale * _BattleConfig.UnitScale
+                fx.ghost.TransformComponent.Scale = Vector3(-dir * size, size, 1)
+                fx.ghost.TransformComponent.WorldPosition = Vector3(x, floorY, 0)
+                fx.ghost:SetVisible(true)
             end
-            if isvalid(fx.skillBox) then fx.skillBox:SetVisible(false) end
-            self:HidePortalMarks(fx)
         elseif cfg.kind == "skill" then
             -- The range box sits on the floor under the cursor: the skill reaches the units on that floor.
             local radius = cfg.radius * _BattleConfig.RangeScale
             local floorY = director:SnapFloorY(cursor.x, cursor.y)
             self:PlaceRect(fx.skillBox, cursor.x - radius, cursor.x + radius, floorY, self.SkillBoxHeight)
-            if isvalid(fx.ghost) then fx.ghost:SetVisible(false) end
-            self:HidePortalMarks(fx)
-        else
-            self:HidePreview()
         end
     end
 

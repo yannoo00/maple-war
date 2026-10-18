@@ -84,7 +84,7 @@ script BattleSide extends Component
         local ready = {}
         for i = 1, #deck do ready[i] = "0.00" end
         self.CardReadyCsv = table.concat(ready, ",")
-        self.Cost =baseCfg.manaStart or _BattleConfig.CostStart
+        self.Cost = baseCfg.manaStart or _BattleConfig.CostStart
         local costLevels = _BattleConfig:GetCostLevels()
         self.CostLevel = 1
         self.CostLevelCap = math.max(1, math.min(#costLevels, costLevelCap))
@@ -93,7 +93,7 @@ script BattleSide extends Component
         self._T.discount = baseCfg.manaDiscount or 0
         self.CostMax = costLevels[1].costMax * self._T.maxRate
         self._T.regenRate = costLevels[1].regenRate * self._T.regenMul
-        self.UpgradeCost = math.floor(costLevels[1].upgradeCost * (1 - self._T.discount))
+        self.UpgradeCost = self:GetUpgradePrice(costLevels[1])
         self:InitBaseSkills(baseCfg)
         self._T.levels = unitLevels
         log("[BattleSide] reset team=" .. tostring(team) .. " controller=" .. (controllerUserId ~= "" and controllerUserId or "AI") .. " deck=" .. self.DeckCsv .. " cards=" .. tostring(#deck))
@@ -176,6 +176,14 @@ script BattleSide extends Component
     end
 
     @ExecSpace("ServerOnly")
+    method number GetUpgradePrice(any costLevel)
+        -- Mana it costs to raise the in-battle level from a CostLevelTable row (its price minus the base's upgrade
+        -- discount); 0 when there is no such row (top level).
+        if costLevel == nil then return 0 end
+        return math.floor(costLevel.upgradeCost * (1 - (self._T.discount or 0)))
+    end
+
+    @ExecSpace("ServerOnly")
     method string UpgradeCostLevel()
         -- Pays cost to raise the in-battle cost level by one (bigger cap, faster income).
         -- Returns "" on success or the reason it was refused.
@@ -184,14 +192,13 @@ script BattleSide extends Component
         local nextLevel = costLevels[self.CostLevel + 1]
         if current == nil or nextLevel == nil then return "max level" end
         if self.CostLevel >= self.CostLevelCap then return "cap " .. tostring(self.CostLevelCap) end
-        local price = math.floor(current.upgradeCost * (1 - (self._T.discount or 0)))
+        local price = self:GetUpgradePrice(current)
         if self.Cost < price then return "cost " .. string.format("%.0f", self.Cost) .. "/" .. tostring(price) end
         self.Cost = self.Cost - price
         self.CostLevel = self.CostLevel + 1
         self.CostMax = nextLevel.costMax * (self._T.maxRate or 1)
         self._T.regenRate = nextLevel.regenRate * (self._T.regenMul or 1)
-        local following = costLevels[self.CostLevel]
-        self.UpgradeCost = following ~= nil and math.floor(following.upgradeCost * (1 - (self._T.discount or 0))) or 0
+        self.UpgradeCost = self:GetUpgradePrice(costLevels[self.CostLevel])
         return ""
     end
 

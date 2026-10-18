@@ -46,26 +46,21 @@ script BattleHUD extends Component
     property Entity skillSlot1 = "69d3d846-f543-440d-85f5-9888559e6384"
     property Entity skillSlot2 = "6a700d9a-67bb-4954-b340-730eb9fa6f72"
     property Entity skillSlot3 = "59f00c8d-d907-4cbc-8d3c-238984f1211c"
-    property table skillHandlers = {}
     -- The slot whose skill is being aimed is drawn this much larger.
     property number SkillAimScale = 1.12
-    property any costUpHandler = nil
     -- Highlight when a card's cooldown ends: it swells by ReadyPulseScale and settles over ReadyPulseSeconds.
     property number ReadyPulseSeconds = 0.3
     property number ReadyPulseScale = 0.18
-    property any restartHandler = nil
-    property any lobbyHandler = nil
-    property any leaveHandler = nil
-    property table slotHandlers = {}
+    -- Every button click handler connected in OnBeginPlay (Bind), disconnected in OnEndPlay.
+    property table clickHandlers = {}
 
     @ExecSpace("ClientOnly")
     method void OnBeginPlay()
         -- Binds the card slots, clears the card texts and wires the button clicks.
+        self.clickHandlers = {}
         local slotEntities = { self.slot1, self.slot2, self.slot3, self.slot4, self.slot5, self.slot6, self.slot7, self.slot8 }
         -- Slots start empty; ApplyDeck fills them from the deck of the side this player controls.
         local slots = {}
-        local cards = 0
-        self.slotHandlers = {}
         for i = 1, _BattleConfig.DeckSize do
             local entity = slotEntities[i]
             if isvalid(entity) then
@@ -79,8 +74,7 @@ script BattleHUD extends Component
                 if isvalid(coolEntity) then coolEntity.Enable = false end
                 if isvalid(timeEntity) then timeEntity.TextGUIRendererComponent.Text = "" end
                 local slotIndex = i
-                local clickHandler = entity:ConnectEvent(ButtonClickEvent, function() self:OnSlotClicked(slotIndex) end)
-                table.insert(self.slotHandlers, { entity = entity, eventHandler = clickHandler })
+                self:Bind(entity, function() self:OnSlotClicked(slotIndex) end)
                 nameEntity.TextGUIRendererComponent.Text = ""
                 costEntity.TextGUIRendererComponent.Text = ""
                 entity.ButtonComponent.Enable = false
@@ -95,28 +89,18 @@ script BattleHUD extends Component
         self._T.slots = slots
         self._T.view = {}
 
-        if isvalid(self.restartButton) then
-            self.restartHandler = self.restartButton:ConnectEvent(ButtonClickEvent, self.OnRestartClicked)
-        end
-        if isvalid(self.lobbyButton) then
-            self.lobbyHandler = self.lobbyButton:ConnectEvent(ButtonClickEvent, self.OnLeaveClicked)
-        end
-        if isvalid(self.leaveButton) then
-            self.leaveHandler = self.leaveButton:ConnectEvent(ButtonClickEvent, self.OnLeaveClicked)
-            self.leaveButton.Enable = false
-        end
-        if isvalid(self.costUpButton) then
-            self.costUpHandler = self.costUpButton:ConnectEvent(ButtonClickEvent, self.OnCostUpClicked)
-            self.costUpButton.Enable = false
-        end
+        self:Bind(self.restartButton, self.OnRestartClicked)
+        self:Bind(self.lobbyButton, self.OnLeaveClicked)
+        self:Bind(self.leaveButton, self.OnLeaveClicked)
+        self:Bind(self.costUpButton, self.OnCostUpClicked)
+        if isvalid(self.leaveButton) then self.leaveButton.Enable = false end
+        if isvalid(self.costUpButton) then self.costUpButton.Enable = false end
         -- Base skill slots: hidden until the battle tells which skills my base has.
         local skillSlots = {}
-        self.skillHandlers = {}
         for i, entity in ipairs({ self.skillSlot1, self.skillSlot2, self.skillSlot3 }) do
             if isvalid(entity) then
                 local skillIndex = i
-                local clickHandler = entity:ConnectEvent(ButtonClickEvent, function() self:OnBaseSkillClicked(skillIndex) end)
-                table.insert(self.skillHandlers, { entity = entity, eventHandler = clickHandler })
+                self:Bind(entity, function() self:OnBaseSkillClicked(skillIndex) end)
                 skillSlots[i] = {
                     entity = entity, icon = entity:GetChildByName("Icon"), cool = entity:GetChildByName("Cool"), time = entity:GetChildByName("Time"),
                     skillId = "", label = "", usable = nil, shade = -1, aimed = false,
@@ -128,7 +112,14 @@ script BattleHUD extends Component
         if isvalid(self.skillPanel) then self.skillPanel.Enable = false end
         if isvalid(self.hintText) then self.hintText.Enable = false end
         if isvalid(self.resultPanel) then self.resultPanel.Enable = false end
-        log("[BattleHUD] initialized slots=" .. tostring(#slots) .. " cards=" .. tostring(cards))
+        log("[BattleHUD] initialized slots=" .. tostring(#slots))
+    end
+
+    @ExecSpace("ClientOnly")
+    method void Bind(Entity button, any callback)
+        -- Connects a button click and remembers the handler so OnEndPlay can disconnect it.
+        if not isvalid(button) then return end
+        table.insert(self.clickHandlers, { entity = button, eventHandler = button:ConnectEvent(ButtonClickEvent, callback) })
     end
 
     @ExecSpace("ClientOnly")
@@ -387,15 +378,13 @@ script BattleHUD extends Component
     end
 
     @ExecSpace("ClientOnly")
-    method void UpdateBaseSkills(any side, string state, integer pending, integer pendingBase)
+    method void UpdateBaseSkills(BattleSide side, string state, integer pending, integer pendingBase)
         -- Shows my base's skills on the skill slots. Slot n shows skill n: its icon, the cooldown shade and the seconds
         -- left ("자동" for a passive skill, which the base casts by itself). An active skill's button is usable only when
         -- its cooldown is over and the battle is running; the slot being aimed (pending) is drawn larger.
         local skillSlots = self._T.skillSlots
         if skillSlots == nil then return end
-        ---@type BattleSide
-        local s = side
-        local skills = s:GetBaseSkills()
+        local skills = side:GetBaseSkills()
         local now = _UtilLogic.ServerElapsedSeconds
         for i, slot in pairs(skillSlots) do
             local skill = skills[i]
@@ -619,19 +608,19 @@ script BattleHUD extends Component
             ---@type PlayerData
             local data = commander.Entity:GetComponent("script.PlayerData")
             if stage ~= nil and data ~= nil and isvalid(self.restartButton) then
-                local cost = math.floor(stage.entryCost)
+                local entryCost = math.floor(stage.entryCost)
                 local held = data:GetCurrencyAmount(_BattleConfig.EntryCurrencyId)
                 local ticket = _BattleConfig:GetCurrency(_BattleConfig.EntryCurrencyId)
                 local label = "다시 하기"
-                if cost > 0 and ticket ~= nil then
-                    label = "다시 하기\n" .. ticket.name .. " " .. tostring(cost)
-                    if held < cost then label = ticket.name .. " 부족\n" .. tostring(held) .. " / " .. tostring(cost) end
+                if entryCost > 0 and ticket ~= nil then
+                    label = "다시 하기\n" .. ticket.name .. " " .. tostring(entryCost)
+                    if held < entryCost then label = ticket.name .. " 부족\n" .. tostring(held) .. " / " .. tostring(entryCost) end
                 end
                 if label ~= view.restartLabel then
                     view.restartLabel = label
                     self.restartButton.TextGUIRendererComponent.Text = label
-                    self.restartButton.ButtonComponent.Enable = held >= cost
-                    log("[BattleHUD] restart button cost=" .. tostring(cost) .. " held=" .. tostring(held) .. " enabled=" .. tostring(held >= cost))
+                    self.restartButton.ButtonComponent.Enable = held >= entryCost
+                    log("[BattleHUD] restart button cost=" .. tostring(entryCost) .. " held=" .. tostring(held) .. " enabled=" .. tostring(held >= entryCost))
                 end
             end
         else
@@ -644,30 +633,10 @@ script BattleHUD extends Component
     @ExecSpace("ClientOnly")
     method void OnEndPlay()
         -- Disconnects every button click handler.
-        for _, rec in ipairs(self.slotHandlers) do
+        for _, rec in ipairs(self.clickHandlers) do
             if isvalid(rec.entity) then rec.entity:DisconnectEvent(ButtonClickEvent, rec.eventHandler) end
         end
-        self.slotHandlers = {}
-        if self.restartHandler ~= nil and isvalid(self.restartButton) then
-            self.restartButton:DisconnectEvent(ButtonClickEvent, self.restartHandler)
-        end
-        self.restartHandler = nil
-        if self.lobbyHandler ~= nil and isvalid(self.lobbyButton) then
-            self.lobbyButton:DisconnectEvent(ButtonClickEvent, self.lobbyHandler)
-        end
-        self.lobbyHandler = nil
-        if self.leaveHandler ~= nil and isvalid(self.leaveButton) then
-            self.leaveButton:DisconnectEvent(ButtonClickEvent, self.leaveHandler)
-        end
-        self.leaveHandler = nil
-        if self.costUpHandler ~= nil and isvalid(self.costUpButton) then
-            self.costUpButton:DisconnectEvent(ButtonClickEvent, self.costUpHandler)
-        end
-        self.costUpHandler = nil
-        for _, rec in ipairs(self.skillHandlers) do
-            if isvalid(rec.entity) then rec.entity:DisconnectEvent(ButtonClickEvent, rec.eventHandler) end
-        end
-        self.skillHandlers = {}
+        self.clickHandlers = {}
     end
 
 end
