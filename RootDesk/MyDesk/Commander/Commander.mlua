@@ -1,7 +1,6 @@
 @Component
 script Commander extends Component
 
-    property number ScrollSpeed = 8
     -- Lobby: name of the map entity the fixed view is centred on (optional; see HoldLobbyView).
     property string LobbyCameraName = "LobbyCamera"
     @HideFromInspector property number CamX = -16.8
@@ -21,7 +20,7 @@ script Commander extends Component
 
     @ExecSpace("ClientOnly")
     method void OnUpdate(number delta)
-        -- Scrolls the camera left/right along the battlefield with A/D or the arrow keys.
+        -- Battle: sends the held walk direction of my base (A/D or the arrow keys) and keeps the camera on it.
         if self.Entity ~= _UserService.LocalPlayer then return end
         local map = self.Entity.CurrentMap
         if not isvalid(map) then return end
@@ -40,27 +39,41 @@ script Commander extends Component
             self._T.camReady = false
             log("[Commander] camera zoom " .. tostring(zoom) .. "% offsetY=" .. tostring(director.CameraOffsetY))
         end
-        -- Camera range: keep both towers inside the screen. If the whole field fits, min == max and the view is fixed.
-        local reach = _BattleConfig.ScreenHalfWidth * 100 / zoom - _BattleConfig.FieldMargin
-        local center = (director.AllyBaseX + director.EnemyBaseX) * 0.5
-        local camMin = math.min(center, director.AllyBaseX + reach)
-        local camMax = math.max(center, director.EnemyBaseX - reach)
+        -- Camera range: the whole field (both ends plus FieldMargin) and nothing outside it. If the whole field fits
+        -- on the screen, min == max and the view is fixed.
+        local half = _BattleConfig.ScreenHalfWidth * 100 / zoom
+        local center = (director.FieldMinX + director.FieldMaxX) * 0.5
+        local camMin = math.min(center, director.FieldMinX - _BattleConfig.FieldMargin + half)
+        local camMax = math.max(center, director.FieldMaxX + _BattleConfig.FieldMargin - half)
         local useStart = director.CameraUseStart
         self:SetCenterMode(useStart)
-        if self._T.camReady ~= true then
-            self._T.camReady = true
-            self.CamX = camMin
-            if useStart then
-                self.CamX = math.max(camMin, math.min(camMax, director.CameraStart.x))
-            end
-            log("[Commander] camera range " .. string.format("%.2f", camMin) .. " ~ " .. string.format("%.2f", camMax))
-        end
+        -- The arrow keys (or A / D) walk my base; the held direction goes to the server when it changes, and again
+        -- every half second while held (a battle restart forgets it).
         local move = 0
         if _InputService:IsKeyPressed(KeyboardKey.A) or _InputService:IsKeyPressed(KeyboardKey.LeftArrow) then move = move - 1 end
         if _InputService:IsKeyPressed(KeyboardKey.D) or _InputService:IsKeyPressed(KeyboardKey.RightArrow) then move = move + 1 end
-        if move ~= 0 then
-            local nextX = self.CamX + move * self.ScrollSpeed * delta
-            self.CamX = math.max(camMin, math.min(camMax, nextX))
+        self._T.moveSendIn = (self._T.moveSendIn or 0) - delta
+        if move ~= (self._T.sentMove or 0) or (move ~= 0 and self._T.moveSendIn <= 0) then
+            self._T.sentMove = move
+            self._T.moveSendIn = 0.5
+            self:RequestHeroMove(move)
+        end
+        -- The view follows my base, shifted towards the enemy so more of what lies ahead is on screen.
+        local target = camMin
+        local hero = self:GetMyBaseEntity(map)
+        if isvalid(hero) then
+            ---@type BattleUnit
+            local heroUnit = hero:GetComponent("script.BattleUnit")
+            local lead = 0
+            if heroUnit ~= nil then lead = heroUnit:GetDirection() * half * _BattleConfig.HeroCameraLead end
+            target = math.max(camMin, math.min(camMax, hero.TransformComponent.WorldPosition.x + lead))
+        end
+        if self._T.camReady ~= true then
+            self._T.camReady = true
+            self.CamX = target
+            log("[Commander] camera range " .. string.format("%.2f", camMin) .. " ~ " .. string.format("%.2f", camMax) .. " start=" .. string.format("%.2f", target))
+        else
+            self.CamX = self.CamX + (target - self.CamX) * math.min(1, delta * _BattleConfig.HeroCameraFollow)
         end
         if isvalid(camera) then
             local here = self.Entity.TransformComponent.WorldPosition
@@ -70,6 +83,33 @@ script Commander extends Component
             end
             camera.CameraOffset = Vector2(self.CamX - here.x, offsetY)
         end
+    end
+
+    @ExecSpace("ClientOnly")
+    method any GetMyBaseEntity(Entity map)
+        -- Client: returns the base entity of the side this player controls on this map (looked up once per map), or nil
+        -- until the battle has given the player a side.
+        local cached = self._T.myBase
+        if cached ~= nil and self._T.myBaseMap == map and isvalid(cached) then return cached end
+        ---@type BattleSide
+        local side = self:GetMySide()
+        if side == nil then return nil end
+        self._T.myBase = side.Entity
+        self._T.myBaseMap = map
+        return side.Entity
+    end
+
+    @ExecSpace("Server")
+    method void RequestHeroMove(integer dir)
+        -- Tells the battle director which way this player holds their walking base (-1 left, 0 none, 1 right).
+        if senderUserId ~= self.Entity.PlayerComponent.UserId then return end
+        ---@type BattleDirector
+        local director = self:GetDirector()
+        if director == nil then return end
+        ---@type BattleSide
+        local side = director:GetSideByUser(senderUserId)
+        if side == nil then return end
+        director:SetHeroMove(side.Team, dir)
     end
 
     @ExecSpace("ClientOnly")

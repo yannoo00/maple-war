@@ -49,6 +49,21 @@ script BattleConfig extends Logic
     -- portal to the base (clients); it flies this long, and one portal sends at most one per PortalHitInterval seconds.
     property number PortalHitSeconds = 0.45
     property number PortalHitInterval = 0.2
+    -- The player's base walks (the hero): the player moves it with the arrow keys (it cannot jump). It never walks
+    -- through an enemy and never behind its own portal, and enemies never walk through it. Enemies attack it
+    -- directly; when it falls the battle is lost.
+    -- HeroMoveSpeed = world units per second, HeroGravity = fall acceleration when it walks off a ledge.
+    property number HeroMoveSpeed = 2.5
+    property number HeroGravity = 18
+    -- The hero stops this far in front of an enemy unit / enemy portal, and stays this far in front of its own portal.
+    property number HeroBlockGap = 0.6
+    property number HeroBackMargin = 0.8
+    -- Walking off a ledge lower than this is a fall; a smaller drop (a slope) is simply walked down.
+    property number HeroStepDown = 0.3
+    -- Camera (client): the view follows the hero, shifted towards the enemy by this share of half the screen width,
+    -- and closes the distance at HeroCameraFollow per second (higher = tighter).
+    property number HeroCameraLead = 0.35
+    property number HeroCameraFollow = 6
     -- Knockback shared by every monster unless its UnitTable row says otherwise: HP lost (percent of max) per
     -- knockback, how far it is pushed (authored units, scaled by RangeScale) and how long the push lasts.
     property number KnockbackHpPercent = 34

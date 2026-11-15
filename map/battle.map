@@ -47,9 +47,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -66,8 +66,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -78,9 +78,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -97,8 +97,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -109,9 +109,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -128,8 +128,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -140,9 +140,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -159,8 +159,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -171,9 +171,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -190,8 +190,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -202,9 +202,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -221,8 +221,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -233,9 +233,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -252,8 +252,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -264,9 +264,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -283,8 +283,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -295,9 +295,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -314,8 +314,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -326,9 +326,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -345,8 +345,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -357,9 +357,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -376,8 +376,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -388,9 +388,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -407,8 +407,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -419,9 +419,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -438,8 +438,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -450,9 +450,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -469,8 +469,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -481,9 +481,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -500,8 +500,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -512,9 +512,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -531,8 +531,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -543,9 +543,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -562,8 +562,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -574,9 +574,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -593,8 +593,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -605,9 +605,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -624,8 +624,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -636,9 +636,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -655,8 +655,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -667,9 +667,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -686,8 +686,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -698,9 +698,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -717,8 +717,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -729,9 +729,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -748,8 +748,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -760,9 +760,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -779,8 +779,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -791,9 +791,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -810,8 +810,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -822,9 +822,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -841,8 +841,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -853,9 +853,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -872,8 +872,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -884,9 +884,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -903,8 +903,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -915,9 +915,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -934,8 +934,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -946,9 +946,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -965,8 +965,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -977,9 +977,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -996,8 +996,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -1008,9 +1008,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1027,8 +1027,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -1039,9 +1039,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1058,21 +1058,21 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
-                    "Length": 0.9000015,
+                    "Length": 0.8999996,
                     "NextFootholdId": 45,
                     "PreviousFootholdId": 47,
                     "groupID": 1,
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1081,7 +1081,7 @@
                     "OwnerId": "ea675db7-1db6-4517-8888-da77b7d4b49a",
                     "Id": 34,
                     "StartPoint": {
-                      "x": -24.24,
+                      "x": -24.2399979,
                       "y": -1.85000014
                     },
                     "EndPoint": {
@@ -1089,21 +1089,21 @@
                       "y": -1.85000014
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
-                    "Length": 0.120002747,
+                    "Length": 0.120000839,
                     "NextFootholdId": 41,
                     "PreviousFootholdId": 43,
                     "groupID": 2,
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1112,16 +1112,16 @@
                     "OwnerId": "ea675db7-1db6-4517-8888-da77b7d4b49a",
                     "Id": 35,
                     "StartPoint": {
-                      "x": -18.0600014,
-                      "y": -3.65000033
+                      "x": -18.06,
+                      "y": -3.65
                     },
                     "EndPoint": {
                       "x": -17.9399986,
-                      "y": -3.65000033
+                      "y": -3.65
                     },
                     "Variance": {
-                      "x": 1,
-                      "y": 0
+                      "x": 1.0,
+                      "y": 0.0
                     }
                   },
                   {
@@ -1132,9 +1132,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1151,8 +1151,8 @@
                       "y": -2.10000014
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": -1
+                      "x": 0.0,
+                      "y": -1.0
                     }
                   },
                   {
@@ -1163,9 +1163,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1182,8 +1182,8 @@
                       "y": -2.7
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": -1
+                      "x": 0.0,
+                      "y": -1.0
                     }
                   },
                   {
@@ -1194,9 +1194,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1213,8 +1213,8 @@
                       "y": -3.3
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": -1
+                      "x": 0.0,
+                      "y": -1.0
                     }
                   },
                   {
@@ -1225,9 +1225,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1244,8 +1244,8 @@
                       "y": -3.9
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": -1
+                      "x": 0.0,
+                      "y": -1.0
                     }
                   },
                   {
@@ -1256,9 +1256,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1275,21 +1275,21 @@
                       "y": -4.50000048
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": -1
+                      "x": 0.0,
+                      "y": -1.0
                     }
                   },
                   {
-                    "Length": 0.350000143,
+                    "Length": 0.3499999,
                     "NextFootholdId": 0,
                     "PreviousFootholdId": 35,
                     "groupID": 2,
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1299,15 +1299,15 @@
                     "Id": 41,
                     "StartPoint": {
                       "x": -17.9399986,
-                      "y": -3.65000033
+                      "y": -3.65
                     },
                     "EndPoint": {
                       "x": -17.9399986,
                       "y": -3.30000019
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": 1
+                      "x": 0.0,
+                      "y": 1.0
                     }
                   },
                   {
@@ -1318,9 +1318,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1337,21 +1337,21 @@
                       "y": -3.90000033
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": 1
+                      "x": 0.0,
+                      "y": 1.0
                     }
                   },
                   {
-                    "Length": 0.350000143,
+                    "Length": 0.3499999,
                     "NextFootholdId": 35,
                     "PreviousFootholdId": 0,
                     "groupID": 2,
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1360,16 +1360,16 @@
                     "OwnerId": "ea675db7-1db6-4517-8888-da77b7d4b49a",
                     "Id": 43,
                     "StartPoint": {
-                      "x": -18.0600014,
+                      "x": -18.06,
                       "y": -3.30000019
                     },
                     "EndPoint": {
-                      "x": -18.0600014,
-                      "y": -3.65000033
+                      "x": -18.06,
+                      "y": -3.65
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": -1
+                      "x": 0.0,
+                      "y": -1.0
                     }
                   },
                   {
@@ -1380,9 +1380,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1399,8 +1399,8 @@
                       "y": -3.30000019
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": 1
+                      "x": 0.0,
+                      "y": 1.0
                     }
                   },
                   {
@@ -1411,9 +1411,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1430,8 +1430,8 @@
                       "y": -1.25
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": 1
+                      "x": 0.0,
+                      "y": 1.0
                     }
                   },
                   {
@@ -1442,9 +1442,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1454,15 +1454,15 @@
                     "Id": 46,
                     "StartPoint": {
                       "x": -23.3399982,
-                      "y": -3.30000019
+                      "y": -3.3
                     },
                     "EndPoint": {
                       "x": -23.3399982,
-                      "y": -2.70000029
+                      "y": -2.7
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": 1
+                      "x": 0.0,
+                      "y": 1.0
                     }
                   },
                   {
@@ -1473,9 +1473,9 @@
                     "layer": 1,
                     "sortingLayerName": "MapLayer0",
                     "attribute": {
-                      "walk": 1,
-                      "force": 0,
-                      "drag": 1,
+                      "walk": 1.0,
+                      "force": 0.0,
+                      "drag": 1.0,
                       "isBlockVertical": false,
                       "isDynamic": false,
                       "isCustomFoothold": false,
@@ -1484,16 +1484,16 @@
                     "OwnerId": "ea675db7-1db6-4517-8888-da77b7d4b49a",
                     "Id": 47,
                     "StartPoint": {
-                      "x": -24.24,
+                      "x": -24.2399979,
                       "y": -2.7
                     },
                     "EndPoint": {
-                      "x": -24.24,
+                      "x": -24.2399979,
                       "y": -1.85000014
                     },
                     "Variance": {
-                      "x": 0,
-                      "y": 1
+                      "x": 0.0,
+                      "y": 1.0
                     }
                   }
                 ]
@@ -1503,18 +1503,18 @@
             {
               "@type": "script.BattleDirector",
               "Enable": true,
-              "Elapsed": 0,
+              "Elapsed": 0.0,
               "PlayerUserId": ""
             },
             {
               "@type": "script.StageAI",
               "Enable": true,
               "Running": false,
-              "Elapsed": 0,
+              "Elapsed": 0.0,
               "WaveIndex": 1,
-              "LoopTimer": 0,
-              "LoopInterval": 6,
-              "LoopMinInterval": 3
+              "LoopTimer": 0.0,
+              "LoopInterval": 6.0,
+              "LoopMinInterval": 3.0
             },
             {
               "@type": "script.EntityPool",
@@ -1612,22 +1612,22 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Rotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
               },
               "Position": {
                 "x": -0.225,
                 "y": -0.15,
-                "z": 1000
+                "z": 1000.0
               },
               "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
               },
-              "ZRotation": 0,
+              "ZRotation": 0.0,
               "Enable": true
             },
             {
@@ -7384,27 +7384,27 @@
             {
               "@type": "MOD.Core.TransformComponent",
               "Rotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
               },
               "Position": {
-                "x": -13.4,
-                "y": -1.25,
-                "z": 0
+                "x": -12.7635794,
+                "y": -1.30704427,
+                "z": 0.0
               },
               "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
               },
               "Scale": {
                 "x": 0.65,
                 "y": 0.65,
-                "z": 1
+                "z": 1.0
               },
-              "ZRotation": 0,
+              "ZRotation": 0.0,
               "Enable": true
             },
             {
@@ -7415,16 +7415,16 @@
               "FlipX": false,
               "FlipY": false,
               "OrderInLayer": 0,
-              "PlayRate": 1,
+              "PlayRate": 1.0,
               "RenderSetting": 0,
               "SortingLayer": "MapLayer0",
               "SpriteRUID": "13850817e4664f64af5d279ed56a5e37",
               "StartFrameIndex": 0,
               "Color": {
-                "r": 1,
-                "g": 1,
-                "b": 1,
-                "a": 1
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
               },
               "Enable": true
             },
@@ -7432,117 +7432,19 @@
               "@type": "script.BattleUnit",
               "Enable": true,
               "KnockCount": 0,
-              "KnockRemain": 0,
-              "KnockSpeed": 0,
-              "KnockStartX": 0,
-              "KnockTarget": 0,
-              "WalkSpeed": 0,
-              "CurseRemain": 0,
-              "NullifyRemain": 0,
+              "KnockRemain": 0.0,
+              "KnockSpeed": 0.0,
+              "KnockStartX": 0.0,
+              "KnockTarget": 0.0,
+              "WalkSpeed": 0.0,
               "Ready": false,
               "IsDead": false,
               "Mode": "",
-              "AttackTimer": 0,
-              "PoseTimer": 0,
-              "HitTimer": 0,
-              "HasProjectile": false
-            },
-            {
-              "@type": "script.BattleSide",
-              "Enable": true
-            }
-          ],
-          "@version": 1
-        }
-      },
-      {
-        "id": "20e6742d-9c87-45d2-888c-85610360a230",
-        "path": "/maps/battle/EnemyBase",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent,script.BattleUnit,script.BattleSide",
-        "jsonString": {
-          "name": "EnemyBase",
-          "path": "/maps/battle/EnemyBase",
-          "nameEditable": true,
-          "enable": true,
-          "visible": true,
-          "localize": false,
-          "displayOrder": 4,
-          "pathConstraints": "///",
-          "revision": 1,
-          "origin": {
-            "type": "Model",
-            "entry_id": "basetower",
-            "sub_entity_id": null,
-            "root_entity_id": "20e6742d-9c87-45d2-888c-85610360a230",
-            "replaced_model_id": null
-          },
-          "modelId": "basetower",
-          "@components": [
-            {
-              "@type": "MOD.Core.TransformComponent",
-              "Rotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0
-              },
-              "Position": {
-                "x": -2.6,
-                "y": -0.8335,
-                "z": 0
-              },
-              "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
-              },
-              "Scale": {
-                "x": 0.65,
-                "y": 0.65,
-                "z": 1
-              },
-              "ZRotation": 0,
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.SpriteRendererComponent",
-              "ActionSheet": {},
-              "DrawMode": 0,
-              "EndFrameIndex": 2147483647,
-              "FlipX": false,
-              "FlipY": false,
-              "OrderInLayer": 0,
-              "PlayRate": 1,
-              "RenderSetting": 0,
-              "SortingLayer": "MapLayer0",
-              "SpriteRUID": "781d0548d4434877a044f77db08e2ffe",
-              "StartFrameIndex": 0,
-              "Color": {
-                "r": 1,
-                "g": 1,
-                "b": 1,
-                "a": 1
-              },
-              "Enable": true
-            },
-            {
-              "@type": "script.BattleUnit",
-              "Enable": true,
-              "KnockCount": 0,
-              "KnockRemain": 0,
-              "KnockSpeed": 0,
-              "KnockStartX": 0,
-              "KnockTarget": 0,
-              "WalkSpeed": 0,
-              "CurseRemain": 0,
-              "NullifyRemain": 0,
-              "Ready": false,
-              "IsDead": false,
-              "Mode": "",
-              "AttackTimer": 0,
-              "PoseTimer": 0,
-              "HitTimer": 0,
-              "HasProjectile": false
+              "AttackTimer": 0.0,
+              "HitTimer": 0.0,
+              "PendingLife": 0,
+              "HasProjectile": false,
+              "HasHitEffect": false
             },
             {
               "@type": "script.BattleSide",
@@ -7563,68 +7465,185 @@
           "enable": true,
           "visible": true,
           "localize": false,
-          "displayOrder": 5,
+          "displayOrder": 4,
           "pathConstraints": "///",
           "revision": 1,
-          "modelId": "mapobject",
-          "@components": [
-            {
-              "@type": "MOD.Core.TransformComponent",
-              "Position": {
-                "x": -13.4,
-                "y": -1.308,
-                "z": 0
-              },
-              "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
-              },
-              "Scale": {
-                "x": 0.4,
-                "y": 0.4,
-                "z": 1
-              },
-              "Enable": true
-            },
-            {
-              "@type": "MOD.Core.SpriteRendererComponent",
-              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
-              "Color": {
-                "r": 1,
-                "g": 1,
-                "b": 1,
-                "a": 1
-              },
-              "DrawMode": 0,
-              "FlipX": false,
-              "FlipY": false,
-              "PlayRate": 1,
-              "OrderInLayer": 1,
-              "StartFrameIndex": 0,
-              "EndFrameIndex": 2147483647,
-              "Enable": true,
-              "SortingLayer": "MapLayer0"
-            }
-          ],
-          "@version": 1,
           "origin": {
             "type": "Model",
             "entry_id": "mapobject",
             "sub_entity_id": null,
             "root_entity_id": "c77028b9-bf0b-4db4-a0b4-3f129a65bd72",
             "replaced_model_id": null
-          }
+          },
+          "modelId": "mapobject",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -13.4,
+                "y": -1.308,
+                "z": 0.0
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Scale": {
+                "x": 0.4,
+                "y": 0.4,
+                "z": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "DrawMode": 0,
+              "EndFrameIndex": 2147483647,
+              "FlipX": false,
+              "FlipY": false,
+              "OrderInLayer": 1,
+              "PlayRate": 1.0,
+              "RenderSetting": 0,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
+              "StartFrameIndex": 0,
+              "Color": {
+                "r": 1.0,
+                "g": 1.0,
+                "b": 1.0,
+                "a": 1.0
+              },
+              "Enable": true
+            }
+          ],
+          "@version": 1
         }
       },
       {
-        "id": "5e56a916-0ccb-4a57-beff-dbd3f80a7756",
-        "path": "/maps/battle/EnemyPortal",
-        "componentNames": "MOD.Core.TransformComponent,MOD.Core.SpriteRendererComponent",
+        "id": "1962b90c-7809-4980-8c4d-dbc4f80f13cf",
+        "path": "/maps/battle/monster-3071",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
         "jsonString": {
-          "name": "EnemyPortal",
-          "path": "/maps/battle/EnemyPortal",
+          "name": "monster-3071",
+          "path": "/maps/battle/monster-3071",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 5,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "1962b90c-7809-4980-8c4d-dbc4f80f13cf",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -4.87463856,
+                "y": -1.175,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "stand": "9328b46faeab4618a4c75dc9f141c2ac",
+                "move": "16ac03a9227e446e83ac338ead1426b0",
+                "attack": "d0b4033fb2fe4235822043a3decbcf77",
+                "skill": "b8f3e136bc9a4deab20bbbb9073bbb11",
+                "hit": "3febac6ec10f4ecfb3a7fca343079157",
+                "die": "3076e06d3ea2492199f633b628a71b45"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "16ac03a9227e446e83ac338ead1426b0",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 1.03,
+                "y": 1.0
+              },
+              "ColliderOffset": {
+                "x": -0.255,
+                "y": 0.28
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "fac9bab0-c249-44eb-a3df-d897aab36ec6",
+        "path": "/maps/battle/monster-407",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "monster-407",
+          "path": "/maps/battle/monster-407",
           "nameEditable": true,
           "enable": true,
           "visible": true,
@@ -7632,56 +7651,2311 @@
           "displayOrder": 6,
           "pathConstraints": "///",
           "revision": 1,
-          "modelId": "mapobject",
+          "origin": {
+            "type": "Model",
+            "entry_id": "StaticMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "fac9bab0-c249-44eb-a3df-d897aab36ec6",
+            "replaced_model_id": null
+          },
+          "modelId": "staticmonster",
           "@components": [
             {
               "@type": "MOD.Core.TransformComponent",
               "Position": {
-                "x": -2.6,
-                "y": -1.308,
-                "z": 0
+                "x": -7.48626041,
+                "y": -1.28972435,
+                "z": 999.999
               },
               "QuaternionRotation": {
-                "x": 0,
-                "y": 0,
-                "z": 0,
-                "w": 1
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
               },
-              "Scale": {
-                "x": 0.4,
-                "y": 0.4,
-                "z": 1
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "stand": "eb9a64b107cc4b6986209400f525a8b0",
+                "attack": "576082a431a74e7b86fcfa599e9d6233",
+                "hit": "e9ee7463c8924c2391ff9a28ed998372",
+                "die": "85ec115093e14a0f811fcef546dcf066"
               },
               "Enable": true
             },
             {
               "@type": "MOD.Core.SpriteRendererComponent",
-              "SpriteRUID": "a21d539161dd42c8b13dc60e3680357a",
-              "Color": {
-                "r": 1,
-                "g": 0.25,
-                "b": 0.25,
-                "a": 1
-              },
-              "DrawMode": 0,
-              "FlipX": false,
-              "FlipY": false,
-              "PlayRate": 1,
-              "OrderInLayer": 1,
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "eb9a64b107cc4b6986209400f525a8b0",
               "StartFrameIndex": 0,
-              "EndFrameIndex": 2147483647,
-              "Enable": true,
-              "SortingLayer": "MapLayer0"
+              "Enable": true
             }
           ],
-          "@version": 1,
+          "@version": 1
+        }
+      },
+      {
+        "id": "754d99cf-c11d-45dd-9c02-32169d5a9969",
+        "path": "/maps/battle/monster-1125",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-1125",
+          "path": "/maps/battle/monster-1125",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 7,
+          "pathConstraints": "///",
+          "revision": 1,
           "origin": {
             "type": "Model",
-            "entry_id": "mapobject",
+            "entry_id": "MoveMonster",
             "sub_entity_id": null,
-            "root_entity_id": "5e56a916-0ccb-4a57-beff-dbd3f80a7756",
+            "root_entity_id": "754d99cf-c11d-45dd-9c02-32169d5a9969",
             "replaced_model_id": null
-          }
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -5.67897224,
+                "y": -1.175,
+                "z": 999.998047
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "stand": "9fe264e5966544e180191a141423af42",
+                "move": "ba135f41f50b4470a4eb7535d510e47a",
+                "attack": "3bf932f5e7754f1aa6ae63e36ef1b0af",
+                "skill": "cb7ea6068ca843169a34186fae152e88",
+                "hit": "9939235de3e64f60af4ff259ff5202b2",
+                "die": "edbe06bcdc874c0c8b13f79aca0869db"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "ba135f41f50b4470a4eb7535d510e47a",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 1.16,
+                "y": 1.01
+              },
+              "ColliderOffset": {
+                "x": -0.19,
+                "y": 0.285
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "af561d2e-0cf4-45e2-b4d5-6593cbcc32fa",
+        "path": "/maps/battle/monster-2497",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-2497",
+          "path": "/maps/battle/monster-2497",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 8,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "af561d2e-0cf4-45e2-b4d5-6593cbcc32fa",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -4.24901772,
+                "y": -1.175,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "stand": "0e1f5872a4674b66a84d1dfc24ba8e30",
+                "move": "498d02848daf40fe93b15ad2a2aee7f3",
+                "attack": "46bd13d8eedb41d3ad2a26081b78325c",
+                "skill": "11726ae400dc4e0b822d4ea8187bb01f",
+                "hit": "348929585f754053ac749164f6c810dd",
+                "die": "686075f1fa0647088941142b311b57bc"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "498d02848daf40fe93b15ad2a2aee7f3",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 1.03,
+                "y": 1.03
+              },
+              "ColliderOffset": {
+                "x": -0.255,
+                "y": 0.295
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "d935c21b-2ab6-43a5-ad52-8aba858995ba",
+        "path": "/maps/battle/monster-407_1",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "monster-407_1",
+          "path": "/maps/battle/monster-407_1",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 9,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "StaticMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "fac9bab0-c249-44eb-a3df-d897aab36ec6",
+            "replaced_model_id": null
+          },
+          "modelId": "staticmonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -9.185271,
+                "y": -1.25795555,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "stand": "eb9a64b107cc4b6986209400f525a8b0",
+                "attack": "576082a431a74e7b86fcfa599e9d6233",
+                "hit": "e9ee7463c8924c2391ff9a28ed998372",
+                "die": "85ec115093e14a0f811fcef546dcf066"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "eb9a64b107cc4b6986209400f525a8b0",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "3cb4d4e6-11a0-4ef0-8c98-61354c2b13dd",
+        "path": "/maps/battle/monster-407_2",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "monster-407_2",
+          "path": "/maps/battle/monster-407_2",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 10,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "StaticMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "fac9bab0-c249-44eb-a3df-d897aab36ec6",
+            "replaced_model_id": null
+          },
+          "modelId": "staticmonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -8.056455,
+                "y": -1.25,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "stand": "eb9a64b107cc4b6986209400f525a8b0",
+                "attack": "576082a431a74e7b86fcfa599e9d6233",
+                "hit": "e9ee7463c8924c2391ff9a28ed998372",
+                "die": "85ec115093e14a0f811fcef546dcf066"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "eb9a64b107cc4b6986209400f525a8b0",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "cd50d569-aac9-4331-acbb-a2ccb05fc5e1",
+        "path": "/maps/battle/monster-407_3",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent",
+        "jsonString": {
+          "name": "monster-407_3",
+          "path": "/maps/battle/monster-407_3",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 11,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "StaticMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "fac9bab0-c249-44eb-a3df-d897aab36ec6",
+            "replaced_model_id": null
+          },
+          "modelId": "staticmonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "Position": {
+                "x": -6.668315,
+                "y": -1.25993109,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "ZRotation": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "stand": "eb9a64b107cc4b6986209400f525a8b0",
+                "attack": "576082a431a74e7b86fcfa599e9d6233",
+                "hit": "e9ee7463c8924c2391ff9a28ed998372",
+                "die": "85ec115093e14a0f811fcef546dcf066"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "eb9a64b107cc4b6986209400f525a8b0",
+              "StartFrameIndex": 0,
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "22b5f69f-a95c-4786-90fc-cd9b44393243",
+        "path": "/maps/battle/monster-2757",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-2757",
+          "path": "/maps/battle/monster-2757",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 12,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "22b5f69f-a95c-4786-90fc-cd9b44393243",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -13.578228,
+                "y": -1.175,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "a5c3da452e9a411cbc48e2d29bc922ce",
+                "stand": "8f0451fcf96a4ce0b43a7dbd023dfd77",
+                "attack": "421a6419631647d78f4d46cff57b0ad5",
+                "hit": "6d53bd4a627146e79e37a649186588b0",
+                "die": "d3e2d71b2a694663a81577dc41e813ea"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "8f0451fcf96a4ce0b43a7dbd023dfd77",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 0.86,
+                "y": 1.0
+              },
+              "ColliderOffset": {
+                "x": 0.0,
+                "y": 0.44
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "5b679172-cf9e-46f2-a27c-524365c3a3bf",
+        "path": "/maps/battle/monster-3338",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-3338",
+          "path": "/maps/battle/monster-3338",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 13,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "5b679172-cf9e-46f2-a27c-524365c3a3bf",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -11.4631815,
+                "y": 0.543453455,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "3d3c3b24e3224a4689106e4a07408bdf",
+                "stand": "9be87075a1bd4c0abc2235463612b0cd",
+                "attack": "d37eaeb79b6f4fedafaa2cafd6216e9d",
+                "hit": "11c64d0f0a1a4a30956e44200fde1672",
+                "die": "201cb0f9e8b1496fb3ff99fc0968d735"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "9be87075a1bd4c0abc2235463612b0cd",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 2.15,
+                "y": 2.25
+              },
+              "ColliderOffset": {
+                "x": 0.175000072,
+                "y": 1.095
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "19d2d2f8-5ed3-4e1e-ad1d-b6cf8b4b3316",
+        "path": "/maps/battle/monster-121",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-121",
+          "path": "/maps/battle/monster-121",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 14,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "19d2d2f8-5ed3-4e1e-ad1d-b6cf8b4b3316",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -3.96332359,
+                "y": 2.03118658,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "b1c161a48efe4ec49257ba9a6f1a110d",
+                "stand": "5b5052c10fc84ccdac89e603234f7644",
+                "attack": "e923b5cf097246b1a90b33eff9dbb309",
+                "hit": "79cbb91c5f6c40da96a73a4e44614031",
+                "die": "bd2f2273f028431fa2a97e4159475215"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "5b5052c10fc84ccdac89e603234f7644",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 2.02,
+                "y": 2.35
+              },
+              "ColliderOffset": {
+                "x": 0.110000014,
+                "y": 1.155
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "8df22a26-4205-47cb-a0db-14440d660b05",
+        "path": "/maps/battle/monster-2039",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-2039",
+          "path": "/maps/battle/monster-2039",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 15,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "8df22a26-4205-47cb-a0db-14440d660b05",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -4.65737534,
+                "y": -0.06914377,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "23fec8a8a0a8411c84ddbebc56c83501",
+                "stand": "3b8d0662d1e84f5cb7a3b99a79b0745e",
+                "attack": "3199d484edd942a3b14ac04a492725cd",
+                "hit": "e3c3cddc3eaf4f2196d4c2e8c4d6b4a2",
+                "die": "5fad506092a0491f9d7ba41f35692c7d"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "3b8d0662d1e84f5cb7a3b99a79b0745e",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 1.73,
+                "y": 1.43
+              },
+              "ColliderOffset": {
+                "x": -0.0450000763,
+                "y": 0.705
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "068f2529-ce99-494a-b921-4a345967ad90",
+        "path": "/maps/battle/monster-2524",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-2524",
+          "path": "/maps/battle/monster-2524",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 16,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "068f2529-ce99-494a-b921-4a345967ad90",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -3.13748646,
+                "y": -0.0930104256,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "a1dea0e7d8624be5a862e724ef84bc18",
+                "stand": "368721ea7f9f454cae87e3b02b817427",
+                "attack": "0c189368eb954c8292d8889f41203dc0",
+                "hit": "329722b578c3490cae3031ab59fed3e6",
+                "die": "a2ab5c17c7fc44c49857c6ad6ed51adf"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "368721ea7f9f454cae87e3b02b817427",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 1.52,
+                "y": 1.44
+              },
+              "ColliderOffset": {
+                "x": 0.01999998,
+                "y": 0.8
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "a4916008-3e8f-4393-9be7-7848999d72e0",
+        "path": "/maps/battle/monster-2023",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIChaseComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-2023",
+          "path": "/maps/battle/monster-2023",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 17,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "ChaseMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "a4916008-3e8f-4393-9be7-7848999d72e0",
+            "replaced_model_id": null
+          },
+          "modelId": "chasemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -8.889137,
+                "y": -1.175,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "0c63f86917a74661a2be4bac68b0d3b7",
+                "stand": "3fe1878312e240a482427af8ccd1499f",
+                "jump": "926b93fcefd24e29b69acf092c214f12",
+                "hit": "1155fb4c963d489cae9ee655a6f3a137",
+                "die": "d394a3aa862044298baaffefc3a98ac7"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "3fe1878312e240a482427af8ccd1499f",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.5,
+              "JumpForce": 6.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIChaseComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 0.55,
+                "y": 0.54
+              },
+              "ColliderOffset": {
+                "x": -0.0449999869,
+                "y": 0.27
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "4fc6e5c1-da42-4ee6-866f-afa2c3476653",
+        "path": "/maps/battle/monster-245",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-245",
+          "path": "/maps/battle/monster-245",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 18,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "4fc6e5c1-da42-4ee6-866f-afa2c3476653",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -2.41356373,
+                "y": -1.175,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "65870521568c40c99a700acc5418efd1",
+                "stand": "d11188e012d547ae9b73bbbbd406d47f",
+                "attack": "b0a6f61d60024ee3b840ef9ffc0ec774",
+                "hit": "2243ef05cec34584b6b89b996612bec3",
+                "die": "409c5cc702e5427b9791636cdbcb03db"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "d11188e012d547ae9b73bbbbd406d47f",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 0.91,
+                "y": 1.46
+              },
+              "ColliderOffset": {
+                "x": 0.105000019,
+                "y": 0.64
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "a581c45d-fc72-4c3f-850e-eb239e03417f",
+        "path": "/maps/battle/monster-946",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-946",
+          "path": "/maps/battle/monster-946",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 19,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "a581c45d-fc72-4c3f-850e-eb239e03417f",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -8.833446,
+                "y": 1.10831451,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "b342e0b925a54f38ac8ae88116463c7e",
+                "stand": "f8120cc24fdb47609bdec524de6b98ea",
+                "hit": "bd06fe130bd24a8cb1794d100e4dd690",
+                "die": "4d6dc298bbf3424282554cf4752be5fc"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "f8120cc24fdb47609bdec524de6b98ea",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 0.52,
+                "y": 0.62
+              },
+              "ColliderOffset": {
+                "x": 0.0,
+                "y": 0.46
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "9232e624-3bfb-48cb-b3d1-174c40622e52",
+        "path": "/maps/battle/monster-2141",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-2141",
+          "path": "/maps/battle/monster-2141",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 20,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "9232e624-3bfb-48cb-b3d1-174c40622e52",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -9.111881,
+                "y": 0.217265129,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "974389e929804a15a7475de5424f5a6f",
+                "stand": "7cb31896e5284dd1a88d1630c04d5194",
+                "attack": "f1f45a61ec714bbaa0f14103b8957ace",
+                "hit": "0e23b49c9a0a41ac93eb165b2bf53266",
+                "die": "8dcad8f6026943ee8082a99208f1db7d"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "7cb31896e5284dd1a88d1630c04d5194",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 0.78,
+                "y": 0.76
+              },
+              "ColliderOffset": {
+                "x": -0.01000005,
+                "y": 0.48
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "410c56a8-c2a3-48a0-bb47-f40abb90a0dd",
+        "path": "/maps/battle/monster-3099",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-3099",
+          "path": "/maps/battle/monster-3099",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 21,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "410c56a8-c2a3-48a0-bb47-f40abb90a0dd",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -7.99019051,
+                "y": 1.57770729,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "496efe3f5205442283393f88f763cf71",
+                "stand": "ab7c2d45061e4604b9f9cb4876fa0aad",
+                "attack": "87480f27745348989db6dcc95f9cce9a",
+                "hit": "2d5fe3b085394494926869f70052a3ba",
+                "die": "27052caa8e6544a8b60bef00198309bf"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "ab7c2d45061e4604b9f9cb4876fa0aad",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 0.74,
+                "y": 0.77
+              },
+              "ColliderOffset": {
+                "x": 0.0,
+                "y": 0.534999967
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "be668a2e-31ed-4406-8d0b-a10dca66f53c",
+        "path": "/maps/battle/monster-2645",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-2645",
+          "path": "/maps/battle/monster-2645",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 22,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "be668a2e-31ed-4406-8d0b-a10dca66f53c",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -6.48665237,
+                "y": 0.0661056042,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "13e1f2cf1fea43ff99e6ec18023a5047",
+                "stand": "01c34d843a294d6e8b9b9ac6d15ca15e",
+                "attack": "f9d15ca985cf498399938fe9c121a162",
+                "hit": "06ab0a1285e64753a5e0cf570a828537",
+                "die": "5bead81e18254e5ca6690c6c7cd1ea7c"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "01c34d843a294d6e8b9b9ac6d15ca15e",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 1.73,
+                "y": 1.43
+              },
+              "ColliderOffset": {
+                "x": -0.0450000763,
+                "y": 0.705
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "56b987b1-2ea5-4f78-b2c1-3e7f0241bd4f",
+        "path": "/maps/battle/monster-3178",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-3178",
+          "path": "/maps/battle/monster-3178",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 23,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "56b987b1-2ea5-4f78-b2c1-3e7f0241bd4f",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -2.25445366,
+                "y": 1.99140906,
+                "z": 999.998047
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "cd8ebd7aab2a4167b2b9d8f2be3b3250",
+                "stand": "323debc896394684a8e1576eb8a6ad71",
+                "attack": "81d93653a2e042e5a15027ec9afa232d",
+                "hit": "23521d22f089487197bbfcf6af8ef6ab",
+                "die": "045594becc4f41c280e2d17e7736e0ca"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "323debc896394684a8e1576eb8a6ad71",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 1.73,
+                "y": 1.76
+              },
+              "ColliderOffset": {
+                "x": -0.0550000072,
+                "y": 0.86
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "0ea7ea74-29b7-47ff-941d-41635bf1e2a5",
+        "path": "/maps/battle/monster-2712",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-2712",
+          "path": "/maps/battle/monster-2712",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 24,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "0ea7ea74-29b7-47ff-941d-41635bf1e2a5",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -11.3632193,
+                "y": -1.175,
+                "z": 999.998047
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "a1267117a6714a35bc1ab5000314a214",
+                "stand": "f85f8a0f856c4f06bf0df4d123fa4063",
+                "attack": "552f5cb29f3544d186d19b485624a1eb",
+                "hit": "8356d60912314c79881685a9b8fcbb6e",
+                "die": "c52aba8f224a4737a34c4348f2beef67"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "f85f8a0f856c4f06bf0df4d123fa4063",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 1.06,
+                "y": 1.33
+              },
+              "ColliderOffset": {
+                "x": 0.00999999,
+                "y": 0.595
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "503c0eb0-aebd-48e6-8fa3-f917bcab9af1",
+        "path": "/maps/battle/monster-189",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-189",
+          "path": "/maps/battle/monster-189",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 25,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "503c0eb0-aebd-48e6-8fa3-f917bcab9af1",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -10.2176695,
+                "y": -1.175,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "659fe5bae7b348a7911f467a51455b8f",
+                "stand": "ece6ac49c6eb46b7a33a9a283a673849",
+                "attack": "b4d01f35ad1944b790d33070848124e6",
+                "hit": "dd533959c5824a6499fd126bf61d9a02",
+                "die": "6595dc3f6ee54421b8996824f357ae14"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "ece6ac49c6eb46b7a33a9a283a673849",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 1.28,
+                "y": 1.33
+              },
+              "ColliderOffset": {
+                "x": 0.0500000119,
+                "y": 0.595
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "c49eed9a-7d9d-4da0-91a9-235992efe53f",
+        "path": "/maps/battle/monster-1900",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-1900",
+          "path": "/maps/battle/monster-1900",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 26,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "c49eed9a-7d9d-4da0-91a9-235992efe53f",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -2.85110569,
+                "y": -1.175,
+                "z": 999.998047
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "8b7ad72fae5d4fa0890ddaf8a8dead48",
+                "stand": "c76ff580d19b4a8bb2088cece2b0c32b",
+                "hit": "af24d78e2a224807bd7200b80826fec1",
+                "die": "da8097617aca46c988284be651062d96"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "c76ff580d19b4a8bb2088cece2b0c32b",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 0.53,
+                "y": 0.61
+              },
+              "ColliderOffset": {
+                "x": 0.0149999857,
+                "y": 0.345
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "00f57e8f-c9fa-4be9-81c1-a67c8632e3ce",
+        "path": "/maps/battle/monster-3943",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-3943",
+          "path": "/maps/battle/monster-3943",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 27,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "00f57e8f-c9fa-4be9-81c1-a67c8632e3ce",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -6.55028725,
+                "y": 1.983453,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "684685ca8dc84aac920f77e5c5d871f1",
+                "stand": "cbdd230e5cd34b7b9eeb1cd206d19f34",
+                "attack": "9a4f5adadc25455e88c0394ee41f346d",
+                "skill": "3ef6b2dcc75f4d4990e6e7f106bda49e",
+                "hit": "a8f2cac815354c40a9147389bc070d78",
+                "die": "cb0d2a03101b4210b142a74cd178de88"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "cbdd230e5cd34b7b9eeb1cd206d19f34",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 1.47,
+                "y": 1.47
+              },
+              "ColliderOffset": {
+                "x": 0.0350000262,
+                "y": 0.755
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
+        }
+      },
+      {
+        "id": "83384e37-b633-4b91-9866-d038b804e7b6",
+        "path": "/maps/battle/monster-2965",
+        "componentNames": "MOD.Core.TransformComponent,MOD.Core.StateAnimationComponent,MOD.Core.SpriteRendererComponent,MOD.Core.RigidbodyComponent,MOD.Core.MovementComponent,MOD.Core.AIWanderComponent,MOD.Core.StateComponent,MOD.Core.HitComponent,MOD.Core.DamageSkinSpawnerComponent",
+        "jsonString": {
+          "name": "monster-2965",
+          "path": "/maps/battle/monster-2965",
+          "nameEditable": true,
+          "enable": true,
+          "visible": true,
+          "localize": false,
+          "displayOrder": 28,
+          "pathConstraints": "///",
+          "revision": 1,
+          "origin": {
+            "type": "Model",
+            "entry_id": "MoveMonster",
+            "sub_entity_id": null,
+            "root_entity_id": "83384e37-b633-4b91-9866-d038b804e7b6",
+            "replaced_model_id": null
+          },
+          "modelId": "movemonster",
+          "@components": [
+            {
+              "@type": "MOD.Core.TransformComponent",
+              "Position": {
+                "x": -8.104589,
+                "y": -0.203135729,
+                "z": 999.999
+              },
+              "QuaternionRotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "w": 1.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateAnimationComponent",
+              "ActionSheet": {
+                "move": "5c9bd869feb44b989f97dfdfbd92ea79",
+                "stand": "fe53139e92e34fa1bf707de457978bd9",
+                "attack": "fb2116488e4d4c7aa4cd2448b3cbf17d",
+                "attack2": "502fbee494aa4996b933d0f5a8b0a7ea",
+                "skill": "ae01f83866df4b64989676ec712cde67",
+                "hit": "e07c8dc7c8544aff8e53defca6fad79b",
+                "die": "f858692ceb8a4f71988cc688c7553a01"
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.SpriteRendererComponent",
+              "ActionSheet": {},
+              "EndFrameIndex": 0,
+              "RenderSetting": 1,
+              "SortingLayer": "MapLayer0",
+              "SpriteRUID": "fe53139e92e34fa1bf707de457978bd9",
+              "StartFrameIndex": 0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.RigidbodyComponent",
+              "MoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "RealMoveVelocity": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.MovementComponent",
+              "InputSpeed": 1.0,
+              "JumpForce": 0.0,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.AIWanderComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.StateComponent",
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.HitComponent",
+              "BoxSize": {
+                "x": 1.26,
+                "y": 2.22
+              },
+              "ColliderOffset": {
+                "x": -0.0600000024,
+                "y": 1.25
+              },
+              "IsLegacy": false,
+              "Enable": true
+            },
+            {
+              "@type": "MOD.Core.DamageSkinSpawnerComponent",
+              "Enable": true
+            }
+          ],
+          "@version": 1
         }
       }
     ]

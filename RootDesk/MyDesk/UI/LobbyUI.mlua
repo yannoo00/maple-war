@@ -9,7 +9,7 @@ script LobbyUI extends Component
     -- template each, kept in a pool and refilled from data.
     property Entity root = "6b22638e-f8c3-4021-af16-83b6431b83d1"
     property TextGUIRendererComponent mesoText = "199ca810-1315-4c0c-a33d-28a8e6efbc26"
-    property Entity backButton = "4275fc9b-8ee2-4be2-bb8d-3cb28b93872b"
+    property Entity backButton = "3b021eec-4a56-4037-9384-1345da017db7"
     property Entity mainPanel = "ab6ea8ae-7a68-43a1-be5a-6e919aa02909"
     property Entity stagePanel = "247875af-5886-4c77-b76b-98b40878f8bb"
     property Entity deckPanel = "b3c5d4b9-102e-4315-a241-181122aa2ba1"
@@ -36,6 +36,9 @@ script LobbyUI extends Component
     property Entity ticketRow = "3d367bb5-26bd-4492-8d98-1a00702da4ad"
     property Entity shopTabCurrency = "6e4fa773-66cf-40d0-8418-31f111257d01"
     property Entity ticketTabChest = "94d3ab31-999e-47ed-8024-e8934e1d87de"
+    -- "소환하기" tabs of the chest shop / currency shop: open the summon screen (use held stones).
+    property Entity shopTabSummon = "8e39f325-483d-469b-9c3c-f1465c9afc27"
+    property Entity ticketTabSummon = "dc55ef13-3998-4345-9130-2791bb29e614"
     property Entity chestPanel = "26e604e2-dda9-4404-b4e3-36287366a07e"
     property TextGUIRendererComponent chestTitle = "d726864a-87fd-423a-b124-7316f419553e"
     property Entity chestCard = "553fac4c-3591-4dc0-be3f-b6acfdca11aa"
@@ -83,7 +86,10 @@ script LobbyUI extends Component
         self:Bind(self.shopTabCurrency, function() self:OnMenuClicked("ticket") end)
         self:Bind(self.ticketTabChest, function() self:OnMenuClicked("shop") end)
         self:Bind(self.chestCloseButton, function() self:OnChestCloseClicked() end)
-        self:Bind(self.summonButton, function() self:OnMenuClicked("summon") end)
+        -- The main screen's 소환 button opens the shop (summon stones); the shop's 소환하기 tab opens the summon screen.
+        self:Bind(self.summonButton, function() self:OnMenuClicked("shop") end)
+        self:Bind(self.shopTabSummon, function() self:OnMenuClicked("summon") end)
+        self:Bind(self.ticketTabSummon, function() self:OnMenuClicked("summon") end)
         self:Bind(self.summonActionButton, function() self:OnSummonClicked() end)
         if isvalid(self.stoneTile) then self.stoneTile.Enable = false end
         if isvalid(self.revealPanel) then

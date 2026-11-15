@@ -17,6 +17,9 @@ script BattleUnit extends Component
     @Sync property integer Life = 0
     -- false = this unit keeps the sprite it has in the map instead of playing its UnitTable clips (the stage AI's base).
     @Sync property boolean UseRowClips = true
+    -- true = this base walks (the player's hero, see the "Hero" section): enemies attack it where it stands instead of
+    -- through its portals. Set by the director before Setup.
+    @Sync property boolean Mobile = false
     property string Kind = "monster"
     property number AttackPower = 10
     -- melee / ranged hit one target; melee_area / ranged_area hit every enemy in range (UnitTable AttackType).
@@ -126,6 +129,15 @@ script BattleUnit extends Component
             local size = cfg.scale * _BattleConfig.UnitScale
             self.Entity.TransformComponent.Scale = Vector3(-dir * size, size, 1)
         end
+
+        -- A walking base starts standing still on the floor under it, facing the enemy.
+        self._T.heroDir = 0
+        self._T.heroVy = nil
+        self._T.heroMoving = false
+        self._T.heroFace = self:GetDirection()
+        self._T.heroSize = cfg.scale * _BattleConfig.UnitScale
+        self._T.heroFloorY = nil
+        self._T.heroOffsetY = nil
 
         self.Ready = true
         if cfg.speed > 0 then
@@ -238,6 +250,8 @@ script BattleUnit extends Component
             end
         end
 
+        if self.Mobile then self:TickHero(delta, x, y) end
+
         if self.AttackPower <= 0 then return end
 
         local dir = self:GetDirection()
@@ -259,10 +273,11 @@ script BattleUnit extends Component
                 self.HitTimer = self.AttackHitDelay
                 -- Every attack is announced: clients show the attack effect, play the attack sound and fly the projectile
                 -- (to the portal when the base is attacked through one).
-                self:NotifyAttack(target.Entity, self.AttackHitDelay, aim.x, aim.y, target.Kind == "base")
+                self:NotifyAttack(target.Entity, self.AttackHitDelay, aim.x, aim.y, target.Kind == "base" and target.Mobile == false)
             end
-        elseif self.MoveSpeed <= 0 or director:IsPastField(self.Team, x) then
-            -- Nothing to fight here and nowhere further to go (a build, or the far end of the field).
+        elseif self.MoveSpeed <= 0 or director:IsPastField(self.Team, x) or director:IsHeldByHero(self.Team, x, y) then
+            -- Nothing to fight here and nowhere further to go (a build, the far end of the field, or the enemy's
+            -- walking base right in front: nobody walks through it).
             self:SetMode("HOLD")
         else
             self:SetMode("MOVE")
@@ -271,6 +286,111 @@ script BattleUnit extends Component
             local speed = self.WalkSpeed * _BattleEffects:GetRate(self, "moveSpeed")
             if speed > 0 and math.abs(movement.InputSpeed - speed) > 0.001 then movement.InputSpeed = speed end
             movement:MoveToDirection(Vector2(dir, 0), delta)
+        end
+    end
+
+    -- ===== Hero: the player's walking base (Mobile). The server moves it from the player's input (Commander sends
+    -- the held direction); it has no body, so its position is written directly. =====
+
+    @ExecSpace("ServerOnly")
+    method void SetHeroMove(integer dir)
+        -- The direction the player holds: -1 = left, 0 = none, 1 = right.
+        if self.Mobile == false then return end
+        if dir > 0 then dir = 1 elseif dir < 0 then dir = -1 end
+        self._T.heroDir = dir
+    end
+
+    method number GetGroundY()
+        -- Height of the floor this unit counts as standing on: for the hero the floor under it (also while it falls
+        -- off a ledge, so that does not take it out of the fight); for everything else its own height.
+        local floorY = self._T.heroFloorY
+        if self.Mobile and floorY ~= nil then return floorY end
+        return self.Entity.TransformComponent.WorldPosition.y
+    end
+
+    @ExecSpace("ServerOnly")
+    method void TickHero(number delta, number x, number y)
+        -- Moves the hero one frame: walks in the held direction along the floor (never through an enemy, never behind
+        -- its own portal, never off the field) and falls off ledges until it lands on a floor. It cannot jump.
+        ---@type BattleDirector
+        local director = self.Director
+        local transform = self.Entity.TransformComponent
+        -- The base stands in the map at some height above its floor (its sprite's pivot); that offset is kept.
+        if self._T.heroOffsetY == nil then
+            local startFloor = director:FloorYProbe(x, y, _BattleConfig.FloorProbeUp, _BattleConfig.FloorProbeDown, y)
+            self._T.heroOffsetY = y - startFloor
+            self._T.heroFloorY = startFloor
+            log("[BattleUnit] " .. self.Entity.Name .. " hero ready x=" .. string.format("%.2f", x) .. " floorY=" .. string.format("%.2f", startFloor) .. " offsetY=" .. string.format("%.2f", self._T.heroOffsetY))
+        end
+        local offsetY = self._T.heroOffsetY
+        local foot = y - offsetY
+        local dir = self._T.heroDir or 0
+        local vy = self._T.heroVy
+        local nx = x
+        if dir ~= 0 then
+            local limit = director:GetHeroLimitX(self.Team, x, self._T.heroFloorY, dir)
+            nx = x + dir * _BattleConfig.HeroMoveSpeed * delta
+            -- Only ever stopped at the limit, never pulled back to it (an enemy may have walked up closer than the gap).
+            if dir > 0 then
+                nx = math.min(nx, math.max(x, limit))
+            else
+                nx = math.max(nx, math.min(x, limit))
+            end
+        end
+        if vy == nil then
+            -- On a floor: follow it (slopes), or start falling where it ends in a drop. No floor at all = no step.
+            local floorY = director:FloorYProbe(nx, foot, _BattleConfig.FloorProbeUp, _BattleConfig.FloorProbeDown, nil)
+            if floorY == nil then
+                nx = x
+            elseif floorY < foot - _BattleConfig.HeroStepDown then
+                vy = 0
+            else
+                foot = floorY
+            end
+        end
+        if vy ~= nil then
+            vy = vy - _BattleConfig.HeroGravity * delta
+            local nextFoot = foot + vy * delta
+            if vy <= 0 then
+                -- Falling: lands on the first floor between where the feet were and where they would be now.
+                local landY = director:FloorYProbe(nx, foot, 0.02, _BattleConfig.FloorProbeDown, nil)
+                if landY ~= nil and landY >= nextFoot then
+                    foot = landY
+                    vy = nil
+                elseif landY == nil and nextFoot < director:GetLowestFloorY() - 3 then
+                    -- Fell out of the map (a gap in the floor): back onto the floor it last stood on.
+                    nx = self._T.heroSafeX or x
+                    foot = self._T.heroFloorY or foot
+                    vy = nil
+                    log_warning("[BattleUnit] " .. self.Entity.Name .. " hero fell out of the field, put back at x=" .. string.format("%.2f", nx))
+                else
+                    foot = nextFoot
+                end
+            else
+                foot = nextFoot
+            end
+        end
+        self._T.heroVy = vy
+        if vy == nil then
+            self._T.heroFloorY = foot
+            self._T.heroSafeX = nx
+        else
+            -- In the air the hero still belongs to the floor under it.
+            local under = director:FloorYProbe(nx, foot, 0.02, _BattleConfig.FloorProbeDown, nil)
+            if under ~= nil then self._T.heroFloorY = under end
+        end
+        local ny = foot + offsetY
+        if nx ~= x or ny ~= y then transform.WorldPosition = Vector3(nx, ny, transform.WorldPosition.z) end
+        -- Presentation: the move clip while walking, and the sprite turned the way it walks (sprites face left).
+        local moving = nx ~= x
+        if moving ~= (self._T.heroMoving == true) then
+            self._T.heroMoving = moving
+            if moving then self:SetAnim("move") else self:SetAnim("stand") end
+        end
+        if dir ~= 0 and dir ~= self._T.heroFace then
+            self._T.heroFace = dir
+            local size = self._T.heroSize or 1
+            transform.Scale = Vector3(-dir * size, size, 1)
         end
     end
 
@@ -345,8 +465,9 @@ script BattleUnit extends Component
         -- Damages one unit with this unit's attack through the damage pipeline (_BattleEffects:DealHit: this unit's
         -- effects, the attribute bonus, the target's effects), then rolls this unit's on_hit effect rules on it.
         if _BattleEffects:DealHit(self, target, self.AttackPower, "attack") < 0 then return end
-        -- The base is hit through its portal on this unit's floor: clients fly a particle from that portal to the base.
-        if target.Kind == "base" and self.Director ~= nil then
+        -- A fixed base is hit through its portal on this unit's floor: clients fly a particle from that portal to the
+        -- base. (A walking base is hit where it stands.)
+        if target.Kind == "base" and target.Mobile == false and self.Director ~= nil then
             local here = self.Entity.TransformComponent.WorldPosition
             self.Director:ShowPortalHit(target.Team, here.x, here.y)
         end

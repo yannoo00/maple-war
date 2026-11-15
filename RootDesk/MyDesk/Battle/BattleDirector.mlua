@@ -7,7 +7,9 @@ script BattleDirector extends Component
     --
     -- Field layout (read from the map, so it can be edited in Maker without code changes):
     --   AllyBase / EnemyBase            = each side's base (BattleUnit + BattleSide). Only a base has HP; when it falls the
-    --                                     battle ends. The player's base is Papulatus.
+    --                                     battle ends. The player's base is Papulatus, and it walks: the player moves it
+    --                                     (arrow keys; no jump), enemies attack it where it stands, and it can go no
+    --                                     further back than its own portal. The enemy base stays where the map put it.
     --   AllyPortal, AllyPortal_1 ...    = team 1's spawn portals (up to BattleConfig.MaxPortals), EnemyPortal... = team 2's.
     --                                     A portal has no HP and is never a target. Monsters come out of the portal the
     --                                     player picked and walk toward the enemy side.
@@ -29,9 +31,9 @@ script BattleDirector extends Component
     -- CameraOffsetY = how far the view is moved up (+) or down (-) in world units (1 = 100 px).
     @Sync property number CameraZoom = 100
     @Sync property number CameraOffsetY = 0
-    -- CameraUseStart = on: the view starts with CameraStart (world position, 1 = 100 px) at the centre of the screen.
-    -- x is only where the view starts (it still scrolls, and is kept inside the scroll range); y stays fixed for the
-    -- whole battle and replaces CameraOffsetY. Off: the view starts on the ally side as before.
+    -- CameraUseStart = on: the view is centred on the height CameraStart.y (world position, 1 = 100 px).
+    -- Only y is used in a battle: it stays fixed for the whole battle and replaces CameraOffsetY. x follows the
+    -- player's walking base (Commander), kept inside the field.
     @Sync property boolean CameraUseStart = false
     @Sync property Vector2 CameraStart = Vector2(0, 0)
     property string AllyPortalPrefix = "AllyPortal"
@@ -105,6 +107,9 @@ script BattleDirector extends Component
         end
         self._T.sides[team] = entity:GetComponent("script.BattleSide")
         self._T.bases[team] = entity:GetComponent("script.BattleUnit")
+        -- Where the base stands in the map: a walking base goes back there at every battle start.
+        if self._T.baseHome == nil then self._T.baseHome = {} end
+        self._T.baseHome[team] = entity.TransformComponent.WorldPosition
         if self._T.sides[team] == nil then log_error("[BattleDirector] base has no BattleSide: " .. entityName) end
     end
 
@@ -165,9 +170,15 @@ script BattleDirector extends Component
     method any FloorYBelow(number x, number y, any fallback)
         -- Returns the height of the first floor (foothold) at or below the point (x, y), or fallback when there is none
         -- within reach. The ray starts a little above the point so a point lying on the floor still finds it.
+        return self:FloorYProbe(x, y, _BattleConfig.FloorProbeUp, _BattleConfig.FloorProbeDown, fallback)
+    end
+
+    method any FloorYProbe(number x, number y, number up, number down, any fallback)
+        -- Returns the height of the first floor (foothold) met by a ray going down from `up` above the point (x, y)
+        -- for `down` world units, or fallback when it meets none.
         local footholds = self.Entity.FootholdComponent
         if not isvalid(footholds) then return fallback end
-        local hit = footholds:Raycast(Vector2(x, y + _BattleConfig.FloorProbeUp), Vector2(0, -1), _BattleConfig.FloorProbeDown)
+        local hit = footholds:Raycast(Vector2(x, y + up), Vector2(0, -1), down)
         if hit == nil then return fallback end
         local a = hit.StartPoint
         local b = hit.EndPoint
@@ -229,9 +240,84 @@ script BattleDirector extends Component
     end
 
     method number GetBaseX(integer team)
-        -- Returns the x position of a team's base.
+        -- Returns the x position of a team's base: where a walking base (the hero) stands right now on the server,
+        -- else the position read from the map.
+        local bases = self._T.bases
+        if bases ~= nil then
+            local base = bases[team]
+            if base ~= nil and base.Mobile and isvalid(base.Entity) then return base.Entity.TransformComponent.WorldPosition.x end
+        end
         if team == 1 then return self.AllyBaseX end
         return self.EnemyBaseX
+    end
+
+    @ExecSpace("ServerOnly")
+    method number GetHeroLimitX(integer team, number x, any floorY, integer moveDir)
+        -- Returns how far team's hero standing at x on floor floorY may walk in moveDir (+1 right, -1 left): up to
+        -- HeroBlockGap in front of the nearest enemy monster / build that way on its floor (it never walks through one),
+        -- and no further than the enemy portal of that floor when walking forward, its own portal of that floor
+        -- (HeroBackMargin in front of it) when walking back, or the end of the field.
+        local y = floorY or self.GroundY
+        local forward = moveDir == self:GetDirection(team)
+        local limit = self.FieldMaxX
+        if moveDir < 0 then limit = self.FieldMinX end
+        if forward then
+            local portal = self:FindPortalOnFloor(3 - team, x, y, 100000)
+            if portal ~= nil then limit = portal.x - moveDir * _BattleConfig.HeroBlockGap end
+        else
+            local portal = self:FindPortalOnFloor(team, x, y, 100000)
+            if portal ~= nil then limit = portal.x - moveDir * _BattleConfig.HeroBackMargin end
+        end
+        for _, unit in ipairs(self._T.units) do
+            if unit.Team ~= team and unit.Kind ~= "base" and unit.IsDead == false and isvalid(unit.Entity) then
+                local pos = unit.Entity.TransformComponent.WorldPosition
+                if (pos.x - x) * moveDir >= 0 and self:SameFloor(pos.y, y) then
+                    local stop = pos.x - moveDir * _BattleConfig.HeroBlockGap
+                    if (stop - limit) * moveDir < 0 then limit = stop end
+                end
+            end
+        end
+        return limit
+    end
+
+    @ExecSpace("ServerOnly")
+    method void SetHeroMove(integer team, integer dir)
+        -- Player path: the direction the player holds for their walking base (-1 / 0 / 1).
+        ---@type BattleUnit
+        local base = self._T.bases[team]
+        if base == nil or self.State ~= "PLAYING" then return end
+        base:SetHeroMove(dir)
+    end
+
+    @ExecSpace("ServerOnly")
+    method boolean IsHeldByHero(integer team, number x, number y)
+        -- True when a unit of team at (x, y) may not walk on because the enemy's walking base stands right in front of
+        -- it on its floor (closer than HeroBlockGap): units never walk through the hero, as it never walks through them.
+        ---@type BattleUnit
+        local base = self._T.bases[3 - team]
+        if base == nil or base.Mobile == false or base.IsDead or base.Ready == false then return false end
+        if self:SameFloor(base:GetGroundY(), y) == false then return false end
+        local ahead = (base.Entity.TransformComponent.WorldPosition.x - x) * self:GetDirection(team)
+        return ahead >= 0 and ahead <= _BattleConfig.HeroBlockGap
+    end
+
+    @ExecSpace("ServerOnly")
+    method any GetBaseReach(integer team, number x, number y, number range)
+        -- Returns the distance at which a unit of team standing at (x, y) reaches the enemy base within range, or nil
+        -- when it cannot. A walking base is reached where it stands (on its floor); a fixed base through its portal
+        -- on the unit's floor.
+        ---@type BattleUnit
+        local base = self._T.bases[3 - team]
+        if base == nil or base.IsDead or base.Ready == false then return nil end
+        if base.Mobile then
+            if self:SameFloor(base:GetGroundY(), y) == false then return nil end
+            local dist = math.abs(base.Entity.TransformComponent.WorldPosition.x - x)
+            if dist <= range then return dist end
+            return nil
+        end
+        local portal = self:FindPortalOnFloor(3 - team, x, y, range)
+        if portal == nil then return nil end
+        return math.abs(portal.x - x)
     end
 
     method number GetBackLimitX(integer team, number y)
@@ -381,6 +467,10 @@ script BattleDirector extends Component
             local base = self._T.bases[team]
             -- Team 1 is the player: its base plays its row's clips. The stage AI's base keeps its map sprite.
             base.UseRowClips = team == 1
+            -- The player's base walks (the hero); it starts every battle where the map put it. The enemy's stays fixed.
+            base.Mobile = team == 1
+            local home = self._T.baseHome[team]
+            if base.Mobile and home ~= nil then base.Entity.TransformComponent.WorldPosition = home end
             base:Setup(team, baseCfgs[team].id, baseCfgs[team], self)
             table.insert(self._T.units, base)
         end
@@ -682,11 +772,8 @@ script BattleDirector extends Component
                 end
             end
         end
-        local base = self._T.bases[3 - team]
-        if base ~= nil and base.IsDead == false and base.Ready then
-            local portal = self:FindPortalOnFloor(3 - team, x, y, range)
-            if portal ~= nil and (best == nil or math.abs(portal.x - x) < bestDist) then best = base end
-        end
+        local reach = self:GetBaseReach(team, x, y, range)
+        if reach ~= nil and (best == nil or reach < bestDist) then best = self._T.bases[3 - team] end
         return best
     end
 
@@ -701,10 +788,7 @@ script BattleDirector extends Component
                 if self:SameFloor(pos.y, y) and math.abs(pos.x - x) <= range then table.insert(targets, unit) end
             end
         end
-        local base = self._T.bases[3 - team]
-        if base ~= nil and base.IsDead == false and base.Ready and self:FindPortalOnFloor(3 - team, x, y, range) ~= nil then
-            table.insert(targets, base)
-        end
+        if self:GetBaseReach(team, x, y, range) ~= nil then table.insert(targets, self._T.bases[3 - team]) end
         return targets
     end
 
@@ -712,7 +796,7 @@ script BattleDirector extends Component
     method Vector2 GetAimPoint(integer team, any target, number x, number y)
         -- Returns the point a unit of team at (x, y) aims at to hit target: the target's own position, or for the enemy
         -- base the enemy portal on the attacker's floor (its x and floor height) that the attack goes through.
-        if target.Kind == "base" then
+        if target.Kind == "base" and target.Mobile == false then
             local portal = self:FindPortalOnFloor(target.Team, x, y, 100000)
             if portal ~= nil then return Vector2(portal.x, portal.floorY) end
         end

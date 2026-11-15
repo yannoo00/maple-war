@@ -693,7 +693,8 @@ script BattleFx extends Logic
         local unit = entity:GetComponent("script.BattleUnit")
         if unit == nil or unit.UnitId == "" then return y end
         local cfg = _BattleConfig:GetUnit(unit.UnitId)
-        if cfg == nil or cfg.kind ~= "base" then return y end
+        -- A walking base stands on the lane itself.
+        if cfg == nil or cfg.kind ~= "base" or unit.Mobile then return y end
         local parent = entity.Parent
         if not isvalid(parent) then return y end
         ---@type BattleDirector
